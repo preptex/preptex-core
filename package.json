@@ -1,0 +1,48 @@
+{
+  "name": "@preptex/core",
+  "version": "0.1.0",
+  "description": "Core library for processing LaTeX projects: read main file, parse with call-stack, and export artifacts with configurable options.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/preptex/preptex-core.git"
+  },
+  "bugs": {
+    "url": "https://github.com/preptex/preptex-core/issues"
+  },
+  "homepage": "https://github.com/preptex/preptex-core#readme",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "powershell -NoProfile -Command \"if (Test-Path dist) { Remove-Item -Recurse -Force dist }\"",
+    "format": "prettier --write .",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "prettier": "^3.2.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.0.0"
+  }
+}
