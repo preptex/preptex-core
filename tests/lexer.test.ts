@@ -10,18 +10,18 @@ describe('Lexer', () => {
     expect(collectPairs(lex)).toEqual([
       [TokenType.Comment, '% comment line'],
       [TokenType.Text, '\n'],
-      [TokenType.BeginEnv, 'doc'],
+      [TokenType.Environment, 'begin'],
       [TokenType.Text, 'Text '],
-      [TokenType.If, 'ifXYZ'],
+      [TokenType.Condition, 'ifXYZ'],
       [TokenType.Text, ' more '],
-      [TokenType.Else, 'else'],
+      [TokenType.Condition, 'else'],
       [TokenType.Text, ' alt '],
-      [TokenType.Fi, 'fi'],
-      [TokenType.LBrace, '{'],
+      [TokenType.Condition, 'fi'],
+      [TokenType.Brace, '{'],
       [TokenType.Text, 'inner'],
-      [TokenType.RBrace, '}'],
+      [TokenType.Brace, '}'],
       [TokenType.Text, ' '],
-      [TokenType.EndEnv, 'doc'],
+      [TokenType.Environment, 'end'],
     ]);
   });
 
@@ -49,7 +49,7 @@ describe('Lexer', () => {
     const out: { type: TokenType; value: string }[] = [];
     let t;
     while ((t = lex.next())) out.push(t);
-    expect(out.map((o) => o.type)).toEqual([TokenType.If]);
+    expect(out.map((o) => o.type)).toEqual([TokenType.Condition]);
     expect(out[0].value).toBe('ifXYZ');
   });
 
@@ -84,5 +84,18 @@ describe('Lexer', () => {
     const pairs = collectPairs(lex);
     expect(pairs.map((p) => p[0])).toEqual([TokenType.Text]);
     expect(pairs[0][1]).toBe(input);
+  });
+
+  it('teses escapables vs escapables as prefixes', () => {
+    const input = '\n \t\\text{abc}\\%abc';
+    const lex = new Lexer(input);
+    expect(collectPairs(lex)).toEqual([
+      [TokenType.Text, '\n \t'],
+      [TokenType.Command, 'text'],
+      [TokenType.Brace, '{'],
+      [TokenType.Text, 'abc'],
+      [TokenType.Brace, '}'],
+      [TokenType.Text, '\\%abc'],
+    ]);
   });
 });
