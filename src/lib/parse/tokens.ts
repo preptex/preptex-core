@@ -1,19 +1,22 @@
 // Lexer is intentionally options-free; suppression and transforms are handled post-lexing.
 
 export enum TokenType {
-  BeginEnv = 'BeginEnv',
-  EndEnv = 'EndEnv',
-  If = 'If',
-  Else = 'Else',
-  Fi = 'Fi',
+  Environment = 'Environment',
+  Condition = 'Condition',
   Command = 'Command',
-  LBrace = 'LBrace',
-  RBrace = 'RBrace',
-  LBracket = 'LBracket',
-  RBracket = 'RBracket',
+  Brace = 'Brace',
+  Bracket = 'Bracket',
   Comment = 'Comment',
   MathDelim = 'MathDelim',
   Text = 'Text',
+}
+
+export const ALL_TOKEN_TYPES: ReadonlySet<TokenType> = new Set(
+  Object.values(TokenType) as TokenType[]
+);
+
+export function getAllTokenTypes(): TokenType[] {
+  return [...ALL_TOKEN_TYPES];
 }
 
 export interface Token {
@@ -21,21 +24,46 @@ export interface Token {
   value: string;
   start: number;
   end: number;
+  // Optional metadata for certain token types (e.g., Environment name)
+  name?: string;
 }
 
 // Characters that can follow a backslash and should be treated as literal text pairs ("\\X")
 // rather than starting a command. Keep this local unless shared across modules.
-const ESCAPABLE_TEXT_CHARS = new Set([' ', '\\', '%', '{', '}', '$', 'n', 't']);
+const ESCAPABLE_TEXT_CHARS = new Set([' ', '\\', '%', '{', '}', '$']);
 
 // Single-character command names that represent math delimiters, e.g. \\[ \\] \\( \\)
 const MATH_DELIM_COMMANDS = new Set(['[', ']', '(', ')']);
+
+export interface LexerOptions {
+  enabledTokens?: Set<TokenType>;
+  // When true (default), backslash+letter is escapable only if the following char is NOT a letter.
+  // When false, backslash+letter always starts a command.
+}
 
 export class Lexer {
   private pos = 0;
   private current: Token | null = null;
   private pending: Token[] = [];
 
-  constructor(private input: string) {}
+  constructor(
+    private input: string,
+    private opts: LexerOptions = {}
+  ) {}
+
+  private shouldEmit(t: Token): boolean {
+    const enabled = this.opts.enabledTokens;
+    return !enabled || enabled.has(t.type);
+  }
+
+  private isEscapablePair(nextChar: string | undefined): boolean {
+    if (!nextChar) return false;
+    // Non-letter escapables: always treated as text pairs
+    if (ESCAPABLE_TEXT_CHARS.has(nextChar)) return true;
+    // English letters: NEVER escapable — always start a command
+    if (/^[A-Za-z]$/.test(nextChar)) return false;
+    return false;
+  }
 
   peek(): Token | null {
     return this.current;
@@ -53,15 +81,33 @@ export class Lexer {
     // Do not skip whitespace: whitespace is part of Text tokens.
     if (this.pos >= this.input.length) return (this.current = null);
     const ch = this.input[this.pos];
-    if (ch === '%') return this.readComment();
-    if (ch === '$') return this.readDollarDelim();
-    if (ch === '{' || ch === '}') return this.readBrace(ch);
-    if (ch === '[' || ch === ']') return this.readBracket(ch);
+    if (ch === '%') {
+      const t = this.readComment();
+      if (t && this.shouldEmit(t)) return t;
+      return this.readText();
+    }
+    if (ch === '$') {
+      const t = this.readDollarDelim();
+      if (this.shouldEmit(t)) return t;
+      return this.readText();
+    }
+    if (ch === '{' || ch === '}') {
+      const t = this.readBrace(ch);
+      if (this.shouldEmit(t)) return t;
+      return this.readText();
+    }
+    if (ch === '[' || ch === ']') {
+      const t = this.readBracket(ch);
+      if (this.shouldEmit(t)) return t;
+      return this.readText();
+    }
     if (ch === '\\') {
       const nextChar = this.pos + 1 < this.input.length ? this.input[this.pos + 1] : '';
-      const escAsText = nextChar && ESCAPABLE_TEXT_CHARS.has(nextChar);
+      const escAsText = this.isEscapablePair(nextChar);
       if (!nextChar || !escAsText) {
-        return this.readCommand();
+        const t = this.readCommand();
+        if (this.shouldEmit(t)) return t;
+        return this.readText();
       }
     }
     return this.readText();
@@ -79,15 +125,13 @@ export class Lexer {
   private readBrace(ch: string): Token {
     const start = this.pos;
     this.pos++;
-    const type = ch === '{' ? TokenType.LBrace : TokenType.RBrace;
-    return (this.current = { type, value: ch, start, end: this.pos });
+    return (this.current = { type: TokenType.Brace, value: ch, start, end: this.pos });
   }
 
   private readBracket(ch: string): Token {
     const start = this.pos;
     this.pos++;
-    const type = ch === '[' ? TokenType.LBracket : TokenType.RBracket;
-    return (this.current = { type, value: ch, start, end: this.pos });
+    return (this.current = { type: TokenType.Bracket, value: ch, start, end: this.pos });
   }
 
   private readDollarDelim(): Token {
@@ -132,9 +176,9 @@ export class Lexer {
       const delim = `\\${name}`;
       return { type: TokenType.MathDelim, value: delim, start, end };
     }
-    if (name === 'else') return { type: TokenType.Else, value: name, start, end };
-    if (name === 'fi') return { type: TokenType.Fi, value: name, start, end };
-    if (name.startsWith('if')) return { type: TokenType.If, value: name, start, end };
+    if (name === 'else') return { type: TokenType.Condition, value: name, start, end };
+    if (name === 'fi') return { type: TokenType.Condition, value: name, start, end };
+    if (name.startsWith('if')) return { type: TokenType.Condition, value: name, start, end };
     if (name === 'begin') return this.readEnvironment(start, true);
     if (name === 'end') return this.readEnvironment(start, false);
     return { type: TokenType.Command, value: name, start, end };
@@ -157,8 +201,9 @@ export class Lexer {
     if (this.input[this.pos] === '}') this.pos++;
     const end = this.pos;
     return (this.current = {
-      type: isBegin ? TokenType.BeginEnv : TokenType.EndEnv,
-      value: envName,
+      type: TokenType.Environment,
+      value: isBegin ? 'begin' : 'end',
+      name: envName,
       start: beginStart,
       end,
     });
@@ -171,7 +216,7 @@ export class Lexer {
       if (c === '%' || c === '{' || c === '}' || c === '[' || c === ']' || c === '$') break;
       if (c === '\\') {
         const nextChar = this.pos + 1 < this.input.length ? this.input[this.pos + 1] : '';
-        const escAsText = nextChar && ESCAPABLE_TEXT_CHARS.has(nextChar);
+        const escAsText = this.isEscapablePair(nextChar);
         if (!nextChar) break; // solitary at EOF -> let readCommand produce Command('')
         if (escAsText) {
           this.pos += 2; // consume escaped pair as text
