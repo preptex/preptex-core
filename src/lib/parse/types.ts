@@ -17,6 +17,8 @@ export interface NodeBase {
   end: number;
 }
 
+// Use NodeType directly for stack context tagging (Math, Env, If, Group)
+
 export interface AstRoot extends NodeBase {
   type: NodeType.Root;
   children: AstNode[];

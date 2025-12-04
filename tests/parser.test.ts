@@ -127,7 +127,6 @@ describe('Parser', () => {
     const math = env.children[0] as any;
     expect(math.type).toBe('Math');
     expect(math.delim).toBe('\\[');
-    console.log(math.children);
     expect(math.children.length).toBe(6);
     const mc = math.children;
     expect(mc[0].type).toBe('Command');
