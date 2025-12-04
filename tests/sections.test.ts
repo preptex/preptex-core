@@ -14,7 +14,6 @@ describe('Parser sections', () => {
     expect(secA.level).toBe(1);
 
     const secAc = secA.children;
-    console.log(secAc);
     expect(secAc.length).toBe(3);
     expect((secAc[0] as any).type).toBe('Group');
     expect((secAc[0] as any).children[0].type).toBe('Text');

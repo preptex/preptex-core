@@ -3,12 +3,7 @@ import { AstNode, AstRoot, NodeType } from './types';
 import { CoreOptions, Artifact } from '../options';
 import { Lexer, TokenType } from './tokens';
 import { sanityCheck } from './sanity';
-
-export const SECTION_LEVELS: Record<string, number> = {
-  section: 1,
-  subsection: 2,
-  subsubsection: 3,
-} as const;
+import { SECTION_LEVELS } from './constants';
 
 export class Parser {
   private handlers: Map<TokenType, (token: any) => void> = new Map();
