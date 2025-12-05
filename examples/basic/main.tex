@@ -1,5 +1,22 @@
+\newif \iflong
+\newif \ifshort
+\longtrue
 % Example LaTeX file
 \documentclass{article}
+
+\usepackage{comment}
+
 \begin{document}
 Hello, PrepTeX!
+\begin{comment}
+    some comment
+\end{comment}
+\iflong
+Long version
+\fi
+\ifshort
+Short version
+\else
+Not short version
+\fi
 \end{document}

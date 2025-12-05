@@ -1,0 +1,49 @@
+{
+  "name": "@preptex/core",
+  "version": "0.1.0",
+  "description": "Core library for processing LaTeX projects: parse with call-stack, transform text, and export artifacts with configurable options.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/preptex/preptex-core.git"
+  },
+  "bugs": {
+    "url": "https://github.com/preptex/preptex-core/issues"
+  },
+  "homepage": "https://github.com/preptex/preptex-core#readme",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "powershell -NoProfile -Command \"if (Test-Path dist) { Remove-Item -Recurse -Force dist }\"",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "optionalDependencies": {
+    "@esbuild/linux-x64": "0.21.5",
+    "@esbuild/win32-x64": "0.21.5",
+    "@rollup/rollup-linux-x64-gnu": "4.53.3",
+    "@rollup/rollup-win32-x64-msvc": "4.53.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@vitest/coverage-v8": "^2.1.9",
+    "prettier": "^3.2.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.0.0"
+  }
+}

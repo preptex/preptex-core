@@ -1,0 +1,25 @@
+{
+  "name": "@preptex/cli",
+  "version": "0.1.0",
+  "description": "CLI utilities for PrepTeX core parser and transformer.",
+  "license": "MIT",
+  "dependencies": {
+    "@preptex/core": "file:../core"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@vitest/coverage-v8": "^2.1.9"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "start": "node ./dist/cli.js",
+    "dev": "ts-node src/cli.ts"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "preptex": "./dist/cli.js"
+  }
+}
