@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { Lexer, TokenType } from '../src/lib/parse/tokens';
-import { collectPairs } from './util';
+import { Lexer, TokenType } from '../../src/lib/parse/tokens';
+import { collectPairs } from '../util';
 
 const sample = `% comment line\n\\begin{doc}Text \\ifXYZ more \\else alt \\fi{inner} \\end{doc}`;
 
