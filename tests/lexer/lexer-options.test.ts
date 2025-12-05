@@ -6,9 +6,9 @@ describe('Lexer options: enabledTokens', () => {
   it('emits all by default (no options)', () => {
     const input = '\n text $x$ \\% \\text{a}';
     const lex = new Lexer(input);
-    const pairs = collectPairs(lex);
+    const tokens = collectPairs(lex);
     // Basic sanity: should contain Command and MathDelim
-    const types = pairs.map(([t]) => t);
+    const types = tokens.map((t) => t.type);
     expect(types).toContain(TokenType.Command);
     expect(types).toContain(TokenType.MathDelim);
   });
@@ -22,8 +22,8 @@ describe('Lexer options: enabledTokens', () => {
       TokenType.Comment,
     ]);
     const lex = new Lexer(input, { enabledTokens: enabled });
-    const pairs = collectPairs(lex);
-    const types = pairs.map(([t]) => t);
+    const tokens = collectPairs(lex);
+    const types = tokens.map((t) => t.type);
     expect(types).not.toContain(TokenType.Command);
     // Expect Text around braces and inside group
     expect(types.filter((t) => t === TokenType.Text).length).toBeGreaterThan(0);
@@ -38,23 +38,23 @@ describe('Lexer options: enabledTokens', () => {
       TokenType.Brace,
     ]);
     const lex = new Lexer(input, { enabledTokens: enabled });
-    const pairs = collectPairs(lex);
-    const math = pairs.filter(([t]) => t === TokenType.MathDelim);
+    const tokens = collectPairs(lex);
+    const math = tokens.filter((t) => t.type === TokenType.MathDelim);
     expect(math.length).toBe(0);
     // Should collapse into Text since math delims are suppressed
-    const types = pairs.map(([t]) => t);
+    const types = tokens.map((t) => t.type);
     expect(types).toContain(TokenType.Text);
   });
 
   it('letter escapable rule is inherent (\\+letter always starts a command)', () => {
     const input = '\\n X \\next';
     const lex = new Lexer(input);
-    const pairs = collectPairs(lex);
-    const types = pairs.map(([t]) => t);
+    const tokens = collectPairs(lex);
+    const types = tokens.map((t) => t.type);
     // \\n followed by space -> single-letter Command('n') then Text
     expect(types[0]).toBe(TokenType.Command);
     // \\next -> Command('next')
-    const cmdNames = pairs.filter(([t]) => t === TokenType.Command).map(([, v]) => v);
+    const cmdNames = tokens.filter((t) => t.type === TokenType.Command).map((t) => t.name);
     expect(cmdNames).toContain('next');
   });
 });

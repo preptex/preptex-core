@@ -16,6 +16,8 @@ describe('Parser sections', () => {
     const secAc = secA.children;
     expect(secAc.length).toBe(3);
     expect((secAc[0] as any).type).toBe('Group');
+    expect((secAc[0] as any).prefix).toBe('{');
+    expect((secAc[0] as any).suffix).toBe('}');
     expect((secAc[0] as any).children[0].type).toBe('Text');
     expect((secAc[0] as any).children[0].value).toBe('A');
     expect((secAc[1] as any).type).toBe('Text');
@@ -26,6 +28,8 @@ describe('Parser sections', () => {
     expect(secB.level).toBe(2);
     expect(secB.children.length).toBe(2);
     expect((secB.children[0] as any).type).toBe('Group');
+    expect((secB.children[0] as any).prefix).toBe('{');
+    expect((secB.children[0] as any).suffix).toBe('}');
     expect((secB.children[0] as any).children[0].type).toBe('Text');
     expect((secB.children[0] as any).children[0].value).toBe('B');
     expect((secB.children[1] as any).type).toBe('Text');
@@ -36,6 +40,8 @@ describe('Parser sections', () => {
     expect(secC.level).toBe(1);
     expect(secC.children.length).toBe(1);
     expect((secC.children[0] as any).type).toBe('Group');
+    expect((secC.children[0] as any).prefix).toBe('{');
+    expect((secC.children[0] as any).suffix).toBe('}');
     expect((secC.children[0] as any).children[0].type).toBe('Text');
     expect((secC.children[0] as any).children[0].value).toBe('C');
   });

@@ -1,8 +1,9 @@
-import { Lexer, TokenType } from '../src/lib/parse/tokens';
+import { Lexer, type Token } from '../src/lib/parse/tokens';
 
-export function collectPairs(lex: Lexer): Array<[TokenType, string]> {
-  const out: Array<[TokenType, string]> = [];
-  let t;
-  while ((t = lex.next())) out.push([t.type, t.value]);
+// Collect all tokens with full data as produced by the lexer
+export function collectPairs(lex: Lexer): Token[] {
+  const out: Token[] = [];
+  let t: Token | null;
+  while ((t = lex.next())) out.push(t);
   return out;
 }

@@ -5,10 +5,26 @@ export enum NodeType {
   Command = 'Command',
   Environment = 'Environment',
   Condition = 'Condition',
+  ConditionBranch = 'ConditionBranch',
   Math = 'Math',
   Group = 'Group',
   Section = 'Section',
   Input = 'Input',
+}
+
+export const INNER_NODE_TYPES: Set<NodeType> = new Set([
+  NodeType.Root,
+  NodeType.Environment,
+  NodeType.Condition,
+  NodeType.ConditionBranch,
+  NodeType.Math,
+  NodeType.Group,
+  NodeType.Section,
+]);
+
+export enum ConditionBranchType {
+  If = 'If',
+  Else = 'Else',
 }
 
 export interface NodeBase {
@@ -17,11 +33,18 @@ export interface NodeBase {
   end: number;
 }
 
+// Inner nodes are nodes that can have children
+export interface InnerNode extends NodeBase {
+  children: AstNode[];
+  // textual wrappers around the node when rendering
+  prefix: string;
+  suffix: string;
+}
+
 // Use NodeType directly for stack context tagging (Math, Env, Condition, Group)
 
-export interface AstRoot extends NodeBase {
+export interface AstRoot extends InnerNode {
   type: NodeType.Root;
-  children: AstNode[];
 }
 
 // new / improved node types
@@ -32,52 +55,55 @@ export interface TextNode extends NodeBase {
 
 export interface CommentNode extends NodeBase {
   type: NodeType.Comment;
+  name: string;
   value: string;
 }
 
 export interface CommandNode extends NodeBase {
   type: NodeType.Command;
   name: string;
+  // textual representation of the command itself
+  prefix?: string;
+  suffix?: string;
 }
 
-export interface EnvironmentNode extends NodeBase {
+export interface EnvironmentNode extends InnerNode {
   type: NodeType.Environment;
   name: string;
-  children: AstNode[]; // nested content
   args?: string[];
 }
 
-export interface ConditionNode extends NodeBase {
+export interface ConditionNode extends InnerNode {
   type: NodeType.Condition;
   name: string; // condition name, e.g. the \ifX name
-  // branch children
-  ifChildren: AstNode[];
-  elseChildren: AstNode[]; // empty if none
-  // positions of branches within source
-  ifStart: number;
-  ifEnd?: number;
-  elseStart?: number;
-  elseEnd?: number;
-  // internal routing used by parser; not required for consumers but kept for symmetry
-  children: AstNode[];
+  // children contains one or two ConditionBranch nodes
 }
 
-export interface MathNode extends NodeBase {
+export interface ConditionBranchNode extends InnerNode {
+  type: NodeType.ConditionBranch;
+  name: string; // condition name for convenience
+  branch: ConditionBranchType;
+}
+
+export enum ConditionBranchKind {
+  If = 'If',
+  Else = 'Else',
+}
+
+export interface MathNode extends InnerNode {
   type: NodeType.Math;
   delim: string; // "$", "$$", "\(", "\[", etc
-  children: AstNode[]; // parsed nested content inside math
+  // children: parsed nested content inside math
 }
 
-export interface GroupNode extends NodeBase {
+export interface GroupNode extends InnerNode {
   type: NodeType.Group;
-  children: AstNode[];
 }
 
-export interface SectionNode extends NodeBase {
+export interface SectionNode extends InnerNode {
   type: NodeType.Section;
   level: 1 | 2 | 3 | 4 | 5; // 1=\section, 2=\subsection, 3=\subsubsection, 4=\paragraph, 5=\subparagraph
   starred?: boolean; // \section* variant
-  children: AstNode[];
 }
 
 export interface InputNode extends NodeBase {
@@ -94,6 +120,7 @@ export type AstNode =
   | CommandNode
   | EnvironmentNode
   | ConditionNode
+  | ConditionBranchNode
   | MathNode
   | GroupNode
   | SectionNode
