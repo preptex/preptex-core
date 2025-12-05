@@ -1,5 +1,5 @@
 import { CallStack } from './callstack';
-import { AstNode, AstRoot, NodeType } from './types';
+import { AstNode, InnerNode, AstRoot, NodeType, ConditionBranchType } from './types';
 import { CoreOptions, Artifact } from '../options';
 import { Lexer, TokenType } from './tokens';
 import { sanityCheck } from './sanity';
@@ -36,18 +36,18 @@ export class Parser {
 
   private handleText(token: any) {
     const parent = this.getParentNode();
-    (parent as any).children.push({
+    (parent as InnerNode).children.push({
       type: NodeType.Text,
       start: token.start,
       end: token.end,
-      value: token.value,
+      value: token.text,
     });
   }
 
   private handleSection(token: any) {
-    const level = SECTION_LEVELS[token.value];
+    const level = SECTION_LEVELS[token.name];
     if (level === undefined) {
-      throw new Error(`Unknown section command: ${token.value}`);
+      throw new Error(`Unknown section command: ${token.name}`);
     }
 
     let parent: AstNode = this.getParentNode() as AstNode;
@@ -68,35 +68,40 @@ export class Parser {
       start: token.start,
       end: token.end,
       children: [],
+      prefix: `\\${token.name}`,
+      suffix: ``,
     } as AstNode;
 
-    (parent as any).children.push(sectionNode);
+    (parent as InnerNode).children.push(sectionNode);
     this.stack.push(sectionNode);
   }
 
   private handleCommand(token: any) {
-    if (token.value in SECTION_LEVELS) {
+    if (token.name in SECTION_LEVELS) {
       this.handleSection(token);
       return;
     }
     const parent = this.getParentNode();
-    (parent as any).children.push({
+    (parent as InnerNode).children.push({
       type: NodeType.Command,
       start: token.start,
       end: token.end,
-      name: token.value,
+      name: token.name,
+      prefix: `\\${token.name}`,
     });
   }
 
   private handleBrace(token: any) {
     const parent = this.getParentNode() as any;
     if (!parent) return;
-    if (token.value === '{') {
+    if (token.name === '{') {
       const group = {
         type: NodeType.Group,
         start: token.start,
         end: token.end,
         children: [],
+        prefix: '{',
+        suffix: '}',
       } as AstNode;
       parent.children.push(group);
       this.stack.push(group);
@@ -104,9 +109,10 @@ export class Parser {
       this.stack.pop();
     }
   }
+
   private handleEnvironment(token: any) {
     const parent = this.getParentNode() as any;
-    const isBegin = token.value === 'begin';
+    const isBegin = !!token.isBegin;
     const name = token.name as string;
     if (isBegin) {
       const envNode = {
@@ -115,6 +121,8 @@ export class Parser {
         start: token.start,
         end: token.end,
         children: [],
+        prefix: `\\begin{${name}}`,
+        suffix: `\\end{${name}}`,
       } as AstNode;
       parent.children.push(envNode);
       this.stack.push(envNode);
@@ -126,7 +134,7 @@ export class Parser {
     void _token;
   }
   private handleMathDelim(token: any) {
-    const delim: string = token.value;
+    const delim: string = token.name;
     const top = this.stack.peek() as any;
     if (top === undefined) throw new Error('Stack empty');
     const isDollar = delim === '$' || delim === '$$';
@@ -147,71 +155,104 @@ export class Parser {
       start: token.start,
       end: token.end,
       children: [],
+      prefix: delim,
+      suffix:
+        delim === '$' || delim === '$$'
+          ? delim
+          : delim === '\\['
+            ? '\\]'
+            : delim === '\\('
+              ? '\\)'
+              : delim,
     } as AstNode;
     parent.children.push(mathNode);
     this.stack.push(mathNode);
   }
+
   private handleCondition(_token: any) {
     const token = _token as any;
-    const kind: string = token.value; // e.g., 'ifX', 'else', 'fi'
+    const kind: string = token.name; // 'if', 'else', 'fi'
 
     // Open a new condition node on 'if<Name>' / 'if'
-    if (kind.startsWith('if')) {
+    if (kind === 'if') {
       const parent = this.getParentNode() as any;
-      const name: string = token.name ?? kind.slice(2);
+      const name: string = token.text;
+
+      if (!name) {
+        throw new Error('Condition name missing in ' + kind);
+      }
 
       const conditionNode = {
         type: NodeType.Condition,
         name,
         start: token.start,
         end: token.end,
-        // branch children
-        ifChildren: [] as AstNode[],
-        elseChildren: [] as AstNode[],
-        // branch positions
-        ifStart: token.start,
-        ifEnd: undefined as number | undefined,
-        elseStart: undefined as number | undefined,
-        elseEnd: undefined as number | undefined,
-        // dynamic children reference; handlers will push here
-        children: [] as AstNode[],
+        children: [],
+        prefix: ``,
+        suffix: `\\fi`,
       } as any;
 
-      // initially, children route to the IF branch
-      conditionNode.children = conditionNode.ifChildren;
-
       parent.children.push(conditionNode);
-      // push the condition node itself, similar to grouping behavior
       this.stack.push(conditionNode as AstNode);
+
+      // create IF branch and route children into it by pushing it on the stack
+      const ifBranch = {
+        type: NodeType.ConditionBranch,
+        name,
+        branch: ConditionBranchType.If,
+        start: token.start,
+        end: token.end,
+        children: [],
+        prefix: `\\if${name}`,
+        suffix: ``,
+      } as any;
+      conditionNode.children.push(ifBranch);
+      this.stack.push(ifBranch as AstNode);
       return;
     }
 
     // Switch to ELSE branch
     if (kind === 'else') {
       const top = this.stack.peek() as any;
-      if (!top || top.type !== NodeType.Condition) {
-        throw new Error('Unexpected "else" without an open condition');
+      if (!top || top.type !== NodeType.ConditionBranch || top.branch !== ConditionBranchType.If) {
+        throw new Error('Unexpected "else" without an open IF branch');
       }
-      // mark end of IF and start of ELSE
-      top.ifEnd = token.start - 1;
-      top.elseStart = token.start;
+      // close IF branch
+      top.end = token.start - 1;
+      this.stack.pop();
+      const parent = this.stack.peek() as any;
+      if (!parent || parent.type !== NodeType.Condition) {
+        throw new Error('Unexpected stack state at else');
+      }
+      const elseBranch = {
+        type: NodeType.ConditionBranch,
+        name: parent.name,
+        branch: ConditionBranchType.Else,
+        start: token.start,
+        end: token.end,
+        children: [],
+        prefix: `\\else`,
+        suffix: ``,
+      } as any;
+      parent.children.push(elseBranch);
       // route subsequent children into ELSE branch
-      top.children = top.elseChildren;
+      this.stack.push(elseBranch as AstNode);
       return;
     }
 
     // Close condition on 'fi'
     if (kind === 'fi') {
-      const top = this.stack.peek() as any;
-      if (!top || top.type !== NodeType.Condition) {
+      let top = this.stack.peek() as any;
+      if (!top || top.type !== NodeType.ConditionBranch) {
         throw new Error('Unexpected "fi" without an open condition');
       }
-      // record branch end depending on current routing
-      if (top.children === top.ifChildren) {
-        // no else encountered
-        top.ifEnd = token.end;
-      } else {
-        top.elseEnd = token.end;
+      top.end = token.end;
+      if (top.type === NodeType.ConditionBranch) {
+        this.stack.pop();
+      }
+      top = this.stack.peek() as any;
+      if (!top || top.type !== NodeType.Condition) {
+        throw new Error('Unexpected "fi" without an open condition');
       }
       top.end = token.end;
       this.stack.pop();
@@ -221,6 +262,7 @@ export class Parser {
     // Unknown condition token kind
     throw new Error(`Unknown condition token: ${kind}`);
   }
+
   private handleComment(_token: any) {
     const token = _token as any;
     const parent = this.getParentNode() as any;
@@ -229,7 +271,8 @@ export class Parser {
       type: NodeType.Comment,
       start: token.start,
       end: token.end,
-      value: token.value,
+      name: token.name,
+      value: token.text,
     });
   }
 
@@ -240,7 +283,14 @@ export class Parser {
     const lexer = new Lexer(this.input, sanity.lexerOptions);
     const tokens = Array.from(lexer.stream());
 
-    this.root = { type: NodeType.Root, start: 0, end: this.input.length, children: [] };
+    this.root = {
+      type: NodeType.Root,
+      start: 0,
+      end: this.input.length,
+      children: [],
+      prefix: '',
+      suffix: '',
+    };
     this.stack = new CallStack(this.root);
     this.stack.push(this.root);
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Parser } from '../../src/lib/parse/parser';
-import { NodeType, AstRoot } from '../../src/lib/parse/types';
+import { NodeType, AstRoot, ConditionBranchType } from '../../src/lib/parse/types';
 import type { CoreOptions } from '../../src/lib/options';
 
 function findFirstCondition(root: AstRoot) {
@@ -16,18 +16,23 @@ describe('conditions parsing', () => {
     expect(cond).toBeTruthy();
     expect(cond.type).toBe(NodeType.Condition);
     expect(cond.name).toBe('X');
+    expect(cond.prefix).toBe('');
+    expect(cond.suffix).toBe('\\fi');
 
-    // Branch children
-    const ifChildren = cond.ifChildren as any[];
-    const elseChildren = cond.elseChildren as any[];
-    expect(ifChildren.length).toBeGreaterThan(0);
-    expect(elseChildren.length).toBeGreaterThan(0);
-    expect(ifChildren[0].type).toBe(NodeType.Text);
-    expect(elseChildren[0].type).toBe(NodeType.Text);
-
-    // Positions recorded
-    expect(cond.ifStart).toBeLessThan(cond.ifEnd);
-    expect(cond.elseStart).toBeLessThan(cond.elseEnd);
+    // Branch children now are explicit ConditionBranch nodes
+    const branches = (cond.children as any[]).filter((n) => n.type === NodeType.ConditionBranch);
+    const ifBranch = branches.find((b) => (b as any).branch === ConditionBranchType.If);
+    const elseBranch = branches.find((b) => (b as any).branch === ConditionBranchType.Else);
+    expect(ifBranch).toBeTruthy();
+    expect(elseBranch).toBeTruthy();
+    expect((ifBranch as any).prefix).toBe('\\ifX');
+    expect((ifBranch as any).suffix).toBe('');
+    expect((elseBranch as any).prefix).toBe('\\else');
+    expect((elseBranch as any).suffix).toBe('');
+    expect(ifBranch.children.length).toBeGreaterThan(0);
+    expect(elseBranch.children.length).toBeGreaterThan(0);
+    expect(ifBranch.children[0].type).toBe(NodeType.Text);
+    expect(elseBranch.children[0].type).toBe(NodeType.Text);
   });
 
   it('parses if/fi without else', () => {
@@ -38,15 +43,16 @@ describe('conditions parsing', () => {
     expect(cond).toBeTruthy();
     expect(cond.type).toBe(NodeType.Condition);
     expect(cond.name).toBe('Y');
+    expect(cond.prefix).toBe('');
+    expect(cond.suffix).toBe('\\fi');
 
-    const ifChildren = cond.ifChildren as any[];
-    const elseChildren = cond.elseChildren as any[];
-    expect(ifChildren.length).toBeGreaterThan(0);
-    expect(elseChildren.length).toBe(0);
-
-    // Only IF end should be set; ELSE remains undefined
-    expect(cond.ifEnd).toBeGreaterThan(cond.ifStart);
-    expect(cond.elseStart).toBeUndefined();
-    expect(cond.elseEnd).toBeUndefined();
+    const branches = (cond.children as any[]).filter((n) => n.type === NodeType.ConditionBranch);
+    const ifBranch = branches.find((b) => (b as any).branch === ConditionBranchType.If);
+    const elseBranch = branches.find((b) => (b as any).branch === ConditionBranchType.Else);
+    expect(ifBranch).toBeTruthy();
+    expect((ifBranch as any).prefix).toBe('\\ifY');
+    expect((ifBranch as any).suffix).toBe('');
+    expect((ifBranch as any).children.length).toBeGreaterThan(0);
+    expect(elseBranch).toBeUndefined();
   });
 });

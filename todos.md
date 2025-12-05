@@ -3,5 +3,5 @@
 - Boolean for starred sections
 - User defined commands can have number of args, and optional args
 
-- Parse `\ifX` / `\else` / `\fi`
-- Parse comments and comment env
+- Keep the invariant that a node children intervals form a partition of its interval (excluding its value)
+- handle end of file with inline comment without new line

@@ -7,21 +7,35 @@ const sample = `% comment line\n\\begin{doc}Text \\ifXYZ more \\else alt \\fi{in
 describe('Lexer', () => {
   it('tokenizes sample input', () => {
     const lex = new Lexer(sample);
-    expect(collectPairs(lex)).toEqual([
-      [TokenType.Comment, '% comment line'],
-      [TokenType.Text, '\n'],
-      [TokenType.Environment, 'begin'],
-      [TokenType.Text, 'Text '],
-      [TokenType.Condition, 'ifXYZ'],
-      [TokenType.Text, ' more '],
-      [TokenType.Condition, 'else'],
-      [TokenType.Text, ' alt '],
-      [TokenType.Condition, 'fi'],
-      [TokenType.Brace, '{'],
-      [TokenType.Text, 'inner'],
-      [TokenType.Brace, '}'],
-      [TokenType.Text, ' '],
-      [TokenType.Environment, 'end'],
+    const tokens = collectPairs(lex);
+    // Assert first few tokens carry full data
+    expect(tokens[0].type).toBe(TokenType.Comment);
+    expect(tokens[0].name).toBe('%');
+    expect(tokens[0].text).toContain('comment line');
+    // Newline is included in the comment; next is Environment begin
+    expect(tokens[1].type).toBe(TokenType.Environment);
+    expect(tokens[1].name).toBe('doc');
+    expect(tokens[1].isBegin).toBe(true);
+    // Check matching end environment token at the end
+    const lastEnv = tokens.filter((t) => t.type === TokenType.Environment).at(-1)!;
+    expect(lastEnv.name).toBe('doc');
+    expect(lastEnv.isBegin).toBe(false);
+    // Compare simplified name sequence for entire stream
+    const names = tokens.map((t) => (t.type === TokenType.Text ? t.text : t.name));
+    expect(names).toEqual([
+      '%',
+      'doc',
+      'Text ',
+      'if',
+      ' more ',
+      'else',
+      ' alt ',
+      'fi',
+      '{',
+      'inner',
+      '}',
+      ' ',
+      'doc',
     ]);
   });
 
@@ -40,8 +54,8 @@ describe('Lexer', () => {
     let t;
     while ((t = lex.next())) out.push(t);
     expect(out.map((o) => o.type)).toEqual([TokenType.Text, TokenType.Command]);
-    expect(out[0].value).toBe('\\'.repeat(4)); // 4 backslashes consumed as text
-    expect(out[1].value).toBe('more'); // last backslash starts command
+    expect(out[0].text).toBe('\\'.repeat(4)); // 4 backslashes consumed as text
+    expect(out[1].name).toBe('more'); // last backslash starts command
   });
 
   it('treats solitary backslash as command', () => {
@@ -50,20 +64,19 @@ describe('Lexer', () => {
     let t;
     while ((t = lex.next())) out.push(t);
     expect(out.map((o) => o.type)).toEqual([TokenType.Condition]);
-    expect(out[0].value).toBe('ifXYZ');
+    expect(out[0].name).toBe('if');
+    expect(out[0].text).toBe('XYZ');
+    // Ensure positions are sane
+    expect(out[0].start).toBe(0);
+    expect(out[0].end).toBeGreaterThan(out[0].start);
   });
 
   it('handles text with interleaved backslash runs by leaving solitary command', () => {
     const input = 'some text\\more text' + '\\'.repeat(3) + 'and more text\\';
     const lex = new Lexer(input);
-    expect(collectPairs(lex)).toEqual([
-      [TokenType.Text, 'some text'],
-      [TokenType.Command, 'more'],
-      [TokenType.Text, ' text\\\\'],
-      [TokenType.Command, 'and'],
-      [TokenType.Text, ' more text'],
-      [TokenType.Command, ''],
-    ]);
+    const tokens = collectPairs(lex);
+    const names = tokens.map((t) => (t.type === TokenType.Text ? t.text : t.name));
+    expect(names).toEqual(['some text', 'more', ' text\\\\', 'and', ' more text', '']);
   });
 
   it('tokenizes even backslashes + escapables as one Text', () => {
@@ -81,21 +94,42 @@ describe('Lexer', () => {
       ' ' +
       '\\\\\\%\\\\'; // 2 more literal backslashes
     const lex = new Lexer(input);
-    const pairs = collectPairs(lex);
-    expect(pairs.map((p) => p[0])).toEqual([TokenType.Text]);
-    expect(pairs[0][1]).toBe(input);
+    const tokens = collectPairs(lex);
+    expect(tokens.map((t) => t.type)).toEqual([TokenType.Text]);
+    expect(tokens[0].text).toBe(input);
   });
 
   it('teses escapables vs escapables as prefixes', () => {
     const input = '\n \t\\text{abc}\\%abc';
     const lex = new Lexer(input);
-    expect(collectPairs(lex)).toEqual([
-      [TokenType.Text, '\n \t'],
-      [TokenType.Command, 'text'],
-      [TokenType.Brace, '{'],
-      [TokenType.Text, 'abc'],
-      [TokenType.Brace, '}'],
-      [TokenType.Text, '\\%abc'],
-    ]);
+    const tokens = collectPairs(lex);
+    const names = tokens.map((t) => (t.type === TokenType.Text ? t.text : t.name));
+    expect(names).toEqual(['\n \t', 'text', '{', 'abc', '}', '\\%abc']);
+  });
+
+  it('captures exact inline comment name and text', () => {
+    const input = '% inline comment here\nNext';
+    const lex = new Lexer(input);
+    const tokens = collectPairs(lex);
+    expect(tokens[0].type).toBe(TokenType.Comment);
+    expect(tokens[0].name).toBe('%');
+    expect(tokens[0].text).toBe('% inline comment here\n');
+    // Following text starts immediately after newline
+    expect(tokens[1].type).toBe(TokenType.Text);
+    expect(tokens[1].text).toBe('Next');
+  });
+
+  it('captures exact env comment name and text for \\begin{comment}...\\end{comment}', () => {
+    const input = 'Before\\begin{comment}\nHidden content\\end{comment}After';
+    const lex = new Lexer(input);
+    const tokens = collectPairs(lex);
+    // First text chunk
+    expect(tokens[0].type).toBe(TokenType.Text);
+    expect(tokens[0].text).toBe('Before');
+    // Environment comment token should include begin and body up to end
+    const c = tokens[1];
+    expect(c.type).toBe(TokenType.Comment);
+    expect(c.name).toBe('env-comment');
+    expect(c.text).toBe('\\begin{comment}\nHidden content\\end{comment}');
   });
 });

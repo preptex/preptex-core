@@ -81,9 +81,9 @@ export function sanityCheck(input: string): SanityResult {
 
   // Conditions handler (unified Condition tokens)
   const handleCondition = (t: any) => {
-    const v = t.value as string;
-    if (v === 'else') return; // no nesting change
-    if (v === 'fi') {
+    const name = t.name as string;
+    if (name === 'else') return; // no nesting change
+    if (name === 'fi') {
       // Close latest If
       // Intersect check against current top
       if (stack.size() > 0) {
@@ -120,7 +120,7 @@ export function sanityCheck(input: string): SanityResult {
       type: NodeType.Condition,
       start: t.start,
       end: t.end,
-      condition: v,
+      condition: t.text ?? 'if',
       thenBranch: [],
       elseBranch: [],
       ctx: NodeType.Condition,
@@ -133,19 +133,19 @@ export function sanityCheck(input: string): SanityResult {
 
   // Sections handler (via Command tokens)
   const handleSection = (t: any) => {
-    const name = t.value as string;
+    const name = t.name as string;
     if (!SECTION_COMMANDS.has(name)) return;
     // Section inside conditional is contradictory parenting
     if (isInCtx(NodeType.Condition)) notes.push(NOTE_SECTION_IN_IF);
   };
 
   const is_group_opening = (t: any): boolean => {
-    if (t.type === TokenType.Brace) return t.value === '{';
-    if (t.type === TokenType.Environment) return t.value === 'begin';
+    if (t.type === TokenType.Brace) return t.name === '{';
+    if (t.type === TokenType.Environment) return !!t.isBegin;
     if (t.type === TokenType.MathDelim) {
       // Backslash pairs: explicit open/close, no stack lookups
-      if (t.value === '\\(' || t.value === '\\[') return true;
-      if (t.value === '\\)' || t.value === '\\]') return false;
+      if (t.name === '\\(' || t.name === '\\[') return true;
+      if (t.name === '\\)' || t.name === '\\]') return false;
       // Dollar delimiters: opening if there is no Math with the same delim on stack; else closing.
       const tmp: AstNode[] = [];
       let hasSameDelim = false;
@@ -153,7 +153,7 @@ export function sanityCheck(input: string): SanityResult {
         const n = stack.pop();
         if (!n) break;
         tmp.push(n);
-        if ((n as any).ctx === 'Math' && (n as any).delim === t.value) {
+        if ((n as any).ctx === 'Math' && (n as any).delim === t.name) {
           hasSameDelim = true;
           break;
         }
@@ -193,7 +193,7 @@ export function sanityCheck(input: string): SanityResult {
           type: NodeType.Math,
           start: t.start,
           end: t.end,
-          delim: t.value,
+          delim: t.name,
           children: [],
           ctx: NodeType.Math,
         } as unknown as AstNode);

@@ -1,5 +1,7 @@
 // Lexer is intentionally options-free; suppression and transforms are handled post-lexing.
 
+import { env } from 'node:process';
+
 export enum TokenType {
   Environment = 'Environment',
   Condition = 'Condition',
@@ -21,11 +23,15 @@ export function getAllTokenTypes(): TokenType[] {
 
 export interface Token {
   type: TokenType;
-  value: string;
   start: number;
   end: number;
-  // Optional metadata for certain token types (e.g., Environment name)
+  // Unified fields:
+  // - Text: text payload in `text`
+  // - Command/Brace/Bracket/MathDelim/Condition/Environment: identifier in `name`
+  text?: string;
   name?: string;
+  // Environment only: indicates begin token; false implies end
+  isBegin?: boolean;
 }
 
 // Characters that can follow a backslash and should be treated as literal text pairs ("\\X")
@@ -113,35 +119,58 @@ export class Lexer {
     return this.readText();
   }
 
-  private readComment(): Token | null {
-    const start = this.pos;
+  private readComment(envC: boolean = false, start: number = this.pos): Token {
     let end = start + 1;
-    while (end < this.input.length && this.input[end] !== '\n') end++;
+    const ending = envC ? '\\end{comment}' : '\n';
+    while (end < this.input.length && !this.input.startsWith(ending, end)) {
+      end++;
+    }
+    // Include the terminator in the comment text
+    if (this.input.startsWith(ending, end)) {
+      end += ending.length;
+    }
     const raw = this.input.slice(start, end);
     this.pos = end;
-    return (this.current = { type: TokenType.Comment, value: raw, start, end });
+    // Distinguish comments that are commenting out environments (e.g., %\begin or %\end)
+    return (this.current = {
+      type: TokenType.Comment,
+      name: envC ? 'env-comment' : '%',
+      text: raw,
+      start,
+      end,
+    });
   }
 
   private readBrace(ch: string): Token {
     const start = this.pos;
     this.pos++;
-    return (this.current = { type: TokenType.Brace, value: ch, start, end: this.pos });
+    return (this.current = { type: TokenType.Brace, name: ch, start, end: this.pos });
   }
 
   private readBracket(ch: string): Token {
     const start = this.pos;
     this.pos++;
-    return (this.current = { type: TokenType.Bracket, value: ch, start, end: this.pos });
+    return (this.current = { type: TokenType.Bracket, name: ch, start, end: this.pos });
   }
 
   private readDollarDelim(): Token {
     const start = this.pos;
     if (this.pos + 1 < this.input.length && this.input[this.pos + 1] === '$') {
       this.pos += 2;
-      return (this.current = { type: TokenType.MathDelim, value: '$$', start, end: this.pos });
+      return (this.current = {
+        type: TokenType.MathDelim,
+        name: '$$',
+        start,
+        end: this.pos,
+      });
     }
     this.pos += 1;
-    return (this.current = { type: TokenType.MathDelim, value: '$', start, end: this.pos });
+    return (this.current = {
+      type: TokenType.MathDelim,
+      name: '$',
+      start,
+      end: this.pos,
+    });
   }
 
   private readCommand(): Token {
@@ -174,14 +203,21 @@ export class Lexer {
   private classifyCommand(name: string, start: number, end: number): Token {
     if (MATH_DELIM_COMMANDS.has(name)) {
       const delim = `\\${name}`;
-      return { type: TokenType.MathDelim, value: delim, start, end };
+      return { type: TokenType.MathDelim, name: delim, start, end };
     }
-    if (name === 'else') return { type: TokenType.Condition, value: name, start, end };
-    if (name === 'fi') return { type: TokenType.Condition, value: name, start, end };
-    if (name.startsWith('if')) return { type: TokenType.Condition, value: name, start, end };
+    if (name === 'else') return { type: TokenType.Condition, name, start, end };
+    if (name === 'fi') return { type: TokenType.Condition, name, start, end };
+    if (name.startsWith('if'))
+      return {
+        type: TokenType.Condition,
+        name: 'if',
+        text: name.slice(2),
+        start,
+        end,
+      };
     if (name === 'begin') return this.readEnvironment(start, true);
     if (name === 'end') return this.readEnvironment(start, false);
-    return { type: TokenType.Command, value: name, start, end };
+    return { type: TokenType.Command, name, start, end };
   }
 
   private readEnvironment(beginStart: number, isBegin: boolean): Token {
@@ -189,7 +225,7 @@ export class Lexer {
     if (this.input[this.pos] !== '{') {
       return {
         type: TokenType.Command,
-        value: isBegin ? 'begin' : 'end',
+        name: isBegin ? 'begin' : 'end',
         start: beginStart,
         end: this.pos,
       };
@@ -198,12 +234,15 @@ export class Lexer {
     const nameStart = this.pos;
     while (this.pos < this.input.length && this.input[this.pos] !== '}') this.pos++;
     const envName = this.input.slice(nameStart, this.pos);
+    if (envName === 'comment') {
+      return (this.current = this.readComment(true, beginStart));
+    }
     if (this.input[this.pos] === '}') this.pos++;
     const end = this.pos;
     return (this.current = {
       type: TokenType.Environment,
-      value: isBegin ? 'begin' : 'end',
       name: envName,
+      isBegin,
       start: beginStart,
       end,
     });
@@ -227,7 +266,7 @@ export class Lexer {
       this.pos++;
     }
     const value = this.input.slice(start, this.pos);
-    return (this.current = { type: TokenType.Text, value, start, end: this.pos });
+    return (this.current = { type: TokenType.Text, text: value, start, end: this.pos });
   }
 
   private skipWhitespace() {

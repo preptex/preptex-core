@@ -12,6 +12,8 @@ describe('Parser', () => {
     const env = ast.children[0] as any;
     expect(env.type).toBe(NodeType.Environment);
     expect(env.name).toBe('doc');
+    expect(env.prefix).toBe('\\begin{doc}');
+    expect(env.suffix).toBe('\\end{doc}');
     expect(env.children.length).toBe(1);
     expect(env.children[0].type).toBe(NodeType.Text);
     expect(env.children[0].value).toBe('Text');
@@ -22,6 +24,8 @@ describe('Parser', () => {
     expect(ast.children.length).toBe(1);
     const group = ast.children[0] as any;
     expect(group.type).toBe(NodeType.Group);
+    expect(group.prefix).toBe('{');
+    expect(group.suffix).toBe('}');
     expect(group.children.length).toBe(1);
     expect(group.children[0].type).toBe(NodeType.Text);
     expect(group.children[0].value).toBe('Text');
@@ -63,6 +67,8 @@ describe('Parser', () => {
 
     const titleNode = section.children[0];
     expect(titleNode.type).toBe(NodeType.Group);
+    expect((titleNode as any).prefix).toBe('{');
+    expect((titleNode as any).suffix).toBe('}');
     expect((titleNode as any).children[0].type).toBe(NodeType.Text);
     expect((titleNode as any).children[0].value).toBe('Title');
 
@@ -78,6 +84,8 @@ describe('Parser', () => {
     const m1 = ast.children[1] as any;
     expect(m1.type).toBe('Math');
     expect(m1.delim).toBe('\\(');
+    expect(m1.prefix).toBe('\\(');
+    expect(m1.suffix).toBe('\\)');
     expect(m1.children.length).toBe(1);
     expect(m1.children[0].type).toBe('Text');
     expect(m1.children[0].value).toBe('a+b');
@@ -85,6 +93,8 @@ describe('Parser', () => {
     const m2 = ast.children[2] as any;
     expect(m2.type).toBe('Math');
     expect(m2.delim).toBe('\\[');
+    expect(m2.prefix).toBe('\\[');
+    expect(m2.suffix).toBe('\\]');
     expect(m2.children.length).toBe(1);
     expect(m2.children[0].type).toBe('Text');
     expect(m2.children[0].value).toBe('test');
@@ -96,6 +106,8 @@ describe('Parser', () => {
     const m1 = ast.children[0] as any;
     expect(m1.type).toBe('Math');
     expect(m1.delim).toBe('$');
+    expect(m1.prefix).toBe('$');
+    expect(m1.suffix).toBe('$');
     expect(m1.children.length).toBe(1);
     expect(m1.children[0].type).toBe('Text');
     expect(m1.children[0].value).toBe('a+b');
@@ -103,6 +115,8 @@ describe('Parser', () => {
     const m2 = ast.children[2] as any;
     expect(m2.type).toBe('Math');
     expect(m2.delim).toBe('$$');
+    expect(m2.prefix).toBe('$$');
+    expect(m2.suffix).toBe('$$');
     expect(m2.children.length).toBe(1);
     expect(m2.children[0].type).toBe('Text');
     expect(m2.children[0].value).toBe('test');
@@ -132,7 +146,10 @@ describe('Parser', () => {
     const mc = math.children;
     expect(mc[0].type).toBe('Command');
     expect(mc[0].name).toBe('mathcal');
+    expect(mc[0].prefix).toBe('\\mathcal');
     expect(mc[1].type).toBe('Group');
+    expect((mc[1] as any).prefix).toBe('{');
+    expect((mc[1] as any).suffix).toBe('}');
     expect(mc[2].type).toBe('Text');
     expect(mc[3].type).toBe('Command');
     expect(mc[4].type).toBe('Group');
@@ -142,6 +159,8 @@ describe('Parser', () => {
     expect(txtGrp.children[1].type).toBe('Math');
     const innerMath = txtGrp.children[1] as any;
     expect(innerMath.delim).toBe('$');
+    expect(innerMath.prefix).toBe('$');
+    expect(innerMath.suffix).toBe('$');
     expect(innerMath.children.length).toBe(1);
     expect(innerMath.children[0].type).toBe('Text');
   });
@@ -168,6 +187,8 @@ describe('Parser', () => {
     expect(section.children.length).toBe(4);
     expect(section.children[0].type).toBe(NodeType.Group);
     expect((section.children[0] as any).children[0].value).toBe('Top');
+    // Section node should have prefix for command form
+    expect(section.prefix).toBe('\\section');
     // Environment is nested under the 'Title' subsection
     const env = section.children[1] as any;
     expect(env.type).toBe('Environment');
@@ -196,6 +217,8 @@ describe('Parser', () => {
     const mathBlock = sub.children[1] as any;
     expect(mathBlock.type).toBe('Math');
     expect(mathBlock.delim).toBe('\\[');
+    expect(mathBlock.prefix).toBe('\\[');
+    expect(mathBlock.suffix).toBe('\\]');
     expect(mathBlock.children.length).toBe(3);
     expect(mathBlock.children[0].type).toBe('Text');
     expect((mathBlock.children[0] as any).value).toBe(' x^2 ');
@@ -203,20 +226,28 @@ describe('Parser', () => {
     const mathTxtCmd = mathBlock.children[1] as any;
     expect(mathTxtCmd.type).toBe('Command');
     expect(mathTxtCmd.name).toBe('text');
+    expect(mathTxtCmd.prefix).toBe('\\text');
     // Group argument to \text
     const textGroup = mathBlock.children[2] as any;
     expect(textGroup.type).toBe('Group');
+    expect(textGroup.prefix).toBe('{');
+    expect(textGroup.suffix).toBe('}');
     expect(textGroup.children.length).toBe(2);
     expect(textGroup.children[0].type).toBe('Text');
     expect((textGroup.children[0] as any).value).toBe('math text ');
     const innerMath = textGroup.children[1] as any;
     expect(innerMath.type).toBe('Math');
     expect(innerMath.delim).toBe('$');
+    expect(innerMath.prefix).toBe('$');
+    expect(innerMath.suffix).toBe('$');
     expect(innerMath.children.length).toBe(2);
     expect(innerMath.children[0].type).toBe('Command');
     expect(innerMath.children[0].name).toBe('mathcal');
+    expect(innerMath.children[0].prefix).toBe('\\mathcal');
     const mathcalArg = innerMath.children[1] as any;
     expect(mathcalArg.type).toBe('Group');
+    expect(mathcalArg.prefix).toBe('{');
+    expect(mathcalArg.suffix).toBe('}');
     expect(mathcalArg.children.length).toBe(1);
     expect(mathcalArg.children[0].type).toBe('Text');
     expect((mathcalArg.children[0] as any).value).toBe('S');
@@ -229,6 +260,7 @@ describe('Parser', () => {
     const section2 = ast.children[1] as any;
     expect(section2.type).toBe('Section');
     expect(section2.level).toBe(1);
+    expect(section2.prefix).toBe('\\section');
     expect(section2.children.length).toBe(1);
     expect(section2.children[0].type).toBe(NodeType.Group);
     expect((section2.children[0] as any).children[0].value).toBe('Second');

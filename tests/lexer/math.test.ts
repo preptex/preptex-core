@@ -6,31 +6,39 @@ describe('Math delimiters', () => {
   it('tokenizes $ inline and $$ display', () => {
     const input = 'a $ b $$ c $ d $$';
     const lex = new Lexer(input);
-    const pairs = collectPairs(lex);
-    const math = pairs.filter(([t]) => t === TokenType.MathDelim).map(([, v]) => v);
-    expect(math).toEqual(['$', '$$', '$', '$$']);
+    const tokens = collectPairs(lex);
+    const delims = tokens.filter((t) => t.type === TokenType.MathDelim);
+    expect(delims.map((t) => t.name)).toEqual(['$', '$$', '$', '$$']);
+    // Ensure positions and ordering are consistent
+    expect(delims[0].start).toBeLessThan(delims[0].end);
+    expect(delims[2].name).toBe('$');
   });
 
   it('tokenizes \\[ and \\] as display math', () => {
     const input = '\\[ x \\]';
     const lex = new Lexer(input);
-    const pairs = collectPairs(lex);
-    const delims = pairs.filter(([t]) => t === TokenType.MathDelim).map(([, v]) => v);
-    expect(delims).toEqual(['\\[', '\\]']);
+    const tokens = collectPairs(lex);
+    const delims = tokens.filter((t) => t.type === TokenType.MathDelim);
+    expect(delims.map((t) => t.name)).toEqual(['\\[', '\\]']);
+    // Verify open then close ordering
+    expect(delims[0].name).toBe('\\[');
+    expect(delims[1].name).toBe('\\]');
   });
 
   it('tokenizes \\( and \\) as inline math (MathJax-compatible)', () => {
     const input = '\\( x \\)';
     const lex = new Lexer(input);
-    const pairs = collectPairs(lex);
-    const delims = pairs.filter(([t]) => t === TokenType.MathDelim).map(([, v]) => v);
-    expect(delims).toEqual(['\\(', '\\)']);
+    const tokens = collectPairs(lex);
+    const delims = tokens.filter((t) => t.type === TokenType.MathDelim);
+    expect(delims.map((t) => t.name)).toEqual(['\\(', '\\)']);
+    expect(delims[0].name).toBe('\\(');
+    expect(delims[1].name).toBe('\\)');
   });
 
   it('does not start math on escaped dollar', () => {
     const input = '\\$ not math';
     const lex = new Lexer(input);
-    const pairs = collectPairs(lex);
-    expect(pairs.some(([t]) => t === TokenType.MathDelim)).toBe(false);
+    const tokens = collectPairs(lex);
+    expect(tokens.some((t) => t.type === TokenType.MathDelim)).toBe(false);
   });
 });
