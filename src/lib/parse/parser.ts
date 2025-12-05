@@ -152,10 +152,85 @@ export class Parser {
     this.stack.push(mathNode);
   }
   private handleCondition(_token: any) {
-    void _token;
+    const token = _token as any;
+    const kind: string = token.value; // e.g., 'ifX', 'else', 'fi'
+
+    // Open a new condition node on 'if<Name>' / 'if'
+    if (kind.startsWith('if')) {
+      const parent = this.getParentNode() as any;
+      const name: string = token.name ?? kind.slice(2);
+
+      const conditionNode = {
+        type: NodeType.Condition,
+        name,
+        start: token.start,
+        end: token.end,
+        // branch children
+        ifChildren: [] as AstNode[],
+        elseChildren: [] as AstNode[],
+        // branch positions
+        ifStart: token.start,
+        ifEnd: undefined as number | undefined,
+        elseStart: undefined as number | undefined,
+        elseEnd: undefined as number | undefined,
+        // dynamic children reference; handlers will push here
+        children: [] as AstNode[],
+      } as any;
+
+      // initially, children route to the IF branch
+      conditionNode.children = conditionNode.ifChildren;
+
+      parent.children.push(conditionNode);
+      // push the condition node itself, similar to grouping behavior
+      this.stack.push(conditionNode as AstNode);
+      return;
+    }
+
+    // Switch to ELSE branch
+    if (kind === 'else') {
+      const top = this.stack.peek() as any;
+      if (!top || top.type !== NodeType.Condition) {
+        throw new Error('Unexpected "else" without an open condition');
+      }
+      // mark end of IF and start of ELSE
+      top.ifEnd = token.start - 1;
+      top.elseStart = token.start;
+      // route subsequent children into ELSE branch
+      top.children = top.elseChildren;
+      return;
+    }
+
+    // Close condition on 'fi'
+    if (kind === 'fi') {
+      const top = this.stack.peek() as any;
+      if (!top || top.type !== NodeType.Condition) {
+        throw new Error('Unexpected "fi" without an open condition');
+      }
+      // record branch end depending on current routing
+      if (top.children === top.ifChildren) {
+        // no else encountered
+        top.ifEnd = token.end;
+      } else {
+        top.elseEnd = token.end;
+      }
+      top.end = token.end;
+      this.stack.pop();
+      return;
+    }
+
+    // Unknown condition token kind
+    throw new Error(`Unknown condition token: ${kind}`);
   }
   private handleComment(_token: any) {
-    void _token;
+    const token = _token as any;
+    const parent = this.getParentNode() as any;
+    if (!parent) throw new Error('Stack empty');
+    parent.children.push({
+      type: NodeType.Comment,
+      start: token.start,
+      end: token.end,
+      value: token.value,
+    });
   }
 
   parse(input: string): AstRoot {

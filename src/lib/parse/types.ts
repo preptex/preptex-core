@@ -4,7 +4,7 @@ export enum NodeType {
   Comment = 'Comment',
   Command = 'Command',
   Environment = 'Environment',
-  If = 'If',
+  Condition = 'Condition',
   Math = 'Math',
   Group = 'Group',
   Section = 'Section',
@@ -17,7 +17,7 @@ export interface NodeBase {
   end: number;
 }
 
-// Use NodeType directly for stack context tagging (Math, Env, If, Group)
+// Use NodeType directly for stack context tagging (Math, Env, Condition, Group)
 
 export interface AstRoot extends NodeBase {
   type: NodeType.Root;
@@ -47,11 +47,19 @@ export interface EnvironmentNode extends NodeBase {
   args?: string[];
 }
 
-export interface IfNode extends NodeBase {
-  type: NodeType.If;
-  condition: string; // e.g. the \if name or expression
-  thenBranch: AstNode[];
-  elseBranch: AstNode[]; // empty if none
+export interface ConditionNode extends NodeBase {
+  type: NodeType.Condition;
+  name: string; // condition name, e.g. the \ifX name
+  // branch children
+  ifChildren: AstNode[];
+  elseChildren: AstNode[]; // empty if none
+  // positions of branches within source
+  ifStart: number;
+  ifEnd?: number;
+  elseStart?: number;
+  elseEnd?: number;
+  // internal routing used by parser; not required for consumers but kept for symmetry
+  children: AstNode[];
 }
 
 export interface MathNode extends NodeBase {
@@ -85,7 +93,7 @@ export type AstNode =
   | CommentNode
   | CommandNode
   | EnvironmentNode
-  | IfNode
+  | ConditionNode
   | MathNode
   | GroupNode
   | SectionNode

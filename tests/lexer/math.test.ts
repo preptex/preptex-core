@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { Lexer, TokenType } from '../src/lib/parse/tokens';
-import { collectPairs } from './util';
+import { Lexer, TokenType } from '../../src/lib/parse/tokens';
+import { collectPairs } from '../util';
 
 describe('Math delimiters', () => {
   it('tokenizes $ inline and $$ display', () => {

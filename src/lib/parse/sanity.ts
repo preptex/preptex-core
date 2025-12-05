@@ -45,7 +45,7 @@ export function sanityCheck(input: string): SanityResult {
 
   // Use CallStack to track grouping contexts
   const stack = new CallStack(undefined);
-  type Ctx = NodeType.Environment | NodeType.Math | NodeType.Group | NodeType.If;
+  type Ctx = NodeType;
 
   const isInCtx = (ctx: Ctx): boolean => {
     const tmp: AstNode[] = [];
@@ -67,13 +67,13 @@ export function sanityCheck(input: string): SanityResult {
   // Handlers map similar to parser
   const handlers: Map<TokenType, (t: any) => void> = new Map();
   const intersectingPairs: Array<{
-    openCtx: NodeType.Environment | NodeType.Math | NodeType.Group | NodeType.If;
-    closeCtx: NodeType.Environment | NodeType.Math | NodeType.Group | NodeType.If;
+    openCtx: NodeType;
+    closeCtx: NodeType;
     openPos: number;
     closePos: number;
   }> = [];
   const unopenedClosings: Array<{
-    ctx: NodeType.Environment | NodeType.Math | NodeType.Group | NodeType.If;
+    ctx: NodeType;
     closePos: number;
   }> = [];
 
@@ -90,10 +90,10 @@ export function sanityCheck(input: string): SanityResult {
         const top = stack.pop();
         if (top) stack.push(top);
         const topCtx = (top as any)?.ctx as Ctx | undefined;
-        if (topCtx && topCtx !== NodeType.If) {
+        if (topCtx && topCtx !== NodeType.Condition) {
           intersectingPairs.push({
             openCtx: topCtx,
-            closeCtx: NodeType.If,
+            closeCtx: NodeType.Condition,
             openPos: (top as any).start,
             closePos: t.start,
           });
@@ -107,7 +107,7 @@ export function sanityCheck(input: string): SanityResult {
       let closedIf = false;
       while (stack.size() > 0) {
         const n = stack.pop();
-        if ((n as any)?.ctx === NodeType.If) {
+        if ((n as any)?.ctx === NodeType.Condition) {
           closedIf = true;
           break;
         }
@@ -117,13 +117,13 @@ export function sanityCheck(input: string): SanityResult {
     }
     // Opening if*
     stack.push({
-      type: NodeType.If,
+      type: NodeType.Condition,
       start: t.start,
       end: t.end,
       condition: v,
       thenBranch: [],
       elseBranch: [],
-      ctx: NodeType.If,
+      ctx: NodeType.Condition,
     } as unknown as AstNode);
     if (isInCtx(NodeType.Math) && enabled.has(TokenType.MathDelim)) {
       enabled.delete(TokenType.MathDelim);
@@ -136,7 +136,7 @@ export function sanityCheck(input: string): SanityResult {
     const name = t.value as string;
     if (!SECTION_COMMANDS.has(name)) return;
     // Section inside conditional is contradictory parenting
-    if (isInCtx(NodeType.If)) notes.push(NOTE_SECTION_IN_IF);
+    if (isInCtx(NodeType.Condition)) notes.push(NOTE_SECTION_IN_IF);
   };
 
   const is_group_opening = (t: any): boolean => {
@@ -197,7 +197,7 @@ export function sanityCheck(input: string): SanityResult {
           children: [],
           ctx: NodeType.Math,
         } as unknown as AstNode);
-        if (isInCtx(NodeType.If) && enabled.has(TokenType.MathDelim)) {
+        if (isInCtx(NodeType.Condition) && enabled.has(TokenType.MathDelim)) {
           enabled.delete(TokenType.MathDelim);
           notes.push(NOTE_MATH_IN_IF);
         }
@@ -235,8 +235,8 @@ export function sanityCheck(input: string): SanityResult {
         closePos: t.start,
       });
       if (
-        (topCtx === NodeType.Math && ctx === NodeType.If) ||
-        (topCtx === NodeType.If && ctx === NodeType.Math)
+        (topCtx === NodeType.Math && ctx === NodeType.Condition) ||
+        (topCtx === NodeType.Condition && ctx === NodeType.Math)
       ) {
         if (enabled.has(TokenType.MathDelim)) {
           enabled.delete(TokenType.MathDelim);
@@ -282,7 +282,7 @@ export function sanityCheck(input: string): SanityResult {
   }
   // Anything left on the stack is an opened-but-unclosed grouping
   const openedUnclosedGroupings: Array<{
-    ctx: NodeType.Environment | NodeType.Math | NodeType.Group | NodeType.If;
+    ctx: NodeType;
     pos: number;
   }> = [];
   const tmpFinal: AstNode[] = [];

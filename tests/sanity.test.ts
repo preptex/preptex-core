@@ -22,7 +22,7 @@ describe('Sanity prepass - intersecting pairs', () => {
     const sanity = sanityCheck(input);
     const pairs = sanity.intersectingPairs;
     expect(pairs).toEqual([
-      expect.objectContaining({ openCtx: NodeType.Math, closeCtx: NodeType.If }),
+      expect.objectContaining({ openCtx: NodeType.Math, closeCtx: NodeType.Condition }),
     ]);
     expect(sanity.unopenedClosings).toEqual([]);
     expect(sanity.openedUnclosedGroupings).toEqual([]);
@@ -134,8 +134,10 @@ describe('Sanity prepass - intersecting pairs', () => {
 
   it('If closes while Math on top produces Math↔If intersection', () => {
     const sanity = sanityCheck('\\iftrue \\( x \\fi \\)');
-    const ip = sanity.intersectingPairs ?? [];
-    expect(ip.some((p) => p.openCtx === NodeType.Math && p.closeCtx === NodeType.If)).toBe(true);
+    const ip = sanity.intersectingPairs!;
+    expect(ip.some((p) => p.openCtx === NodeType.Math && p.closeCtx === NodeType.Condition)).toBe(
+      true
+    );
   });
 
   it('Math opens inside If disables MathDelim', () => {

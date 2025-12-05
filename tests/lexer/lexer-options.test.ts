@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { Lexer, TokenType } from '../src/lib/parse/tokens';
-import { collectPairs } from './util';
+import { Lexer, TokenType } from '../../src/lib/parse/tokens';
+import { collectPairs } from '../util';
 
 describe('Lexer options: enabledTokens', () => {
   it('emits all by default (no options)', () => {
@@ -17,8 +17,7 @@ describe('Lexer options: enabledTokens', () => {
     const input = 'prefix \\text{abc} suffix';
     const enabled = new Set<TokenType>([
       TokenType.Text,
-      TokenType.LBrace,
-      TokenType.RBrace,
+      TokenType.Brace,
       TokenType.MathDelim,
       TokenType.Comment,
     ]);
@@ -36,8 +35,7 @@ describe('Lexer options: enabledTokens', () => {
       TokenType.Text,
       TokenType.Comment,
       TokenType.Command,
-      TokenType.LBrace,
-      TokenType.RBrace,
+      TokenType.Brace,
     ]);
     const lex = new Lexer(input, { enabledTokens: enabled });
     const pairs = collectPairs(lex);

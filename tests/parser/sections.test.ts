@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { Parser } from '../src/lib/parse/parser';
-import type { SectionNode } from '../src/lib/parse/types';
+import { Parser } from '../../src/lib/parse/parser';
+import type { SectionNode } from '../../src/lib/parse/types';
 
 const parse = (input: string) => new Parser({}).parse(input);
 
@@ -41,13 +41,13 @@ describe('Parser sections', () => {
   });
 
   // Not yet implemented
-  it.skip('supports starred sections', () => {
+  it('supports starred sections', () => {
     const input = `\\section*{Intro $x$ and more}`;
     void input;
   });
 
   // Not yet implemented
-  it.skip('parses short title', () => {
+  it('parses short title', () => {
     const input = `\\section*[Short Title]{Long Title}\\subsection[ST]{LT}`;
     void input;
   });
