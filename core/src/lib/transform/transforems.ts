@@ -1,5 +1,9 @@
 import type { Transformer } from './transform.js';
-import { NodeType, ConditionBranchType } from '../parse/types.js';
+import { NodeType, ConditionBranchType, AstNode } from '../parse/types.js';
+
+export function suppressComments(node: AstNode): boolean {
+  return (node as any).type !== NodeType.Comment;
+}
 
 /**
  * Skip-only condition filtering: for names in keepIfNames, traverse IF branch and skip ELSE;

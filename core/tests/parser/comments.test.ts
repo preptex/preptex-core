@@ -5,7 +5,8 @@ import type { CoreOptions } from '../../src/lib/options';
 
 function parse(input: string): AstRoot {
   const p = new Parser({} as CoreOptions);
-  return p.parse(input);
+  p.parse(input);
+  return p.getRoot();
 }
 
 describe('Parser comment handling', () => {

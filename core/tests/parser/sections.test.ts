@@ -2,7 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { Parser } from '../../src/lib/parse/parser';
 import type { SectionNode } from '../../src/lib/parse/types';
 
-const parse = (input: string) => new Parser({}).parse(input);
+const parse = (input: string) => {
+  const parser = new Parser({});
+  parser.parse(input);
+  return parser.getRoot();
+};
 
 describe('Parser sections', () => {
   it('nests subsections and closes appropriately', () => {
