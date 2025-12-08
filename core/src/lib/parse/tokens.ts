@@ -24,6 +24,7 @@ export interface Token {
   type: TokenType;
   start: number;
   end: number;
+  line: number;
   // Unified fields:
   // - Text: text payload in `text`
   // - Command/Brace/Bracket/MathDelim/Condition/Environment: identifier in `name`
@@ -50,11 +51,15 @@ export class Lexer {
   private pos = 0;
   private current: Token | null = null;
   private pending: Token[] = [];
+  private readonly lineStarts: number[];
+  private curr_line_index = 0;
 
   constructor(
     private input: string,
     private opts: LexerOptions = {}
-  ) {}
+  ) {
+    this.lineStarts = computeLineStarts(input);
+  }
 
   private shouldEmit(t: Token): boolean {
     const enabled = this.opts.enabledTokens;
@@ -119,6 +124,7 @@ export class Lexer {
   }
 
   private readComment(envC: boolean = false, start: number = this.pos): Token {
+    const line = this.getLineForIndex(start);
     let end = start + 1;
     const ending = envC ? '\\end{comment}' : '\n';
     while (end < this.input.length && !this.input.startsWith(ending, end)) {
@@ -137,23 +143,27 @@ export class Lexer {
       text: raw,
       start,
       end,
+      line,
     });
   }
 
   private readBrace(ch: string): Token {
     const start = this.pos;
+    const line = this.getLineForIndex(start);
     this.pos++;
-    return (this.current = { type: TokenType.Brace, name: ch, start, end: this.pos });
+    return (this.current = { type: TokenType.Brace, name: ch, start, end: this.pos, line });
   }
 
   private readBracket(ch: string): Token {
     const start = this.pos;
+    const line = this.getLineForIndex(start);
     this.pos++;
-    return (this.current = { type: TokenType.Bracket, name: ch, start, end: this.pos });
+    return (this.current = { type: TokenType.Bracket, name: ch, start, end: this.pos, line });
   }
 
   private readDollarDelim(): Token {
     const start = this.pos;
+    const line = this.getLineForIndex(start);
     if (this.pos + 1 < this.input.length && this.input[this.pos + 1] === '$') {
       this.pos += 2;
       return (this.current = {
@@ -161,6 +171,7 @@ export class Lexer {
         name: '$$',
         start,
         end: this.pos,
+        line,
       });
     }
     this.pos += 1;
@@ -169,11 +180,13 @@ export class Lexer {
       name: '$',
       start,
       end: this.pos,
+      line,
     });
   }
 
   private readCommand(): Token {
     const start = this.pos;
+    const line = this.getLineForIndex(start);
     let run = 0;
     while (this.pos < this.input.length && this.input[this.pos] === '\\') {
       this.pos++;
@@ -196,17 +209,17 @@ export class Lexer {
     }
     const name = this.input.slice(this.pos, nameEnd);
     this.pos = nameEnd;
-    return (this.current = this.classifyCommand(name, start, this.pos));
+    return (this.current = this.classifyCommand(name, start, this.pos, line));
   }
 
-  private classifyCommand(name: string, start: number, end: number): Token {
-    if (name === 'newif') return this.readNewIfDeclaration(start, end);
+  private classifyCommand(name: string, start: number, end: number, line: number): Token {
+    if (name === 'newif') return this.readNewIfDeclaration(start, end, line);
     if (MATH_DELIM_COMMANDS.has(name)) {
       const delim = `\\${name}`;
-      return { type: TokenType.MathDelim, name: delim, start, end };
+      return { type: TokenType.MathDelim, name: delim, start, end, line };
     }
-    if (name === 'else') return { type: TokenType.Condition, name, start, end };
-    if (name === 'fi') return { type: TokenType.Condition, name, start, end };
+    if (name === 'else') return { type: TokenType.Condition, name, start, end, line };
+    if (name === 'fi') return { type: TokenType.Condition, name, start, end, line };
     if (name.startsWith('if'))
       return {
         type: TokenType.Condition,
@@ -214,32 +227,33 @@ export class Lexer {
         text: name.slice(2),
         start,
         end,
+        line,
       };
-    if (name === 'begin') return this.readEnvironment(start, true);
-    if (name === 'end') return this.readEnvironment(start, false);
-    return { type: TokenType.Command, name, start, end };
+    if (name === 'begin') return this.readEnvironment(start, true, line);
+    if (name === 'end') return this.readEnvironment(start, false, line);
+    return { type: TokenType.Command, name, start, end, line };
   }
 
-  private readNewIfDeclaration(start: number, end: number): Token {
+  private readNewIfDeclaration(start: number, end: number, line: number): Token {
     const afterNewIf = end;
     this.skipWhitespace();
 
     const conditionStart = this.pos;
     if (conditionStart >= this.input.length || this.input[conditionStart] !== '\\') {
       this.pos = afterNewIf;
-      return { type: TokenType.Command, name: 'newif', start, end: afterNewIf };
+      return { type: TokenType.Command, name: 'newif', start, end: afterNewIf, line };
     }
 
     let p = conditionStart + 1; // skip backslash
     if (p >= this.input.length) {
       this.pos = afterNewIf;
-      return { type: TokenType.Command, name: 'newif', start, end: afterNewIf };
+      return { type: TokenType.Command, name: 'newif', start, end: afterNewIf, line };
     }
 
     const firstChar = this.input[p];
     if (!/^[a-zA-Z@]$/.test(firstChar)) {
       this.pos = afterNewIf;
-      return { type: TokenType.Command, name: 'newif', start, end: afterNewIf };
+      return { type: TokenType.Command, name: 'newif', start, end: afterNewIf, line };
     }
 
     p++;
@@ -247,7 +261,7 @@ export class Lexer {
     const commandName = this.input.slice(conditionStart + 1, p);
     if (!commandName.startsWith('if') || commandName.length <= 2) {
       this.pos = afterNewIf;
-      return { type: TokenType.Command, name: 'newif', start, end: afterNewIf };
+      return { type: TokenType.Command, name: 'newif', start, end: afterNewIf, line };
     }
 
     const conditionName = commandName.slice(2);
@@ -283,10 +297,11 @@ export class Lexer {
       text,
       start,
       end: lineEnd,
+      line,
     });
   }
 
-  private readEnvironment(beginStart: number, isBegin: boolean): Token {
+  private readEnvironment(beginStart: number, isBegin: boolean, line: number): Token {
     this.skipWhitespace();
     if (this.input[this.pos] !== '{') {
       return {
@@ -294,6 +309,7 @@ export class Lexer {
         name: isBegin ? 'begin' : 'end',
         start: beginStart,
         end: this.pos,
+        line,
       };
     }
     this.pos++;
@@ -311,11 +327,13 @@ export class Lexer {
       isBegin,
       start: beginStart,
       end,
+      line,
     });
   }
 
   private readText(): Token {
     const start = this.pos;
+    const line = this.getLineForIndex(start);
     while (this.pos < this.input.length) {
       const c = this.input[this.pos];
       if (c === '%' || c === '{' || c === '}' || c === '[' || c === ']' || c === '$') break;
@@ -332,10 +350,40 @@ export class Lexer {
       this.pos++;
     }
     const value = this.input.slice(start, this.pos);
-    return (this.current = { type: TokenType.Text, text: value, start, end: this.pos });
+    return (this.current = { type: TokenType.Text, text: value, start, end: this.pos, line });
   }
 
   private skipWhitespace() {
     while (this.pos < this.input.length && /\s/.test(this.input[this.pos])) this.pos++;
   }
+
+  private getLineForIndex(index: number): number {
+    while (
+      this.curr_line_index + 1 < this.lineStarts.length &&
+      this.lineStarts[this.curr_line_index + 1] <= index
+    ) {
+      this.curr_line_index++;
+    }
+    return this.curr_line_index + 1; // lines are 1-based
+  }
+}
+
+function computeLineStarts(input: string): number[] {
+  const starts: number[] = [0];
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (ch === '\r') {
+      if (i + 1 < input.length && input[i + 1] === '\n') {
+        starts.push(i + 2);
+        i++;
+      } else {
+        starts.push(i + 1);
+      }
+      continue;
+    }
+    if (ch === '\n') {
+      starts.push(i + 1);
+    }
+  }
+  return starts;
 }

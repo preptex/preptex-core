@@ -119,12 +119,16 @@ describe('Sanity prepass - intersecting pairs', () => {
 
   it('backslash closing math on empty stack is unopened', () => {
     const sanity = sanityCheck('\\) text');
-    expect(sanity.unopenedClosings).toEqual([{ ctx: NodeType.Math, closePos: 0 }]);
+    expect(sanity.unopenedClosings).toEqual([
+      expect.objectContaining({ ctx: NodeType.Math, closePos: 0, line: 1 }),
+    ]);
   });
 
   it('end environment without begin is unopened', () => {
     const sanity = sanityCheck('\\end{itemize}');
-    expect(sanity.unopenedClosings).toEqual([{ ctx: NodeType.Environment, closePos: 0 }]);
+    expect(sanity.unopenedClosings).toEqual([
+      expect.objectContaining({ ctx: NodeType.Environment, closePos: 0, line: 1 }),
+    ]);
   });
 
   it('scan fails to find matching opener adds note', () => {

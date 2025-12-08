@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { Parser } from '../../src/lib/parse/parser';
 import type { CoreOptions } from '../../src/lib/options';
 import { suppressComments } from '../../src/lib/transform/transformers';
+import { collectNodesDFS } from '../util';
+import { AstNode, NodeType } from '../../src/lib/parse/types';
 
 describe('Parser', () => {
   it('retains the parsed AST in memory', () => {
@@ -49,5 +51,29 @@ describe('Parser', () => {
     expect(conditions.has('foo')).toBe(true);
     expect(conditions.has('bar')).toBe(true);
     expect(conditions.size).toBe(2);
+  });
+
+  it('annotates nodes with source line numbers', () => {
+    const parser = new Parser({} as CoreOptions);
+    parser.parse('first\n\\section{Mid}\nlast');
+    const root = parser.getRoot();
+    const nodes = collectNodesDFS(root);
+
+    const types = nodes.map((n) => n.type);
+    const lines = nodes.map((n) => (n as AstNode).line);
+    const childrenCount = nodes.map((n) => (n as any).children?.length);
+    const values = nodes.map((n) => (n as any).value);
+    expect(nodes.length).toBe(6);
+    expect(types).toEqual([
+      NodeType.Root,
+      NodeType.Text,
+      NodeType.Section,
+      NodeType.Group,
+      NodeType.Text,
+      NodeType.Text,
+    ]);
+    expect(childrenCount).toEqual([2, undefined, 2, 1, undefined, undefined]);
+    expect(values).toEqual([undefined, 'first\n', undefined, undefined, 'Mid', '\nlast']);
+    expect(lines).toEqual([1, 1, 2, 2, 2, 2]);
   });
 });

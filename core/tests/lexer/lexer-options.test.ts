@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { Lexer, TokenType } from '../../src/lib/parse/tokens';
-import { collectPairs } from '../util';
+import { collectTokens } from '../util';
 
 describe('Lexer options: enabledTokens', () => {
   it('emits all by default (no options)', () => {
     const input = '\n text $x$ \\% \\text{a}';
     const lex = new Lexer(input);
-    const tokens = collectPairs(lex);
+    const tokens = collectTokens(lex);
     // Basic sanity: should contain Command and MathDelim
     const types = tokens.map((t) => t.type);
     expect(types).toContain(TokenType.Command);
@@ -22,7 +22,7 @@ describe('Lexer options: enabledTokens', () => {
       TokenType.Comment,
     ]);
     const lex = new Lexer(input, { enabledTokens: enabled });
-    const tokens = collectPairs(lex);
+    const tokens = collectTokens(lex);
     const types = tokens.map((t) => t.type);
     expect(types).not.toContain(TokenType.Command);
     // Expect Text around braces and inside group
@@ -38,7 +38,7 @@ describe('Lexer options: enabledTokens', () => {
       TokenType.Brace,
     ]);
     const lex = new Lexer(input, { enabledTokens: enabled });
-    const tokens = collectPairs(lex);
+    const tokens = collectTokens(lex);
     const math = tokens.filter((t) => t.type === TokenType.MathDelim);
     expect(math.length).toBe(0);
     // Should collapse into Text since math delims are suppressed
@@ -49,7 +49,7 @@ describe('Lexer options: enabledTokens', () => {
   it('letter escapable rule is inherent (\\+letter always starts a command)', () => {
     const input = '\\n X \\next';
     const lex = new Lexer(input);
-    const tokens = collectPairs(lex);
+    const tokens = collectTokens(lex);
     const types = tokens.map((t) => t.type);
     // \\n followed by space -> single-letter Command('n') then Text
     expect(types[0]).toBe(TokenType.Command);
