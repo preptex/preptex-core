@@ -10,7 +10,8 @@ function findFirstCondition(root: AstRoot) {
 describe('conditions parsing', () => {
   it('parses if/else/fi and splits branches', () => {
     const parser = new Parser({} as CoreOptions);
-    const ast = parser.parse('\\ifX A \\else B \\fi');
+    parser.parse('\\ifX A \\else B \\fi');
+    const ast = parser.getRoot();
 
     const cond: any = findFirstCondition(ast);
     expect(cond).toBeTruthy();
@@ -37,7 +38,8 @@ describe('conditions parsing', () => {
 
   it('parses if/fi without else', () => {
     const parser = new Parser({} as CoreOptions);
-    const ast = parser.parse('\\ifY Only \\fi');
+    parser.parse('\\ifY Only \\fi');
+    const ast = parser.getRoot();
 
     const cond: any = findFirstCondition(ast);
     expect(cond).toBeTruthy();
@@ -58,7 +60,8 @@ describe('conditions parsing', () => {
 
   it('parses \\newif declarations into dedicated nodes', () => {
     const parser = new Parser({} as CoreOptions);
-    const ast = parser.parse('\\newif\\ifCool\nBody');
+    parser.parse('\\newif\\ifCool\nBody');
+    const ast = parser.getRoot();
 
     const decl = ast.children.find((n) => n.type === NodeType.ConditionDeclaration) as any;
     expect(decl).toBeTruthy();
