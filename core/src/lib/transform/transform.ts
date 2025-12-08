@@ -30,7 +30,7 @@ export function walk(node: AstNode, transformers: Transformer[], ctx: TransformC
   return output;
 }
 
-export function transform(root: AstRoot, transformers: Transformer[]) {
+export function transform(root: AstRoot, transformers: Transformer[]): string {
   const ctx: TransformCtx = {
     text: [],
     pushText: (s: string) => {
@@ -39,8 +39,5 @@ export function transform(root: AstRoot, transformers: Transformer[]) {
   };
 
   const text = walk(root, transformers, ctx);
-  return {
-    root,
-    text,
-  };
+  return text;
 }

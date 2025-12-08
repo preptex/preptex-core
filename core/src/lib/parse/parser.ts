@@ -1,17 +1,20 @@
 import type { CoreOptions } from '../options.js';
 import { transform as runTransform, type Transformer } from '../transform/transform.js';
-import type { AstRoot } from './types.js';
+import { NodeType, type AstNode, type AstRoot, type InnerNode } from './types.js';
 import { parseToAst } from './parseToAst.js';
 
 export class Parser {
   private input = '';
   private root: AstRoot | null = null;
+  private declaredConditions: Set<string> = new Set();
 
   constructor(private options: CoreOptions) {}
 
   parse(input: string): void {
     this.input = input;
-    this.root = parseToAst(input, this.options);
+    const root = parseToAst(input, this.options);
+    this.root = root;
+    this.declaredConditions = collectConditionDeclarations(root);
   }
 
   getRoot(): AstRoot {
@@ -22,9 +25,14 @@ export class Parser {
     return this.input;
   }
 
-  transform(transformers: Transformer[]) {
+  transform(transformers: Transformer[]): string {
     const root = this.ensureRoot();
     return runTransform(root, transformers);
+  }
+
+  getDeclaredConditions(): ReadonlySet<string> {
+    this.ensureRoot();
+    return new Set(this.declaredConditions);
   }
 
   exportJSON(_options: CoreOptions): JSON {
@@ -40,4 +48,26 @@ export class Parser {
     }
     return this.root;
   }
+}
+
+function collectConditionDeclarations(root: AstRoot): Set<string> {
+  const declarations = new Set<string>();
+  const stack: AstNode[] = [root];
+
+  while (stack.length) {
+    const node = stack.pop()!;
+
+    if (node.type === NodeType.ConditionDeclaration) {
+      declarations.add(node.name);
+      continue;
+    }
+
+    if ('children' in node) {
+      for (const child of (node as InnerNode).children) {
+        stack.push(child);
+      }
+    }
+  }
+
+  return declarations;
 }

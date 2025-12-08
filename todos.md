@@ -2,13 +2,27 @@
 
 ## Time line
 
-1- Parser logic:
+Parser logic:
 
-- [ ] Restructure parser
-- [ ] Remove `transform.ts`
-- [ ] Add set of `ifConditions`
-- [ ] Make sure that `ifBranches` form a subset.
+- [ ] Transformers should **not** modify AST. Should run read only. They still should decide prefix/suffix output.
 - [ ] Add tree exporter in parser and tests.
+- [x] Restructure parser.
+- [x] Parser should invoke `transform.ts` internally.
+- [x] Add set of `ifConditions`.
+- [x] Make sure that `ifBranches` form a subset.
+- [x] Condition-transformer should suppress `\Xtrue`/`\Xfalse` for defined conditions `X`.
+
+---
+
+- [ ] Add line numbering and start-position in line to lexer and parser.
+- [ ] Handle empty-spaces and empty-lines after suppression (comment-commands and if-conditions)
+
+---
+
+- [ ] Handle `\input` commands:
+  1. Flattening: expand them into a single file.
+  2. Recursive: parse and apply transformers recursively (but do not flatten).
+  3. None.
 
 ---
 
@@ -20,7 +34,7 @@
 
 ---
 
-4- UI Plugins:
+UI Plugins:
 
 Create UI Projects:
 

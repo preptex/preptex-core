@@ -1,7 +1,7 @@
 import { Parser } from './parse/parser.js';
 import { CoreOptions } from './options.js';
 import type { Transformer } from './transform/transform.js';
-import { filterConditions, suppressComments } from './transform/transforems.js';
+import { filterConditions, suppressComments } from './transform/transformers.js';
 
 export function transformCode(code: string, options: CoreOptions = {} as CoreOptions): string {
   const parser = new Parser(options);
@@ -14,13 +14,14 @@ export function transformCode(code: string, options: CoreOptions = {} as CoreOpt
   }
 
   if (options.ifDecisions) {
-    transformers.push(filterConditions(options.ifDecisions));
+    const declaredConditions = parser.getDeclaredConditions();
+    transformers.push(filterConditions(options.ifDecisions, declaredConditions));
   }
 
   if (options.handleInputCmd) {
     throw new Error('Input flattening not implemented yet');
   }
 
-  const { text } = parser.transform(transformers);
+  const text = parser.transform(transformers);
   return text;
 }

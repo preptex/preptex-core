@@ -1,5 +1,5 @@
 import type { Transformer } from './transform.js';
-import { NodeType, ConditionBranchType, AstNode } from '../parse/types.js';
+import { NodeType, ConditionBranchType, AstNode, CommandNode } from '../parse/types.js';
 
 export function suppressComments(node: AstNode): boolean {
   return (node as any).type !== NodeType.Comment;
@@ -9,9 +9,23 @@ export function suppressComments(node: AstNode): boolean {
  * Skip-only condition filtering: for names in keepIfNames, traverse IF branch and skip ELSE;
  * otherwise traverse ELSE branch and skip IF. Nodes are not deleted.
  */
-export function filterConditions(keepIfNames: Set<string> | string[]): Transformer {
-  const keep = Array.isArray(keepIfNames) ? new Set(keepIfNames) : keepIfNames;
+export function filterConditions(
+  keepIfNames: Iterable<string> | undefined,
+  declaredConditions: Iterable<string>
+): Transformer {
+  const keep = new Set(keepIfNames ?? []);
+  const toggleCommands = new Set<string>();
+
+  for (const name of declaredConditions) {
+    toggleCommands.add(`${name}true`);
+    toggleCommands.add(`${name}false`);
+  }
+
   return (node) => {
+    if (node.type === NodeType.Command && toggleCommands.has((node as CommandNode).name)) {
+      return false;
+    }
+
     if (node.type === NodeType.ConditionDeclaration) return false;
     if (node.type !== NodeType.ConditionBranch && node.type !== NodeType.Condition) return true;
     node.prefix = '';
