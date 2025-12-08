@@ -32,6 +32,7 @@ export interface NodeBase {
   type: NodeType;
   start: number;
   end: number;
+  line: number;
 }
 
 // Inner nodes are nodes that can have children

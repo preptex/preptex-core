@@ -23,14 +23,18 @@ export interface SanityResult {
     closeCtx: NodeType;
     openPos: number;
     closePos: number;
+    openLine: number;
+    closeLine: number;
   }>;
   openedUnclosedGroupings?: Array<{
     ctx: NodeType;
     pos: number;
+    line: number;
   }>;
   unopenedClosings?: Array<{
     ctx: NodeType;
     closePos: number;
+    line: number;
   }>;
 }
 
@@ -71,10 +75,13 @@ export function sanityCheck(input: string): SanityResult {
     closeCtx: NodeType;
     openPos: number;
     closePos: number;
+    openLine: number;
+    closeLine: number;
   }> = [];
   const unopenedClosings: Array<{
     ctx: NodeType;
     closePos: number;
+    line: number;
   }> = [];
 
   // SECTION_COMMANDS centralized in constants.ts
@@ -96,6 +103,8 @@ export function sanityCheck(input: string): SanityResult {
             closeCtx: NodeType.Condition,
             openPos: (top as any).start,
             closePos: t.start,
+            openLine: (top as any).line ?? 1,
+            closeLine: t.line ?? 1,
           });
           if (topCtx === NodeType.Math && enabled.has(TokenType.MathDelim)) {
             enabled.delete(TokenType.MathDelim);
@@ -120,6 +129,7 @@ export function sanityCheck(input: string): SanityResult {
       type: NodeType.Condition,
       start: t.start,
       end: t.end,
+      line: t.line ?? 1,
       condition: t.text ?? 'if',
       thenBranch: [],
       elseBranch: [],
@@ -184,6 +194,7 @@ export function sanityCheck(input: string): SanityResult {
           type: NodeType.Environment,
           start: t.start,
           end: t.end,
+          line: t.line ?? 1,
           name,
           children: [],
           ctx: NodeType.Environment,
@@ -193,6 +204,7 @@ export function sanityCheck(input: string): SanityResult {
           type: NodeType.Math,
           start: t.start,
           end: t.end,
+          line: t.line ?? 1,
           delim: t.name,
           children: [],
           ctx: NodeType.Math,
@@ -206,6 +218,7 @@ export function sanityCheck(input: string): SanityResult {
           type: NodeType.Group,
           start: t.start,
           end: t.end,
+          line: t.line ?? 1,
           children: [],
           ctx: NodeType.Group,
         } as unknown as AstNode);
@@ -218,7 +231,7 @@ export function sanityCheck(input: string): SanityResult {
     if (stack.size() === 0) {
       notes.push(NOTE_EMPTY_STACK);
       // Record as unopened closing
-      unopenedClosings.push({ ctx, closePos: t.start });
+      unopenedClosings.push({ ctx, closePos: t.start, line: t.line ?? 1 });
       return;
     }
 
@@ -233,6 +246,8 @@ export function sanityCheck(input: string): SanityResult {
         closeCtx: ctx,
         openPos: (top as any).start,
         closePos: t.start,
+        openLine: (top as any).line ?? 1,
+        closeLine: t.line ?? 1,
       });
       if (
         (topCtx === NodeType.Math && ctx === NodeType.Condition) ||
@@ -285,6 +300,7 @@ export function sanityCheck(input: string): SanityResult {
   const openedUnclosedGroupings: Array<{
     ctx: NodeType;
     pos: number;
+    line: number;
   }> = [];
   const tmpFinal: AstNode[] = [];
   while (stack.size() > 0) {
@@ -292,7 +308,8 @@ export function sanityCheck(input: string): SanityResult {
     if (!n) break;
     tmpFinal.push(n);
     const c = (n as any).ctx as Ctx | undefined;
-    if (c) openedUnclosedGroupings.push({ ctx: c, pos: (n as any).start });
+    if (c)
+      openedUnclosedGroupings.push({ ctx: c, pos: (n as any).start, line: (n as any).line ?? 1 });
   }
   // restore (not strictly necessary at end)
   for (let i = tmpFinal.length - 1; i >= 0; i--) stack.push(tmpFinal[i]);
