@@ -20,8 +20,6 @@ describe('Transformer pipeline', () => {
       (node) => (node as any).type !== NodeType.Comment,
     ];
     const result = parser.transform(transformers);
-    expect(result.root).toBeTruthy();
-    // Assert exact aggregated text after suppressing comments
-    expect(result.text).toBe('Hello $x$ \\command{param} \\section{Title}\nWorld');
+    expect(result).toBe('Hello $x$ \\command{param} \\section{Title}\nWorld');
   });
 });
