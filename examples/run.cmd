@@ -1,5 +1,8 @@
-node ..\cli\dist\cli.js transform --input "..\\examples\\basic\\main.tex" --output "..\\examples\\out\\basic-output.tex"
+node ..\cli\dist\index.js transform --input "basic.tex" --out-dir ".\\dist"
 
-node ..\cli\dist\cli.js transform --input "..\\examples\\basic\\main.tex" --output "..\\examples\\out\\basic-noc.tex" --suppress-comments
+node ..\cli\dist\index.js transform --input "basic.tex" --out-dir ".\\dist" --suppress-comments --output "noc.tex"
 
-node ..\cli\dist\cli.js transform --input "..\\examples\\basic\\main.tex" --output "..\\examples\\out\\basic-conditions.tex" --if-branches test,long
+node ..\cli\dist\index.js transform --input "basic.tex" --out-dir ".\\dist" --if-branches test,long --output "branches.tex"
+
+
+node ..\cli\dist\index.js transform --input "input.tex" --out-dir ".\\dist" --flatten --output "flattened.tex"

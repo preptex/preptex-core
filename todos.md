@@ -9,23 +9,19 @@
 - [ ] Transformers should **not** modify AST. Should run read only. They still decide prefix/suffix output.
 - [ ] Add tree exporter in parser, update core and cli, add tests.
 - [ ] Keep the invariant that a node children intervals form a partition of its interval (excluding its value).
+- [x] Separate core logic to input and out functions, and add a state class `project`.
+- [x] Transform should be iterative with stack of nodes (tree is given implicitly by current node).
 
 ## ToDo Time line
 
-### Input command
-
-- [ ] Handle `\input` commands:
-  1. Flattening: expand them into a single file.
-  2. Recursive: parse and apply transformers recursively (but do not flatten).
-  3. None.
-- [ ] Core and parser get object of files instead of a single file `{[name]: [text]}`, with main file separation.
-- [ ] Output also object of files.
-- [ ] AST structure: `\input` is a node in all cases. It is `children[0]` is the root of the other file.
-
 ### Pre-/Post-process consistency
 
-- [ ] handle end of file with inline comment without new line.
-- [ ] Handle empty spaces separating commands. Check how tex handles these `\ifX text\fi text`. Also lines that turn empty after realizing `\if/else` (cf. inline comments parse `\n` as end of comment token).
+Compare to latex output and decide:
+
+- [ ] Flattened input should always start on new line.
+- [ ] Handle end of file with inline comment without new line.
+- [ ] Handle empty spaces separating commands. Check how tex handles these `\ifX text\fi text`.
+- [ ] Lines that turn empty after realizing `\if/else` and `comment` env (cf. inline comments parse `\n`).
 - [ ] Handle empty-spaces and empty-lines after suppression (comment-commands and if-conditions)
 
 ### Feature Classes - Metadata
@@ -69,6 +65,16 @@ Create UI Projects:
 
 ## Completed Todos
 
+### Input command
+
+- [x] Handle `\input` commands:
+  1. Flattening: expand them into a single file.
+  2. Recursive: parse and apply transformers recursively (but do not flatten).
+  3. None.
+- [x] Core and parser get object of files instead of a single file `{[name]: [text]}`, with main file separation.
+- [x] Output also object of files.
+- [x] AST structure: `\input` is a node in all cases. ~~It is `children[0]` is the root of the other file~~.
+
 ### Parser logic:
 
 - [x] Restructure parser.
@@ -76,5 +82,12 @@ Create UI Projects:
 - [x] Add set of `ifConditions`.
 - [x] Make sure that `ifBranches` form a subset.
 - [x] Condition-transformer should suppress `\Xtrue`/`\Xfalse` for defined conditions `X`.
+
+### Sanitizer:
+
+- [x] Find contradicting pairs:
+  - [x] Section inside condition.
+  - [x] Condition/Grouping intersection.
+- [x] Suppress TOKENS that contradict conditions.
 
 ---

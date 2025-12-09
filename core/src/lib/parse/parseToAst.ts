@@ -6,6 +6,7 @@ import {
   NodeType,
   ConditionBranchType,
   CommandNode,
+  InputNode,
 } from './types.js';
 import type { CoreOptions } from '../options.js';
 import { Lexer, TokenType, type Token } from './tokens.js';
@@ -16,6 +17,7 @@ interface ParseRuntime {
   input: string;
   root: AstRoot;
   stack: CallStack;
+  inputFiles?: Set<string>;
 }
 
 type TokenHandler = (runtime: ParseRuntime, token: Token) => void;
@@ -28,13 +30,14 @@ const HANDLERS: Map<TokenType, TokenHandler> = new Map([
   [TokenType.Comment, handleComment],
   [TokenType.MathDelim, handleMathDelim],
   [TokenType.Environment, handleEnvironment],
+  [TokenType.Input, handleInput],
   [TokenType.Condition, handleCondition],
   [TokenType.ConditionDeclaration, handleConditionDeclaration],
 ]);
 
-export function parseToAst(input: string, options: CoreOptions): AstRoot {
+export function parseToAst(input: string, options: CoreOptions, inputFiles?: Set<string>): AstRoot {
   void options;
-  const runtime = createRuntime(input);
+  const runtime = createRuntime(input, inputFiles);
 
   const sanity = sanityCheck(input);
   const lexer = new Lexer(input, sanity.lexerOptions);
@@ -50,7 +53,7 @@ export function parseToAst(input: string, options: CoreOptions): AstRoot {
   return runtime.root;
 }
 
-function createRuntime(input: string): ParseRuntime {
+function createRuntime(input: string, inputFiles?: Set<string>): ParseRuntime {
   const root: AstRoot = {
     type: NodeType.Root,
     start: 0,
@@ -66,6 +69,7 @@ function createRuntime(input: string): ParseRuntime {
     input,
     root,
     stack,
+    inputFiles,
   };
 }
 
@@ -186,6 +190,26 @@ function handleEnvironment(runtime: ParseRuntime, token: Token) {
   }
 
   runtime.stack.pop();
+}
+
+function handleInput(runtime: ParseRuntime, token: Token) {
+  const parent = getParentNode(runtime) as InnerNode;
+  const path = token.text ?? '';
+  const raw = runtime.input.slice(token.start, token.end);
+
+  const inputNode: InputNode = {
+    type: NodeType.Input,
+    start: token.start,
+    end: token.end,
+    line: token.line,
+    path,
+    value: raw,
+  };
+
+  parent.children.push(inputNode);
+  if (path && runtime.inputFiles) {
+    runtime.inputFiles.add(path);
+  }
 }
 
 function handleBracket(_runtime: ParseRuntime, _token: Token) {

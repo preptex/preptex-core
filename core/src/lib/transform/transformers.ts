@@ -6,14 +6,14 @@ export function suppressComments(node: AstNode): boolean {
 }
 
 /**
- * Skip-only condition filtering: for names in keepIfNames, traverse IF branch and skip ELSE;
+ * Skip-only condition filtering: for names in keepConditions, traverse IF branch and skip ELSE;
  * otherwise traverse ELSE branch and skip IF. Nodes are not deleted.
  */
 export function filterConditions(
-  keepIfNames: Iterable<string> | undefined,
+  keepConditions: Iterable<string> | undefined,
   declaredConditions: Iterable<string>
 ): Transformer {
-  const keep = new Set(keepIfNames ?? []);
+  const keep = new Set(keepConditions ?? []);
   const toggleCommands = new Set<string>();
 
   for (const name of declaredConditions) {
