@@ -291,6 +291,7 @@ export function sanityCheck(input: string): SanityResult {
   handlers.set(TokenType.Comment, handleAtom);
   handlers.set(TokenType.Bracket, handleAtom);
   handlers.set(TokenType.ConditionDeclaration, handleAtom);
+  handlers.set(TokenType.Input, handleAtom);
 
   for (const t of tokens) {
     const h = handlers.get(t.type) || handleAtom;

@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { Parser } from '../../src/lib/parse/parser';
 import type { CoreOptions } from '../../src/lib/options';
+import { transform } from '../../src/lib/transform/transform';
 import { suppressComments } from '../../src/lib/transform/transformers';
 import { collectNodesDFS } from '../util';
-import { AstNode, NodeType } from '../../src/lib/parse/types';
+import { AstNode, NodeType, type InputNode } from '../../src/lib/parse/types';
 
 describe('Parser', () => {
   it('retains the parsed AST in memory', () => {
@@ -23,17 +24,17 @@ describe('Parser', () => {
     expect(parser.getInput()).toBe('Input body\n');
   });
 
-  it('routes transform calls through the stored AST', () => {
+  it('exposes parsed AST so callers can render it', () => {
     const parser = new Parser({} as CoreOptions);
     parser.parse('A %comment\nB');
-    const text = parser.transform([]);
+    const text = transform(parser.getRoot(), []);
     expect(text).toBe('A %comment\nB');
   });
 
   it('transforms correctly with transformers', () => {
     const parser = new Parser({} as CoreOptions);
     parser.parse('A %comment\nB');
-    const text = parser.transform([suppressComments]);
+    const text = transform(parser.getRoot(), [suppressComments]);
     expect(text).toBe('A B');
   });
 
@@ -51,6 +52,21 @@ describe('Parser', () => {
     expect(conditions.has('foo')).toBe(true);
     expect(conditions.has('bar')).toBe(true);
     expect(conditions.size).toBe(2);
+  });
+
+  it('captures input commands as dedicated nodes and tracks file list', () => {
+    const parser = new Parser({} as CoreOptions);
+    parser.parse('Before\\input {chapters/intro.tex}After');
+
+    const root = parser.getRoot();
+    const input = root.children.find((n) => n.type === NodeType.Input) as InputNode | undefined;
+    expect(input).toBeTruthy();
+    expect(input?.path).toBe('chapters/intro.tex');
+    expect(input?.value).toBe('\\input {chapters/intro.tex}');
+
+    const files = parser.getInputFiles();
+    expect(files.has('chapters/intro.tex')).toBe(true);
+    expect(files.size).toBe(1);
   });
 
   it('annotates nodes with source line numbers', () => {

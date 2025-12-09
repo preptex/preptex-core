@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Parser } from '../../src/lib/parse/parser';
+import { transform } from '../../src/lib/transform/transform';
 import { filterConditions, suppressComments } from '../../src/lib/transform/transformers';
 
 function createParser(input: string): Parser {
@@ -10,7 +11,7 @@ function createParser(input: string): Parser {
 
 function runFilter(parser: Parser, keep: Iterable<string>) {
   const declared = parser.getDeclaredConditions();
-  return parser.transform([filterConditions(keep, declared)]);
+  return transform(parser.getRoot(), [filterConditions(keep, declared)]);
 }
 
 describe('conditions transform', () => {
@@ -78,7 +79,7 @@ describe('suppress comments transform', () => {
   it('omits comments from the aggregated output text', () => {
     const input = `Text % comment\nMore`;
     const parser = createParser(input);
-    const text = parser.transform([suppressComments]);
+    const text = transform(parser.getRoot(), [suppressComments]);
     expect(text).toBe('Text More');
   });
 });

@@ -140,5 +140,5 @@ dist/
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-examples/**/build/
-examples/**dist/
+examples/build/
+examples/dist/

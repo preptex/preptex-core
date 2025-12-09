@@ -5,6 +5,7 @@ export enum TokenType {
   Condition = 'Condition',
   ConditionDeclaration = 'ConditionDeclaration',
   Command = 'Command',
+  Input = 'Input',
   Brace = 'Brace',
   Bracket = 'Bracket',
   Comment = 'Comment',
@@ -218,6 +219,7 @@ export class Lexer {
       const delim = `\\${name}`;
       return { type: TokenType.MathDelim, name: delim, start, end, line };
     }
+    if (name === 'input') return this.readInputCommand(name, start, line);
     if (name === 'else') return { type: TokenType.Condition, name, start, end, line };
     if (name === 'fi') return { type: TokenType.Condition, name, start, end, line };
     if (name.startsWith('if'))
@@ -232,6 +234,36 @@ export class Lexer {
     if (name === 'begin') return this.readEnvironment(start, true, line);
     if (name === 'end') return this.readEnvironment(start, false, line);
     return { type: TokenType.Command, name, start, end, line };
+  }
+
+  private readInputCommand(name: string, start: number, line: number): Token {
+    const commandStart = start;
+    this.skipWhitespace();
+
+    let path = '';
+    const hasBrace = this.pos < this.input.length && this.input[this.pos] === '{';
+
+    if (hasBrace) {
+      this.pos++; // consume '{'
+      const pathStart = this.pos;
+      while (this.pos < this.input.length && this.input[this.pos] !== '}') this.pos++;
+      path = this.input.slice(pathStart, this.pos);
+      if (this.pos < this.input.length && this.input[this.pos] === '}') this.pos++;
+    } else {
+      const pathStart = this.pos;
+      while (this.pos < this.input.length && !/\s/.test(this.input[this.pos])) this.pos++;
+      path = this.input.slice(pathStart, this.pos);
+    }
+
+    const end = this.pos;
+    return (this.current = {
+      type: TokenType.Input,
+      name,
+      text: path,
+      start: commandStart,
+      end,
+      line,
+    });
   }
 
   private readNewIfDeclaration(start: number, end: number, line: number): Token {

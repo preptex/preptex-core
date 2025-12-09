@@ -117,6 +117,7 @@ export interface SectionNode extends InnerNode {
 export interface InputNode extends NodeBase {
   type: NodeType.Input;
   path: string; // filename argument
+  value: string;
   resolved?: string; // resolved path when inlining
   content?: AstRoot; // filled when flattened
 }

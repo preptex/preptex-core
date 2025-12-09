@@ -1,5 +1,4 @@
 import type { CoreOptions } from '../options.js';
-import { transform as runTransform, type Transformer } from '../transform/transform.js';
 import { NodeType, type AstNode, type AstRoot, type InnerNode } from './types.js';
 import { parseToAst } from './parseToAst.js';
 
@@ -7,12 +6,14 @@ export class Parser {
   private input = '';
   private root: AstRoot | null = null;
   private declaredConditions: Set<string> = new Set();
+  private inputFiles: Set<string> = new Set();
 
   constructor(private options: CoreOptions) {}
 
   parse(input: string): void {
     this.input = input;
-    const root = parseToAst(input, this.options);
+    this.inputFiles.clear();
+    const root = parseToAst(input, this.options, this.inputFiles);
     this.root = root;
     this.declaredConditions = collectConditionDeclarations(root);
   }
@@ -25,14 +26,14 @@ export class Parser {
     return this.input;
   }
 
-  transform(transformers: Transformer[]): string {
-    const root = this.ensureRoot();
-    return runTransform(root, transformers);
-  }
-
   getDeclaredConditions(): ReadonlySet<string> {
     this.ensureRoot();
     return new Set(this.declaredConditions);
+  }
+
+  getInputFiles(): ReadonlySet<string> {
+    this.ensureRoot();
+    return new Set(this.inputFiles);
   }
 
   exportJSON(_options: CoreOptions): JSON {
