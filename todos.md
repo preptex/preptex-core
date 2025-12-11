@@ -11,6 +11,7 @@
 - [ ] Keep the invariant that a node children intervals form a partition of its interval (excluding its value).
 - [x] Separate core logic to input and out functions, and add a state class `project`.
 - [x] Transform should be iterative with stack of nodes (tree is given implicitly by current node).
+- [x] Windows endofline handling.
 
 ## ToDo Time line
 
@@ -18,8 +19,8 @@
 
 Compare to latex output and decide:
 
-- [ ] Flattened input should always start on new line.
-- [ ] Handle end of file with inline comment without new line.
+- [x] ~~Flattened input should always start on new line~~.
+- [x] Handle EOF with inline comment without new line.
 - [ ] Handle empty spaces separating commands. Check how tex handles these `\ifX text\fi text`.
 - [ ] Lines that turn empty after realizing `\if/else` and `comment` env (cf. inline comments parse `\n`).
 - [ ] Handle empty-spaces and empty-lines after suppression (comment-commands and if-conditions)

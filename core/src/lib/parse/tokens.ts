@@ -126,17 +126,24 @@ export class Lexer {
 
   private readComment(envC: boolean = false, start: number = this.pos): Token {
     const line = this.getLineForIndex(start);
-    let end = start + 1;
-    const ending = envC ? '\\end{comment}' : '\n';
-    while (end < this.input.length && !this.input.startsWith(ending, end)) {
-      end++;
+    // Search for either LF or CRLF variants. For env-comments we look for
+    // a newline, then "\\end{comment}", then another newline; otherwise
+    // we stop at the next newline. Use regex to accept both "\n" and "\r\n".
+    const remainder = this.input.slice(start);
+    const re = envC ? /\r?\n\\end\{comment\}\r?\n/ : /\r?\n/;
+    const m = re.exec(remainder);
+    let end: number;
+    if (m) {
+      end = start + m.index;
+      // Include the terminator in the comment text (match[0] is the terminator)
+      end += m[0].length - 1;
+    } else {
+      // No terminator found -> consume to EOF (preserve previous behaviour)
+      end = this.input.length;
     }
-    // Include the terminator in the comment text
-    if (this.input.startsWith(ending, end)) {
-      end += ending.length;
-    }
-    const raw = this.input.slice(start, end);
-    this.pos = end;
+
+    const raw = this.input.slice(start, end + 1);
+    this.pos = end + 1;
     // Distinguish comments that are commenting out environments (e.g., %\begin or %\end)
     return (this.current = {
       type: TokenType.Comment,
