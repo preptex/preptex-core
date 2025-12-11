@@ -1,8 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { Lexer, Token, TokenType } from '../../src/lib/parse/tokens';
+import { Lexer, Token, TokenType } from '../../src/lib/lexer/tokens';
 import { collectTokens } from '../util';
 
 const sample = `% comment line\n\\begin{doc}Text \\ifXYZ more \\else alt \\fi{inner} \\end{doc}`;
+
+function sliceToken(input: string, start: number, end: number): string {
+  if (end < start) return '';
+  return input.slice(start, end + 1);
+}
 
 describe('Lexer', () => {
   it('tokenizes sample input', () => {
@@ -11,25 +16,29 @@ describe('Lexer', () => {
     // Assert first few tokens carry full data
     expect(tokens[0].type).toBe(TokenType.Comment);
     expect(tokens[0].name).toBe('%');
-    expect(tokens[0].text).toContain('comment line');
+    expect(sliceToken(sample, tokens[0].start, tokens[0].end)).toContain('comment line');
     // Newline is included in the comment; next is Environment begin
     expect(tokens[1].type).toBe(TokenType.Environment);
     expect(tokens[1].name).toBe('doc');
     expect(tokens[1].isBegin).toBe(true);
     // Check matching end environment token at the end
-    const lastEnv = tokens.filter((t) => t.type === TokenType.Environment).at(-1)!;
+    const envs = tokens.filter((t) => t.type === TokenType.Environment);
+    expect(envs.length).toBe(2);
+    const lastEnv = envs[envs.length - 1];
     expect(lastEnv.name).toBe('doc');
     expect(lastEnv.isBegin).toBe(false);
     // Compare simplified name sequence for entire stream
-    const names = tokens.map((t) => (t.type === TokenType.Text ? t.text : t.name));
+    const names = tokens.map((t) =>
+      t.type === TokenType.Text ? sliceToken(sample, t.start, t.end) : t.name
+    );
     expect(names).toEqual([
       '%',
       'doc',
       'Text ',
       'if',
-      ' more ',
+      'more ',
       'else',
-      ' alt ',
+      'alt ',
       'fi',
       '{',
       'inner',
@@ -52,7 +61,7 @@ describe('Lexer', () => {
     const lex = new Lexer('\\'.repeat(5) + 'more'); // 5 backslashes then 'more'
     const out = collectTokens(lex);
     expect(out.map((o) => o.type)).toEqual([TokenType.Text, TokenType.Command]);
-    expect(out[0].text).toBe('\\'.repeat(4)); // 4 backslashes consumed as text
+    expect(sliceToken('\\'.repeat(5) + 'more', out[0].start, out[0].end)).toBe('\\'.repeat(4)); // 4 backslashes consumed as text
     expect(out[1].name).toBe('more'); // last backslash starts command
   });
 
@@ -61,7 +70,7 @@ describe('Lexer', () => {
     const out = collectTokens(lex);
     expect(out.map((o) => o.type)).toEqual([TokenType.Condition]);
     expect(out[0].name).toBe('if');
-    expect(out[0].text).toBe('XYZ');
+    expect(out[0].condition).toBe('XYZ');
     // Ensure positions are sane
     expect(out[0].start).toBe(0);
     expect(out[0].end).toBeGreaterThan(out[0].start);
@@ -71,8 +80,10 @@ describe('Lexer', () => {
     const input = 'some text\\more text' + '\\'.repeat(3) + 'and more text\\';
     const lex = new Lexer(input);
     const tokens = collectTokens(lex);
-    const names = tokens.map((t) => (t.type === TokenType.Text ? t.text : t.name));
-    expect(names).toEqual(['some text', 'more', ' text\\\\', 'and', ' more text', '']);
+    const names = tokens.map((t) =>
+      t.type === TokenType.Text ? sliceToken(input, t.start, t.end) : t.name
+    );
+    expect(names).toEqual(['some text', 'more', 'text\\\\', 'and', 'more text\\']);
   });
 
   it('tokenizes even backslashes + escapables as one Text', () => {
@@ -92,14 +103,16 @@ describe('Lexer', () => {
     const lex = new Lexer(input);
     const tokens = collectTokens(lex);
     expect(tokens.map((t) => t.type)).toEqual([TokenType.Text]);
-    expect(tokens[0].text).toBe(input);
+    expect(sliceToken(input, tokens[0].start, tokens[0].end)).toBe(input);
   });
 
   it('tests escapables vs commands', () => {
     const input = '\n \t\\text{abc}\\%abc';
     const lex = new Lexer(input);
     const tokens = collectTokens(lex);
-    const names = tokens.map((t) => (t.type === TokenType.Text ? t.text : t.name));
+    const names = tokens.map((t) =>
+      t.type === TokenType.Text ? sliceToken(input, t.start, t.end) : t.name
+    );
     expect(names).toEqual(['\n \t', 'text', '{', 'abc', '}', '\\%abc']);
   });
 
@@ -109,10 +122,10 @@ describe('Lexer', () => {
     const tokens = collectTokens(lex);
     expect(tokens[0].type).toBe(TokenType.Comment);
     expect(tokens[0].name).toBe('%');
-    expect(tokens[0].text).toBe('% inline comment here\n');
+    expect(sliceToken(input, tokens[0].start, tokens[0].end)).toBe('% inline comment here\n');
     // Following text starts immediately after newline
     expect(tokens[1].type).toBe(TokenType.Text);
-    expect(tokens[1].text).toBe('Next');
+    expect(sliceToken(input, tokens[1].start, tokens[1].end)).toBe('Next');
   });
 
   it('captures exact env comment name and text for \\begin{comment}...\\end{comment}', () => {
@@ -121,12 +134,14 @@ describe('Lexer', () => {
     const tokens = collectTokens(lex);
     // First text chunk
     expect(tokens[0].type).toBe(TokenType.Text);
-    expect(tokens[0].text).toBe('Before\n');
+    expect(sliceToken(input, tokens[0].start, tokens[0].end)).toBe('Before\n');
     // Environment comment token should include begin and body up to end
     const c = tokens[1];
     expect(c.type).toBe(TokenType.Comment);
     expect(c.name).toBe('env-comment');
-    expect(c.text).toBe('\\begin{comment}\nHidden content\n\\end{comment}\n');
+    expect(sliceToken(input, c.start, c.end)).toBe(
+      '\\begin{comment}\nHidden content\n\\end{comment}\n'
+    );
   });
 
   it('produces condition declaration tokens for \\newif lines', () => {
@@ -135,18 +150,15 @@ describe('Lexer', () => {
     const tokens = collectTokens(lex);
     expect(tokens[0].type).toBe(TokenType.ConditionDeclaration);
     expect(tokens[0].name).toBe('Example');
-    expect(tokens[0].text).toBe('\\newif\\ifExample\n');
+    expect(sliceToken(input, tokens[0].start, tokens[0].end)).toBe('\\newif\\ifExample\n');
     expect(tokens[1].type).toBe(TokenType.Text);
-    expect(tokens[1].text).toBe('Next');
+    expect(sliceToken(input, tokens[1].start, tokens[1].end)).toBe('Next');
   });
 
-  it('falls back to command when \\newif lacks condition name', () => {
+  it('Throw error when \\newif lacks condition name', () => {
     const input = '\\newif something';
     const lex = new Lexer(input);
-    const tokens = collectTokens(lex);
-    expect(tokens[0].type).toBe(TokenType.Command);
-    expect(tokens[0].name).toBe('newif');
-    expect(tokens[1].type).toBe(TokenType.Text);
+    expect(() => collectTokens(lex)).toThrowError();
   });
 });
 describe('Lexer line numbers', () => {
@@ -162,6 +174,8 @@ describe('Lexer line numbers', () => {
       TokenType.Comment,
       TokenType.Text,
     ]);
+    // console.log(tokens.map((t) => sliceToken(input, t.start, t.end)));
+    expect(tokens.map((t) => t.start)).toEqual([0, 5, 16, 22, 31, 41]);
     expect(tokens.map((t) => t.line)).toEqual([1, 1, 1, 3, 3, 4]);
   });
 
@@ -182,7 +196,9 @@ describe('Lexer line numbers', () => {
     expect(tokens.length).toBe(1);
     expect(tokens[0].type).toBe(TokenType.Comment);
     expect(tokens[0].name).toBe('env-comment');
-    expect(tokens[0].text).toBe('\\begin{comment}\nHidden\\end{comment} % trailing\nAfter');
+    expect(sliceToken(input, tokens[0].start, tokens[0].end)).toBe(
+      '\\begin{comment}\nHidden\\end{comment} % trailing\nAfter'
+    );
   });
 
   it('counts lines in condition declarations', () => {
@@ -204,7 +220,9 @@ describe('Lexer line numbers', () => {
     expect(tokens.length).toBe(5);
     const textToken = tokens[4];
     expect(textToken.type).toBe(TokenType.Text);
-    expect(textToken.text).toBe('\n\nText line3\n');
+    expect(textToken.start).toBe(15);
+    expect(textToken.end).toBe(27);
     expect(textToken.line).toBe(1);
+    expect((textToken as any).text).toBeUndefined();
   });
 });

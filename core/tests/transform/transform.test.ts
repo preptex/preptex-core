@@ -39,6 +39,13 @@ describe('Transformer pipeline', () => {
     expect(text).toBe('Start Intro contents End');
   });
 
+  it('omits comments from the aggregated output text', () => {
+    const input = `Text % comment\nMore`;
+    const parser = createParser(input);
+    const text = transform(parser.getRoot(), [suppressComments]);
+    expect(text).toBe('Text More');
+  });
+
   it('flattens nested inputs and still applies transformers', () => {
     const main = createParser('Header \\input{mid.tex} Footer');
     const mid = createParser('Hello % comment\n\\input{sub.tex}');

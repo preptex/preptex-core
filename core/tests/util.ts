@@ -1,6 +1,12 @@
-import { Lexer, type Token } from '../src/lib/parse/tokens';
+import { Lexer, type Token } from '../src/lib/lexer/tokens';
 import { AstNode, INNER_NODE_TYPES, InnerNode } from '../src/lib/parse/types';
 
+export function appendTextToToken(input: string, token: Token): any {
+  return {
+    ...token,
+    text: input.slice(token.start, token.end + 1),
+  };
+}
 // Collect all tokens with full data as produced by the lexer
 export function collectTokens(lex: Lexer): Token[] {
   const out: Token[] = [];

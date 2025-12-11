@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Lexer, TokenType } from '../../src/lib/parse/tokens';
+import { Lexer, TokenType } from '../../src/lib/lexer/tokens';
 import { collectTokens } from '../util';
 
 describe('Math delimiters', () => {
@@ -7,10 +7,15 @@ describe('Math delimiters', () => {
     const input = 'a $ b $$ c $ d $$';
     const lex = new Lexer(input);
     const tokens = collectTokens(lex);
+    const mathindices = tokens
+      .map((t, i) => [i, t] as const)
+      .filter(([_, t]) => t.type === TokenType.MathDelim)
+      .map(([i]) => i);
+    expect(mathindices).toEqual([1, 3, 5, 7]);
     const delims = tokens.filter((t) => t.type === TokenType.MathDelim);
     expect(delims.map((t) => t.name)).toEqual(['$', '$$', '$', '$$']);
     // Ensure positions and ordering are consistent
-    expect(delims[0].start).toBeLessThan(delims[0].end);
+    expect(delims[0].start).toBeLessThanOrEqual(delims[0].end);
     expect(delims[2].name).toBe('$');
   });
 
