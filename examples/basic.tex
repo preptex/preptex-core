@@ -8,9 +8,19 @@
 
 \begin{document}
 Hello, PrepTeX!
-\begin{comment}
+
+\begin{itemize}
+\item Some env
+\end{itemize}
+
+Comment start -\begin{comment} in comment
     some comment
+\end{comment} this does not end comment
+neither this ends comment \end{comment}
+
 \end{comment}
+end of comment.
+
 \iflong
 Long version
 \fi
@@ -19,4 +29,6 @@ Short version
 \else
 Not short version
 \fi
+
+before-\input{sub.tex}-after
 \end{document}

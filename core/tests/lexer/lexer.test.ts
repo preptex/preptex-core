@@ -116,17 +116,17 @@ describe('Lexer', () => {
   });
 
   it('captures exact env comment name and text for \\begin{comment}...\\end{comment}', () => {
-    const input = 'Before\\begin{comment}\nHidden content\\end{comment}After';
+    const input = 'Before\n\\begin{comment}\nHidden content\n\\end{comment}\nAfter';
     const lex = new Lexer(input);
     const tokens = collectTokens(lex);
     // First text chunk
     expect(tokens[0].type).toBe(TokenType.Text);
-    expect(tokens[0].text).toBe('Before');
+    expect(tokens[0].text).toBe('Before\n');
     // Environment comment token should include begin and body up to end
     const c = tokens[1];
     expect(c.type).toBe(TokenType.Comment);
     expect(c.name).toBe('env-comment');
-    expect(c.text).toBe('\\begin{comment}\nHidden content\\end{comment}');
+    expect(c.text).toBe('\\begin{comment}\nHidden content\n\\end{comment}\n');
   });
 
   it('produces condition declaration tokens for \\newif lines', () => {
@@ -166,12 +166,23 @@ describe('Lexer line numbers', () => {
   });
 
   it('counts lines in comments', () => {
-    const input = '% first line\n\\begin{comment}\n\n\n\\end{comment}% second line\nText';
+    const input = '% first line\n\\begin{comment}\n\n\n\\end{comment}\n\n% second line\nText';
     const lex = new Lexer(input);
     const tokens = collectTokens(lex);
     const last_text = tokens[tokens.length - 1];
     expect(last_text.type).toBe(TokenType.Text);
-    expect(last_text.line).toBe(6);
+    expect(last_text.line).toBe(8);
+  });
+
+  it('does not terminate env comment when \\end{comment} has trailing content', () => {
+    const input = '\\begin{comment}\nHidden\\end{comment} % trailing\nAfter';
+    const lex = new Lexer(input);
+    const tokens = collectTokens(lex);
+    // Entire rest of document is a single env-comment, matching comment.sty semantics.
+    expect(tokens.length).toBe(1);
+    expect(tokens[0].type).toBe(TokenType.Comment);
+    expect(tokens[0].name).toBe('env-comment');
+    expect(tokens[0].text).toBe('\\begin{comment}\nHidden\\end{comment} % trailing\nAfter');
   });
 
   it('counts lines in condition declarations', () => {

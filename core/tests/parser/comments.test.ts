@@ -52,14 +52,14 @@ describe('Parser comment handling', () => {
   });
 
   it('captures block comment using \\begin{comment} ... \\end{comment}', () => {
-    const ast = parse('Before\\begin{comment}\nThis is hidden\\end{comment}After');
+    const ast = parse('Before\\begin{comment}This is hidden\n\\end{comment}\nAfter');
     const children = ast.children;
     expect(children[0].type).toBe(NodeType.Text);
     expect((children[0] as any).value).toBe('Before');
     expect(children[1].type).toBe(NodeType.Comment);
     // Lexer uses 'env-comment' for environment comments
     expect((children[1] as any).name).toBe('env-comment');
-    expect((children[1] as any).value).toBe('\\begin{comment}\nThis is hidden\\end{comment}');
+    expect((children[1] as any).value).toBe('\\begin{comment}This is hidden\n\\end{comment}\n');
     expect(children[2].type).toBe(NodeType.Text);
     expect((children[2] as any).value).toBe('After');
   });
