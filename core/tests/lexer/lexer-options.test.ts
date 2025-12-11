@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Lexer, TokenType } from '../../src/lib/parse/tokens';
+import { Lexer, TokenType } from '../../src/lib/lexer/tokens';
 import { collectTokens } from '../util';
 
 describe('Lexer options: enabledTokens', () => {
@@ -23,10 +23,20 @@ describe('Lexer options: enabledTokens', () => {
     ]);
     const lex = new Lexer(input, { enabledTokens: enabled });
     const tokens = collectTokens(lex);
+
     const types = tokens.map((t) => t.type);
-    expect(types).not.toContain(TokenType.Command);
-    // Expect Text around braces and inside group
-    expect(types.filter((t) => t === TokenType.Text).length).toBeGreaterThan(0);
+    expect(tokens.length).toBe(5);
+    expect(types).toEqual([
+      TokenType.Text,
+      TokenType.Brace,
+      TokenType.Text,
+      TokenType.Brace,
+      TokenType.Text,
+    ]);
+    let texts = tokens
+      .filter((t) => t.type === TokenType.Text)
+      .map((t) => (t.end < t.start ? '' : input.slice(t.start, t.end + 1)));
+    expect(texts).toEqual(['prefix \\text', 'abc', ' suffix']);
   });
 
   it('can suppress MathDelim tokens', () => {

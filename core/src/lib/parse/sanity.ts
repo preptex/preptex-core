@@ -1,4 +1,4 @@
-import { Lexer, TokenType, LexerOptions, getAllTokenTypes } from './tokens.js';
+import { Lexer, TokenType, LexerOptions, getAllTokenTypes } from '../lexer/tokens.js';
 import { CallStack } from './callstack.js';
 import { NodeType, type AstNode } from './types.js';
 import { SECTION_COMMANDS } from './constants.js';
@@ -130,7 +130,7 @@ export function sanityCheck(input: string): SanityResult {
       start: t.start,
       end: t.end,
       line: t.line ?? 1,
-      condition: t.text ?? 'if',
+      condition: t.condition ?? 'if',
       thenBranch: [],
       elseBranch: [],
       ctx: NodeType.Condition,

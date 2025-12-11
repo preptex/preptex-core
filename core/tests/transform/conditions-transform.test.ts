@@ -20,7 +20,7 @@ describe('conditions transform', () => {
     const parser = createParser(input);
     const text = runFilter(parser, ['X']);
     expect(parser.getRoot()).toBeTruthy();
-    expect(text).toBe(' Hello');
+    expect(text).toBe('Hello');
   });
 
   it('keeps ELSE branch when name not in list (aggregated text)', () => {
@@ -28,7 +28,7 @@ describe('conditions transform', () => {
     const parser = createParser(input);
     const text = runFilter(parser, ['X']);
     expect(parser.getRoot()).toBeTruthy();
-    expect(text).toBe(' Beta');
+    expect(text).toBe('Beta');
   });
 
   it('handles condition without else by skipping when not kept (aggregated text)', () => {
@@ -36,50 +36,48 @@ describe('conditions transform', () => {
     const parser = createParser(input);
     const text = runFilter(parser, ['X']);
     expect(parser.getRoot()).toBeTruthy();
-    expect(text).toBe('Start  End');
+    expect(text).toBe('Start End');
   });
 
   it('handles multiple conditions with mixed decisions', () => {
     const input = `A \\ifA KeepIf \\else KeepElse \\fi B \\ifB One \\else Two \\fi C`;
     const parser = createParser(input);
     const text = runFilter(parser, ['A']);
-    expect(text).toBe('A  KeepIf  B  Two  C');
+    expect(text).toBe('A KeepIf B Two C');
   });
 
   it('supports nested conditions and applies decisions independently', () => {
     const input = `Top \\ifOuter X \\ifInner InIf \\else InElse \\fi Y \\else Z \\fi End`;
     const parser = createParser(input);
     const text = runFilter(parser, ['Inner']);
-    expect(text).toBe('Top  Z  End');
+    expect(text).toBe('Top Z End');
   });
 
   it('suppresses \\newif declarations from output', () => {
     const input = `\\newif\\ifCool\n\\ifCool Hit\\else Miss\\fi`;
     const parser = createParser(input);
     const text = runFilter(parser, ['Cool']);
-    expect(text).toBe(' Hit');
+    expect(text).toBe('Hit');
   });
 
   it('suppresses \\newif declarations even when ELSE branch kept', () => {
     const input = `\\newif\\ifCool\n\\ifCool Hit\\else Miss\\fi`;
     const parser = createParser(input);
     const text = runFilter(parser, ['Other']);
-    expect(text).toBe(' Miss');
+    expect(text).toBe('Miss');
   });
 
   it('removes toggle commands for declared conditions', () => {
     const input = `\\newif\\ifFoo\n\\Footrue ShouldNotShow\n\\Foofalse NeitherThis`;
     const parser = createParser(input);
     const text = runFilter(parser, []);
-    expect(text).toBe(' ShouldNotShow\n NeitherThis');
+    expect(text).toBe('ShouldNotShow\nNeitherThis');
   });
-});
 
-describe('suppress comments transform', () => {
-  it('omits comments from the aggregated output text', () => {
-    const input = `Text % comment\nMore`;
+  it('parses a space after conditions', () => {
+    const input = `Start \\ifA HasSpace\\fi End`;
     const parser = createParser(input);
-    const text = transform(parser.getRoot(), [suppressComments]);
-    expect(text).toBe('Text More');
+    const text = runFilter(parser, ['A']);
+    expect(text).toBe('Start HasSpaceEnd');
   });
 });

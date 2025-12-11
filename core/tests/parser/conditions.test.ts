@@ -26,9 +26,9 @@ describe('conditions parsing', () => {
     const elseBranch = branches.find((b) => (b as any).branch === ConditionBranchType.Else);
     expect(ifBranch).toBeTruthy();
     expect(elseBranch).toBeTruthy();
-    expect((ifBranch as any).prefix).toBe('\\ifX');
+    expect((ifBranch as any).prefix).toBe('\\ifX ');
     expect((ifBranch as any).suffix).toBe('');
-    expect((elseBranch as any).prefix).toBe('\\else');
+    expect((elseBranch as any).prefix).toBe('\\else ');
     expect((elseBranch as any).suffix).toBe('');
     expect(ifBranch.children.length).toBeGreaterThan(0);
     expect(elseBranch.children.length).toBeGreaterThan(0);
@@ -52,7 +52,7 @@ describe('conditions parsing', () => {
     const ifBranch = branches.find((b) => (b as any).branch === ConditionBranchType.If);
     const elseBranch = branches.find((b) => (b as any).branch === ConditionBranchType.Else);
     expect(ifBranch).toBeTruthy();
-    expect((ifBranch as any).prefix).toBe('\\ifY');
+    expect((ifBranch as any).prefix).toBe('\\ifY ');
     expect((ifBranch as any).suffix).toBe('');
     expect((ifBranch as any).children.length).toBeGreaterThan(0);
     expect(elseBranch).toBeUndefined();

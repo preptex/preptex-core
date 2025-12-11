@@ -203,7 +203,7 @@ describe('parseToAst', () => {
     expect(ec[1].value).toBe(' some text ');
 
     expect(section.children[2].type).toBe(NodeType.Text);
-    expect(section.children[2].value).toBe(' ');
+    expect((section.children[2] as any).value).toBe(' ');
 
     const sub = section.children[3] as any;
     expect(sub.type).toBe(NodeType.Section);

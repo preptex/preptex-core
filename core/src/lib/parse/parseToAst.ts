@@ -9,7 +9,7 @@ import {
   InputNode,
 } from './types.js';
 import type { CoreOptions } from '../options.js';
-import { Lexer, TokenType, type Token } from './tokens.js';
+import { Lexer, TokenType, type Token } from '../lexer/tokens.js';
 import { sanityCheck } from './sanity.js';
 import { SECTION_LEVELS } from './constants.js';
 
@@ -18,6 +18,11 @@ interface ParseRuntime {
   root: AstRoot;
   stack: CallStack;
   inputFiles?: Set<string>;
+}
+
+function sliceTokenValue(input: string, start: number, end: number): string {
+  if (end < start) return '';
+  return input.slice(start, end + 1);
 }
 
 type TokenHandler = (runtime: ParseRuntime, token: Token) => void;
@@ -88,7 +93,7 @@ function handleText(runtime: ParseRuntime, token: Token) {
     start: token.start,
     end: token.end,
     line: token.line,
-    value: token.text ?? '',
+    value: sliceTokenValue(runtime.input, token.start, token.end),
   });
 }
 
@@ -118,7 +123,7 @@ function handleSection(runtime: ParseRuntime, token: Token) {
     end: token.end,
     line: token.line,
     children: [],
-    prefix: `\\${name}`,
+    prefix: runtime.input.slice(token.start, token.end + 1),
     suffix: ``,
   } as AstNode;
 
@@ -139,7 +144,7 @@ function handleCommand(runtime: ParseRuntime, token: Token) {
     end: token.end,
     line: token.line,
     name,
-    value: `\\${name}`,
+    value: runtime.input.slice(token.start, token.end + 1),
   } as CommandNode;
 
   const parent = getParentNode(runtime) as InnerNode;
@@ -181,7 +186,7 @@ function handleEnvironment(runtime: ParseRuntime, token: Token) {
       end: token.end,
       line: token.line,
       children: [],
-      prefix: `\\begin{${name}}`,
+      prefix: runtime.input.slice(token.start, token.end + 1),
       suffix: `\\end{${name}}`,
     } as AstNode;
     parent.children.push(envNode);
@@ -189,13 +194,19 @@ function handleEnvironment(runtime: ParseRuntime, token: Token) {
     return;
   }
 
+  const envNode = runtime.stack.peek() as AstNode | undefined;
+  if (!envNode || envNode.type !== NodeType.Environment) {
+    throw new Error('Unexpected \\end without a matching environment');
+  }
+  envNode.end = token.end;
+  (envNode as InnerNode).suffix = runtime.input.slice(token.start, token.end + 1);
   runtime.stack.pop();
 }
 
 function handleInput(runtime: ParseRuntime, token: Token) {
   const parent = getParentNode(runtime) as InnerNode;
-  const path = token.text ?? '';
-  const raw = runtime.input.slice(token.start, token.end);
+  const path = token.path ?? '';
+  const raw = sliceTokenValue(runtime.input, token.start, token.end);
 
   const inputNode: InputNode = {
     type: NodeType.Input,
@@ -228,6 +239,8 @@ function handleMathDelim(runtime: ParseRuntime, token: Token) {
   const isClosing = (isDollar && top.type === NodeType.Math && top.delim === delim) || isParenClose;
 
   if (isClosing) {
+    top.end = token.end;
+    top.suffix = runtime.input.slice(token.start, token.end + 1);
     runtime.stack.pop();
     return;
   }
@@ -240,7 +253,7 @@ function handleMathDelim(runtime: ParseRuntime, token: Token) {
     end: token.end,
     line: token.line,
     children: [],
-    prefix: delim,
+    prefix: runtime.input.slice(token.start, token.end + 1),
     suffix:
       delim === '$' || delim === '$$'
         ? delim
@@ -260,7 +273,7 @@ function handleCondition(runtime: ParseRuntime, token: Token) {
 
   if (kind === 'if') {
     const parent = getParentNode(runtime) as InnerNode;
-    const name = token.text ?? '';
+    const name = token.condition ?? '';
     if (!name) {
       throw new Error('Condition name missing in ' + kind);
     }
@@ -273,7 +286,7 @@ function handleCondition(runtime: ParseRuntime, token: Token) {
       line: token.line,
       children: [],
       prefix: ``,
-      suffix: `\\fi`,
+      suffix: ``,
     } as AstNode;
 
     parent.children.push(conditionNode);
@@ -287,7 +300,7 @@ function handleCondition(runtime: ParseRuntime, token: Token) {
       end: token.end,
       line: token.line,
       children: [],
-      prefix: `\\if${name}`,
+      prefix: runtime.input.slice(token.start, token.end + 1),
       suffix: ``,
     } as AstNode;
 
@@ -317,7 +330,7 @@ function handleCondition(runtime: ParseRuntime, token: Token) {
       end: token.end,
       line: token.line,
       children: [],
-      prefix: `\\else`,
+      prefix: runtime.input.slice(token.start, token.end + 1),
       suffix: ``,
     } as AstNode;
 
@@ -339,6 +352,7 @@ function handleCondition(runtime: ParseRuntime, token: Token) {
       throw new Error('Unexpected "fi" without an open condition');
     }
     top.end = token.end;
+    (top as InnerNode).suffix = runtime.input.slice(token.start, token.end + 1);
     runtime.stack.pop();
     return;
   }
@@ -354,7 +368,7 @@ function handleComment(runtime: ParseRuntime, token: Token) {
     end: token.end,
     line: token.line,
     name: token.name ?? '',
-    value: token.text ?? '',
+    value: sliceTokenValue(runtime.input, token.start, token.end),
   });
 }
 
@@ -366,6 +380,6 @@ function handleConditionDeclaration(runtime: ParseRuntime, token: Token) {
     end: token.end,
     line: token.line,
     name: token.name ?? '',
-    value: token.text ?? '',
+    value: sliceTokenValue(runtime.input, token.start, token.end),
   });
 }

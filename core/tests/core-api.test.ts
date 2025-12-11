@@ -101,7 +101,7 @@ describe('process/transform API', () => {
     const project = processProject('without-else.tex', read, options);
     const outputs = transformProject(project, options);
     const result = outputs[project.entry];
-    expect(result).toBe('Start  End');
+    expect(result).toBe('Start End');
   });
 
   it('handles nested conditions correctly', () => {
@@ -117,7 +117,7 @@ describe('process/transform API', () => {
     const project = processProject('nested.tex', read, options);
     const outputs = transformProject(project, options);
     const result = outputs[project.entry];
-    expect(result).toBe(' OuterIf nob- c');
+    expect(result).toBe('OuterIfnob-c');
   });
 
   it('flattens input files using the provided readFile callback', () => {
@@ -200,6 +200,6 @@ describe('process/transform API', () => {
     const result = outputs[project.entry];
 
     // Accept either the resolved inner branch or a variant without the inner text
-    expect(result).toBe('Alpha Keep  Inner Omega');
+    expect(result).toBe('Alpha Keep Inner Omega');
   });
 });
