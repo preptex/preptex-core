@@ -50,7 +50,7 @@ describe('transform', () => {
   const transformers: Transformer[] = [
     (node) => {
       // Example transformer: process all nodes
-      return true;
+      return { selfRender: true, selfProcess: true };
     },
   ];
 

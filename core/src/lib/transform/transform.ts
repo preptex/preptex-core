@@ -11,7 +11,18 @@ export interface TransformOptions {
   flatten?: boolean;
 }
 
-export type Transformer = (node: AstNode) => boolean;
+export interface TransformerContext {
+  selfRender: boolean;
+  selfProcess: boolean;
+}
+export type Transformer = (node: Readonly<AstNode>) => TransformerContext;
+
+function combineContexts(ctx1: TransformerContext, ctx2: TransformerContext): TransformerContext {
+  return {
+    selfRender: ctx1.selfRender && ctx2.selfRender,
+    selfProcess: ctx1.selfProcess && ctx2.selfProcess,
+  };
+}
 
 export function transform(
   node: AstNode,
@@ -26,15 +37,13 @@ export function transform(
   while (stack.length > 0) {
     const { node: cur, stage } = stack.pop()!;
 
-    let skip = false;
+    let currentCtx: TransformerContext = { selfRender: true, selfProcess: true };
     for (const t of transformers) {
-      if (!cur) break;
-      if (t(cur) === false) {
-        skip = true;
-        break;
-      }
+      currentCtx = combineContexts(currentCtx, t(cur));
     }
-    if (skip) continue;
+    if (!currentCtx.selfProcess) {
+      continue;
+    }
 
     if (!INNER_NODE_TYPES.has(cur.type)) {
       // Leaf node
@@ -55,13 +64,15 @@ export function transform(
         }
       }
       const value = ((cur as any).value as string) ?? '';
-      if (value) output += value;
+      if (currentCtx.selfRender && value) output += value;
       continue;
     }
 
     // Inner node: manage prefix/children/suffix order via enter/exit stages
     if (stage === 'enter') {
-      output += (cur as InnerNode).prefix;
+      if (currentCtx.selfRender) {
+        output += (cur as InnerNode).prefix;
+      }
       // Schedule suffix after children
       stack.push({ node: cur, stage: 'exit' });
       const children = (cur as InnerNode).children;
@@ -70,7 +81,9 @@ export function transform(
         stack.push({ node: children[i], stage: 'enter' });
       }
     } else {
-      output += (cur as InnerNode).suffix;
+      if (currentCtx.selfRender) {
+        output += (cur as InnerNode).suffix;
+      }
     }
   }
 

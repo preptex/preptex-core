@@ -2,38 +2,30 @@
 
 ## Current todos:
 
-- [ ] Move read env name and read name to util (preserving state), and rename the ones in parser that change state and make them call the other one and update pos
-
 ## General todos
 
-- [ ] Lexer: separate readControlSequence calls for each type of token.
+- [ ] Suppress proofs option: add list of special tokens. Even if tokens are not parsed, should check for special ones.
+- [ ] Add default parsed tokens. Rest only by options.
+- [ ] Consistency issue: ChatGPT vs Windows Testing: After control sequences, suppress a single or all trailing spaces?
 - [ ] Bugfix: Recursive main file name.
 - [ ] Use sanitizer to detect errors and condition/nesting intersections:
   - The former emits error.
   - The latter suppresses type tokenization
   - Parser reruns tokenizer.
-- [ ] Transformers should **not** modify AST. Should run read only. They still decide prefix/suffix output.
 - [ ] Add tree exporter in parser, update core and cli, add tests.
-- [ ] Keep the invariant that a node children intervals form a partition of its interval (excluding its value).
+
+---
+
+- [x] Transformers should **not** modify AST. Should run read only. They still decide prefix/suffix output.
+- [x] Lexer: separate readControlSequence calls for each type of token.
+- [x] Keep the invariant that a node children intervals form a partition of its interval (excluding its value).
 - [x] Add spaces to prefix after commands if suppressed.
 - [x] Separate core logic to input and out functions, and add a state class `project`.
 - [x] Transform should be iterative with stack of nodes (tree is given implicitly by current node).
 - [x] Windows endofline handling.
+- [x] Correctly recognize and handle comment environment
 
 ## ToDo Time line
-
-### Pre-/Post-process consistency
-
-Compare to latex output and decide:
-
-- [ ] Error in is environment vs is comment.
-- [ ] Control sequences suppress a single or all trailing spaces?
-- [x] ~~Flattened input should always start on new line~~.
-- [x] Handle EOF with inline comment without new line.
-- [ ] Handle empty spaces separating commands. Check how tex handles these `\ifX text\fi text`.
-- [ ] Lines that turn empty after realizing `\if/else` and `comment` env (cf. inline comments parse `\n`).
-- [ ] Handle empty-spaces and empty-lines after suppression (comment-commands and if-conditions)
-- Command suppress single space.
 
 ### Feature Classes - Metadata
 
@@ -50,7 +42,6 @@ Compare to latex output and decide:
 - [ ] Allow arg umber (and optional-arg number). Features assign start and end of args to each command.
 - [ ] Add to parser the option to suppress some tokens (transfer to tokenizer). Possibly only special commands/envs are tokenized.
 - [ ] Special commands can have `\xspace` property that suspends suppressing spaces.
-- [ ] Suppress proofs option.
 
 ### Statistical data
 
@@ -79,6 +70,17 @@ Create UI Projects:
 - [ ] Custom builds
 
 ## Completed Todos
+
+### Pre-/Post-process consistency
+
+Compare to latex output and decide:
+
+- [x] Error in is environment vs is comment.
+- [x] ~~Flattened input should always start on new line~~.
+- [x] Handle EOF with inline comment without new line.
+- [x] Handle empty spaces separating commands. Check how tex handles these `\ifX text\fi text`.
+- [x] Lines that turn empty after realizing `\if/else` and `comment` env (cf. inline comments parse `\n`).
+- [x] Handle empty-spaces and empty-lines after suppression (comment-commands and if-conditions)
 
 ### Input command
 

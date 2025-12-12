@@ -1,8 +1,15 @@
-import type { Transformer } from './transform.js';
-import { NodeType, ConditionBranchType, AstNode, CommandNode } from '../parse/types.js';
+import type { Transformer, TransformerContext } from './transform.js';
+import {
+  NodeType,
+  ConditionBranchType,
+  AstNode,
+  CommandNode,
+  ConditionBranchNode,
+} from '../parse/types.js';
 
-export function suppressComments(node: AstNode): boolean {
-  return (node as any).type !== NodeType.Comment;
+export function suppressComments(node: AstNode): TransformerContext {
+  const process = node.type !== NodeType.Comment;
+  return { selfRender: process, selfProcess: process };
 }
 
 /**
@@ -23,19 +30,22 @@ export function filterConditions(
 
   return (node) => {
     if (node.type === NodeType.Command && toggleCommands.has((node as CommandNode).name)) {
-      return false;
+      return { selfRender: false, selfProcess: false };
+    }
+    if (node.type === NodeType.ConditionDeclaration) {
+      return { selfRender: false, selfProcess: false };
+    }
+    if (node.type !== NodeType.ConditionBranch && node.type !== NodeType.Condition) {
+      return { selfRender: true, selfProcess: true };
     }
 
-    if (node.type === NodeType.ConditionDeclaration) return false;
-    if (node.type !== NodeType.ConditionBranch && node.type !== NodeType.Condition) return true;
-    node.prefix = '';
-    node.suffix = '';
+    const selfRender = false;
+    let selfProcess = true;
 
-    if ((node as any).type !== NodeType.ConditionBranch) return true;
-    const br = node as any;
-    const keepIf = keep.has(br.name);
-    if (keepIf && br.branch === ConditionBranchType.Else) return false; // skip ELSE
-    if (!keepIf && br.branch === ConditionBranchType.If) return false; // skip IF
-    return true; // process desired branch
+    const cNode = node as ConditionBranchNode;
+    const keepIf = keep.has(cNode.name);
+    if (keepIf && cNode.branch === ConditionBranchType.Else) selfProcess = false; // skip ELSE
+    if (!keepIf && cNode.branch === ConditionBranchType.If) selfProcess = false; // skip IF
+    return { selfRender, selfProcess };
   };
 }
