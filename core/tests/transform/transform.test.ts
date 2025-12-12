@@ -18,7 +18,10 @@ describe('Transformer pipeline', () => {
 
     const transformers: Transformer[] = [
       // boolean-only: return false to skip node output; true to process
-      (node) => (node as any).type !== NodeType.Comment,
+      (node) => {
+        const ret = (node as any).type !== NodeType.Comment;
+        return { selfRender: ret, selfProcess: ret };
+      },
     ];
     const result = transform(parser.getRoot(), transformers);
     expect(result).toBe('Hello $x$ \\command{param} \\section{Title}\nWorld');
