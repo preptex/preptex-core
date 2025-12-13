@@ -1,5 +1,5 @@
 import { parseCommand, printGlobalHelp } from './args.js';
-import { handleTransform } from './commands/transform.js';
+import { handleTransform } from './commands/transform-cmd.js';
 
 export async function runPreptexCli(argv: string[] = process.argv.slice(2)): Promise<void> {
   const parsed = parseCommand(argv);

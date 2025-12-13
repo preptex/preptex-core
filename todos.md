@@ -7,7 +7,6 @@
 - [ ] Suppress proofs option: add list of special tokens. Even if tokens are not parsed, should check for special ones.
 - [ ] Add default parsed tokens. Rest only by options.
 - [ ] Consistency issue: ChatGPT vs Windows Testing: After control sequences, suppress a single or all trailing spaces?
-- [ ] Bugfix: Recursive main file name.
 - [ ] Use sanitizer to detect errors and condition/nesting intersections:
   - The former emits error.
   - The latter suppresses type tokenization
@@ -16,6 +15,7 @@
 
 ---
 
+- [x] Bugfix: Recursive main file name.
 - [x] Transformers should **not** modify AST. Should run read only. They still decide prefix/suffix output.
 - [x] Lexer: separate readControlSequence calls for each type of token.
 - [x] Keep the invariant that a node children intervals form a partition of its interval (excluding its value).
