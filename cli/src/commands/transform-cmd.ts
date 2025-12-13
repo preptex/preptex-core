@@ -6,7 +6,7 @@ import {
 } from '@preptex/core';
 import { parseTransformArgs, printTransformHelp } from '../args.js';
 import path from 'node:path';
-import { resolvePaths } from '../utils.js';
+import { resolvePaths } from '../io.js';
 import { makeReader, writeOutputsRecursive } from '../io.js';
 import type { TransformCliOptions } from '../args.js';
 
@@ -46,6 +46,7 @@ export async function handleTransform(args: string[]): Promise<void> {
       input: options.input,
       workDir: options.workDir,
       outDir: options.outDir,
+      output: options.output,
     });
     const reader = makeReader(baseDir);
     project = processProject(entryPath, reader, coreOptions);
@@ -56,21 +57,19 @@ export async function handleTransform(args: string[]): Promise<void> {
       return;
     }
 
-    const single = outputs[project.entry] ?? Object.values(outputs)[0];
-    if (!single) {
-      throw new Error('No output generated from transformation.');
-    }
-    // Filename should match input filename unless user provided --output
-    const defaultFilename = path.basename(project.entry);
-
     // Always write to resolved outDir (defaulted in resolvePaths)
-    const { outDir } = resolvePaths({
+    const { outDir, outName } = resolvePaths({
       input: options.input,
+      output: options.output,
       workDir: options.workDir,
       outDir: options.outDir,
     });
 
-    const outName = options.output ?? defaultFilename;
+    const single = outputs[project.entry] ?? Object.values(outputs)[0];
+    if (!single) {
+      throw new Error('No output generated from transformation.');
+    }
+
     const outPath = path.join(outDir, outName);
     await (await import('node:fs/promises')).mkdir(outDir, { recursive: true });
     await (await import('node:fs/promises')).writeFile(outPath, single, 'utf8');
