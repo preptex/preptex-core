@@ -36,6 +36,14 @@
 - [ ] Boolean for starred sections.
 - [ ] User defined commands can have number of args, and optional args.
 
+### Transformer update
+
+Transformers are assigned node-wise and apply to the whole subtree rooted at the node they are assigned to:
+
+- [ ] Each node must have a list of transformers.
+- [ ] Transform builds a stack of transformers.
+- [ ] Pop on leave node.
+
 ### Custom Commands and Environments
 
 - [ ] Parse user defined commands and environments.
