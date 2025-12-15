@@ -2,7 +2,8 @@
   "private": true,
   "workspaces": [
     "core",
-    "cli"
+    "cli",
+    "ui/website"
   ],
   "scripts": {
     "build": "npm run build --workspace=@preptex/core && npm run build --workspace=@preptex/cli",
