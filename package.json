@@ -7,7 +7,8 @@
   ],
   "scripts": {
     "build": "npm run build --workspace=@preptex/core && npm run build --workspace=@preptex/cli",
-    "test": "npm run test --workspace=@preptex/core"
+    "test": "npm run test --workspace=@preptex/core",
+    "start": "npm start --workspace=website"
   },
   "overrides": {
     "rollup": "4.53.3"

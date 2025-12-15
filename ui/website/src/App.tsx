@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import './App.css';
 
 import { ASTview, Codeview, ControlPanel, Filetree } from './components';
@@ -6,37 +6,58 @@ import { useFiles } from './model/useFiles';
 import { useControl } from './model/useControl';
 import { useCoreProcess } from './model/useCoreProcess';
 
-type InputCmdHandlingUI = 'none' | 'flatten' | 'recursive';
-
-type CoreOptionsUI = {
-  suppressComments: boolean;
-  handleInputCmd: InputCmdHandlingUI;
-  ifDecisions: string[];
-};
-
 function App() {
   const seedFiles = useMemo<Record<string, string>>(() => ({}), []);
 
-  const { filesByName, fileNames, selectedFile, selectFile, upsertFiles } = useFiles(seedFiles);
-  const [entryFile, setEntryFile] = useState<string>(selectedFile || fileNames[0] || '');
-
-  useEffect(() => {
-    if (!entryFile && fileNames.length > 0) {
-      setEntryFile(fileNames[0]);
-    }
-  }, [fileNames, entryFile]);
-
-  useEffect(() => {
-    if (entryFile && selectedFile !== entryFile) {
-      selectFile(entryFile);
-    }
-  }, [entryFile, selectFile]);
+  const {
+    filesByName,
+    fileNames,
+    selectedFile,
+    selectFile,
+    upsertFiles,
+    upsertTextFiles,
+    removeFile,
+  } = useFiles(seedFiles);
 
   const { options, setOptions } = useControl();
 
   const code = filesByName[selectedFile] ?? '';
 
-  const coreRun = useCoreProcess(entryFile, filesByName, options);
+  const { result: coreRun, transform } = useCoreProcess(selectedFile, filesByName, options);
+
+  const onDownload = (name: string) => {
+    const text = filesByName[name] ?? '';
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const writeOutputsToTree = (outputs: Record<string, string>) => {
+    const next: Record<string, string> = {};
+    for (const [name, text] of Object.entries(outputs)) {
+      const newname = name.replace(/\.tex$/i, '') + '.processed.tex';
+      next[newname] = text;
+    }
+    upsertTextFiles(next);
+  };
+
+  const onTransform = () => {
+    const outputs = transform(selectedFile);
+    if (!outputs) return;
+    writeOutputsToTree(outputs);
+  };
+
+  const onSelectFile = (name: string) => {
+    selectFile(name);
+  };
+
+  const onRemove = (name: string) => {
+    removeFile(name);
+  };
 
   const astText = useMemo(() => {
     return JSON.stringify(
@@ -56,18 +77,30 @@ function App() {
         <Filetree
           files={fileNames}
           selected={selectedFile}
-          onSelect={(name) => selectFile(name)}
+          onSelect={onSelectFile}
+          onDownload={onDownload}
+          onRemove={onRemove}
           onUploadFiles={(fl) => upsertFiles(fl)}
         />
+
+        <div className="FiletreeActions">
+          <button
+            type="button"
+            className="FiletreeItem"
+            onClick={onTransform}
+            disabled={!selectedFile}
+            title={selectedFile ? `Transform ${selectedFile}` : 'Select a file first'}
+          >
+            Transform
+          </button>
+        </div>
       </div>
 
       <div className="AppCell AppCell--leftBottom">
         <ControlPanel
           options={options}
           onChange={setOptions}
-          files={fileNames}
-          entryFile={entryFile}
-          onEntryChange={setEntryFile}
+          entryFile={selectedFile}
           availableIfConditions={coreRun?.declaredConditions ?? []}
         />
       </div>
