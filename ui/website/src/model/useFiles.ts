@@ -40,11 +40,35 @@ export function useFiles(initial: FilesMap = {}) {
     [selectedFile]
   );
 
+  const upsertTextFiles = useCallback((entries: Record<string, string>) => {
+    setFilesByName((prev) => ({ ...prev, ...entries }));
+  }, []);
+
+  const removeFile = useCallback(
+    (name: string) => {
+      setFilesByName((prev) => {
+        if (!(name in prev)) return prev;
+        const next: FilesMap = { ...prev };
+        delete next[name];
+
+        if (selectedFile === name) {
+          const nextSelected = Object.keys(next)[0] ?? '';
+          setSelectedFile(nextSelected);
+        }
+
+        return next;
+      });
+    },
+    [selectedFile]
+  );
+
   return {
     filesByName,
     fileNames,
     selectedFile,
     selectFile,
     upsertFiles,
+    upsertTextFiles,
+    removeFile,
   } as const;
 }

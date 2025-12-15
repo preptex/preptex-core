@@ -4,10 +4,19 @@ export type FiletreeProps = {
   files: string[];
   selected?: string;
   onSelect: (filename: string) => void;
+  onDownload?: (filename: string) => void;
+  onRemove?: (filename: string) => void;
   onUploadFiles?: (files: FileList) => void;
 };
 
-export default function Filetree({ files, selected, onSelect, onUploadFiles }: FiletreeProps) {
+export default function Filetree({
+  files,
+  selected,
+  onSelect,
+  onDownload,
+  onRemove,
+  onUploadFiles,
+}: FiletreeProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const triggerPicker = () => {
@@ -46,14 +55,47 @@ export default function Filetree({ files, selected, onSelect, onUploadFiles }: F
           <div>No files</div>
         ) : (
           files.map((f) => (
-            <button
-              key={f}
-              type="button"
-              className={selected === f ? 'FiletreeItem FiletreeItem--active' : 'FiletreeItem'}
-              onClick={() => onSelect(f)}
-            >
-              {f}
-            </button>
+            <div key={f} className="FiletreeRow">
+              <button
+                type="button"
+                className={selected === f ? 'FiletreeItem FiletreeItem--active' : 'FiletreeItem'}
+                onClick={() => onSelect(f)}
+              >
+                {f}
+              </button>
+
+              {onDownload ? (
+                <button
+                  type="button"
+                  className="FiletreeDownload"
+                  aria-label={`Download ${f}`}
+                  title={`Download ${f}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onDownload(f);
+                  }}
+                >
+                  ⬇
+                </button>
+              ) : null}
+
+              {onRemove ? (
+                <button
+                  type="button"
+                  className="FiletreeRemove"
+                  aria-label={`Remove ${f}`}
+                  title={`Remove ${f}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onRemove(f);
+                  }}
+                >
+                  ✕
+                </button>
+              ) : null}
+            </div>
           ))
         )}
       </div>

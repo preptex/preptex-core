@@ -5,6 +5,7 @@ type InputCmdHandlingUI = 'none' | 'flatten' | 'recursive';
 export type CoreOptionsUI = {
   suppressComments: boolean;
   handleInputCmd: InputCmdHandlingUI;
+  handleIfConditions: boolean;
   ifDecisions: string[];
 };
 
@@ -12,18 +13,14 @@ export type ControlPanelProps = {
   options: CoreOptionsUI;
   onChange: (next: CoreOptionsUI) => void;
   availableIfConditions?: string[];
-  files?: string[];
   entryFile?: string;
-  onEntryChange?: (filename: string) => void;
 };
 
 export default function ControlPanel({
   options,
   onChange,
   availableIfConditions = [],
-  files = [],
   entryFile = '',
-  onEntryChange,
 }: ControlPanelProps) {
   const placeholderConds = useMemo<string[]>(
     () => ['draft', 'short', 'withFigures', 'arxiv', 'cameraReady'],
@@ -33,6 +30,7 @@ export default function ControlPanel({
   const conditions = availableIfConditions;
 
   const toggleCondition = (cond: string) => {
+    if (!options.handleIfConditions) return;
     const exists = options.ifDecisions.includes(cond);
     const nextIfs = exists
       ? options.ifDecisions.filter((c) => c !== cond)
@@ -45,25 +43,8 @@ export default function ControlPanel({
       <h2>Control panel</h2>
 
       <div className="ControlRow">
-        <label className="ControlLabel" htmlFor="entryFile">
-          Entry file
-        </label>
-        <select
-          id="entryFile"
-          value={entryFile}
-          onChange={(e) => onEntryChange?.(e.target.value)}
-          disabled={files.length === 0}
-        >
-          {files.length === 0 ? (
-            <option value="">No files</option>
-          ) : (
-            files.map((f) => (
-              <option key={f} value={f}>
-                {f}
-              </option>
-            ))
-          )}
-        </select>
+        <div className="ControlLabel">Selected file</div>
+        <div className="PaneMeta">{entryFile || 'No file selected'}</div>
       </div>
 
       <div className="ControlRow">
@@ -95,6 +76,17 @@ export default function ControlPanel({
       </div>
 
       <div className="ControlRow">
+        <label className="ControlLabel">
+          <input
+            type="checkbox"
+            checked={options.handleIfConditions}
+            onChange={(e) => onChange({ ...options, handleIfConditions: e.target.checked })}
+          />
+          <span>Handle if conditions</span>
+        </label>
+      </div>
+
+      <div className="ControlRow">
         <div className="ControlLabel">If conditions</div>
         <ul className="ConditionsList" role="listbox" aria-label="Available if conditions">
           {availableIfConditions.map((cond) => {
@@ -105,6 +97,8 @@ export default function ControlPanel({
                   type="button"
                   className={selected ? 'ConditionItem ConditionItem--selected' : 'ConditionItem'}
                   aria-pressed={selected}
+                  disabled={!options.handleIfConditions}
+                  aria-disabled={!options.handleIfConditions}
                   onClick={() => toggleCondition(cond)}
                 >
                   {cond}
