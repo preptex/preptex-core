@@ -143,10 +143,12 @@ export function sanityCheck(input: string): SanityResult {
 
   // Sections handler (via Command tokens)
   const handleSection = (t: any) => {
-    const name = t.name as string;
-    if (!SECTION_COMMANDS.has(name)) return;
-    // Section inside conditional is contradictory parenting
-    if (isInCtx(NodeType.Condition)) notes.push(NOTE_SECTION_IN_IF);
+    if (isInCtx(NodeType.Condition)) {
+      notes.push(NOTE_SECTION_IN_IF);
+      if (enabled.has(TokenType.Section)) {
+        enabled.delete(TokenType.Section);
+      }
+    }
   };
 
   const is_group_opening = (t: any): boolean => {
@@ -272,7 +274,7 @@ export function sanityCheck(input: string): SanityResult {
       }
       temp.push(n);
     }
-    if (!removed) notes.push(NOTE_NO_MATCHING_OPENER);
+    if (!removed) notes.push(NOTE_NO_MATCHING_OPENER + ' Line: ' + (top.line ?? ''));
     // Push back the non-matching contexts (keep them)
     for (let i = temp.length - 1; i >= 0; i--) stack.push(temp[i]);
   };
@@ -283,7 +285,7 @@ export function sanityCheck(input: string): SanityResult {
 
   // Register handlers
   handlers.set(TokenType.Condition, handleCondition);
-  handlers.set(TokenType.Command, (t) => handleSection(t));
+  handlers.set(TokenType.Section, (t) => handleSection(t));
   handlers.set(TokenType.Environment, handleGrouping);
   handlers.set(TokenType.MathDelim, handleGrouping);
   handlers.set(TokenType.Brace, handleGrouping);

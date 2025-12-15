@@ -1,5 +1,8 @@
-const ESCAPABLE_TEXT_CHARS = new Set([' ', '\\', '%', '{', '}', '$']);
 export const TEXT_END_CHARS = new Set(['%', '{', '}', '[', ']', '$']);
+
+const MATH_CONTROL_CHARS = new Set(['[', ']', '(', ')']);
+
+const ESPECIAL_COMMANDS = new Set(['iff']);
 
 export function skipWhitespace(input: string, pos: number, skipLines: boolean = true) {
   const matchStr = skipLines ? /\s/ : /[ \t]/;
@@ -9,7 +12,7 @@ export function skipWhitespace(input: string, pos: number, skipLines: boolean = 
 
 export function isEscapablePair(nextChar: string | undefined): boolean {
   if (!nextChar) return true;
-  return ESCAPABLE_TEXT_CHARS.has(nextChar);
+  return !(/^[a-zA-Z@]$/.test(nextChar) || /[\[\]\(\)]/.test(nextChar));
 }
 
 export function readControlSequenceName(input: string, pos: number): { name: string; end: number } {
@@ -18,7 +21,9 @@ export function readControlSequenceName(input: string, pos: number): { name: str
   }
   const start = ++pos;
   if (start < input.length && !/[a-zA-Z@]/.test(input[start])) {
-    throw new Error(`Invalid control sequence name at position ${start}`);
+    throw new Error(
+      `Invalid control sequence name at position ${start}. Sequence starts with ${input[start]}`
+    );
   }
   // Parse command name (letters or single non-letter char)
   while (pos < input.length && /[a-zA-Z@]/.test(input[pos])) pos++;
@@ -86,7 +91,11 @@ export function isCommentTokenAt(input: string, start: number): boolean {
 }
 
 export function isControlSequenceTokenAt(input: string, start: number): boolean {
-  return input[start] === '\\' && !isEscapablePair(input[start + 1]);
+  return (
+    input[start] === '\\' &&
+    !isEscapablePair(input[start + 1]) &&
+    !MATH_CONTROL_CHARS.has(input[start + 1])
+  );
 }
 
 export function isEnvironmentTokenAt(input: string, start: number): boolean {
@@ -97,6 +106,7 @@ export function isEnvironmentTokenAt(input: string, start: number): boolean {
 }
 
 export function isConditionName(name: string): boolean {
+  if (ESPECIAL_COMMANDS.has(name)) return false;
   if (!name) return false;
   if (name === 'else' || name === 'fi') return true;
   return name.startsWith('if');

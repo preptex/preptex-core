@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { Parser } from '../../src/lib/parse/parser';
 import { NodeType, AstRoot, ConditionBranchType } from '../../src/lib/parse/types';
 import type { CoreOptions } from '../../src/lib/options';
+import { InnerNode } from '../../dist';
 
 function findFirstCondition(root: AstRoot) {
   return (root.children as any[]).find((n) => n.type === NodeType.Condition);
@@ -71,5 +72,46 @@ describe('conditions parsing', () => {
     const textNode = ast.children.find((n) => n.type === NodeType.Text) as any;
     expect(textNode).toBeTruthy();
     expect(textNode.value).toBe('Body');
+  });
+
+  it('parses iff command correctly', () => {
+    const input = ['\\begin{lemma}\n\\[X\\iff Y\\]\\end{lemma}'].join('');
+    const parser = new Parser({} as CoreOptions);
+    parser.parse(input);
+    const root = parser.getRoot();
+    expect(root.children.length).toBe(1);
+    const defEnv = root.children[0] as InnerNode;
+  });
+
+  it('handles suppressed sections', () => {
+    const parser = new Parser({} as CoreOptions);
+    parser.parse(
+      '\\iflong\n' +
+        '\\subsection{The Upper Bound}\n' +
+        '\\fi\n' +
+        '\\ifshort\n' +
+        '\\section\n' +
+        '{The Upper Bound.}' +
+        '\\fi'
+    );
+    const ast = parser.getRoot();
+    expect(ast.children.length).toBe(2);
+    const firstCond: any = (ast.children[0] as any).children[0];
+    expect(firstCond.type).toBe(NodeType.ConditionBranch);
+    expect(firstCond.name).toBe('long');
+    const fc = firstCond.children;
+    expect(fc.length).toBe(3);
+    expect(fc.map((x: InnerNode) => x.type)).toEqual([
+      NodeType.Command,
+      NodeType.Group,
+      NodeType.Text,
+    ]);
+
+    const secondCond: any = (ast.children[1] as any).children[0];
+    expect(secondCond.type).toBe(NodeType.ConditionBranch);
+    expect(secondCond.name).toBe('short');
+    const sc = secondCond.children;
+    expect(secondCond.children.length).toBe(2);
+    expect(sc.map((x: InnerNode) => x.type)).toEqual([NodeType.Command, NodeType.Group]);
   });
 });

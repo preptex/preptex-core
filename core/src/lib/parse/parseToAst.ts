@@ -7,11 +7,11 @@ import {
   ConditionBranchType,
   CommandNode,
   InputNode,
+  type SectionNode,
 } from './types.js';
 import type { CoreOptions } from '../options.js';
 import { Lexer, TokenType, type Token } from '../lexer/tokens.js';
 import { sanityCheck } from './sanity.js';
-import { SECTION_LEVELS } from './constants.js';
 
 interface ParseRuntime {
   input: string;
@@ -30,6 +30,7 @@ type TokenHandler = (runtime: ParseRuntime, token: Token) => void;
 const HANDLERS: Map<TokenType, TokenHandler> = new Map([
   [TokenType.Text, handleText],
   [TokenType.Command, handleCommand],
+  [TokenType.Section, handleSection],
   [TokenType.Brace, handleBrace],
   [TokenType.Bracket, handleBracket],
   [TokenType.Comment, handleComment],
@@ -55,14 +56,31 @@ export function parseToAst(input: string, options: CoreOptions, inputFiles?: Set
     handler(runtime, token);
   }
 
+  finalizeOpenSections(runtime);
+
   return runtime.root;
+}
+
+function finalizeOpenSections(runtime: ParseRuntime): void {
+  const lastIndex = runtime.input.length === 0 ? -1 : runtime.input.length - 1;
+
+  let top = null;
+  while ((top = runtime.stack.peek())) {
+    if (top.type === NodeType.Section || top.type === NodeType.Root) {
+      const sec = runtime.stack.pop() as AstNode;
+      sec.end = lastIndex;
+    }
+  }
+
+  // Any other node type here implies unclosed constructs (e.g. environments).
+  // Per spec, stop finalization and return.
 }
 
 function createRuntime(input: string, inputFiles?: Set<string>): ParseRuntime {
   const root: AstRoot = {
     type: NodeType.Root,
     start: 0,
-    end: input.length,
+    end: input.length - 1,
     line: 1,
     children: [],
     prefix: '',
@@ -99,51 +117,46 @@ function handleText(runtime: ParseRuntime, token: Token) {
 
 function handleSection(runtime: ParseRuntime, token: Token) {
   const name = token.name ?? '';
-  const level = SECTION_LEVELS[name];
+  const level = token.level;
   if (level === undefined) {
-    throw new Error(`Unknown section command: ${name}`);
+    throw new Error(`Missing section level for section ${name} at line ${token.line}`);
   }
 
   let parent = getParentNode(runtime) as AstNode;
-  if (parent.type !== NodeType.Root && parent.type !== NodeType.Section) {
-    throw new Error(
-      'Sections can only appear at the root or inside another section. Found:' + parent.type
-    );
-  }
 
   while (parent.type === NodeType.Section && (parent as any).level >= level) {
-    runtime.stack.pop();
+    const closed = runtime.stack.pop() as SectionNode | undefined;
+    if (closed?.type === NodeType.Section) {
+      closed.end = token.start - 1;
+    }
     parent = getParentNode(runtime) as AstNode;
   }
 
-  const sectionNode = {
+  const sectionNode: SectionNode = {
     type: NodeType.Section,
-    level,
+    level: level as SectionNode['level'],
+    name,
     start: token.start,
+    // Sections are wrappers; default to spanning until EOF and get closed when a
+    // same/higher-level section begins.
     end: token.end,
     line: token.line,
     children: [],
     prefix: runtime.input.slice(token.start, token.end + 1),
-    suffix: ``,
-  } as AstNode;
+    suffix: '',
+  };
 
   (parent as InnerNode).children.push(sectionNode);
   runtime.stack.push(sectionNode);
 }
 
 function handleCommand(runtime: ParseRuntime, token: Token) {
-  const name = token.name ?? '';
-  if (name in SECTION_LEVELS) {
-    handleSection(runtime, token);
-    return;
-  }
-
   const cmdNode = {
     type: NodeType.Command,
     start: token.start,
     end: token.end,
     line: token.line,
-    name,
+    name: token.name ?? '',
     value: runtime.input.slice(token.start, token.end + 1),
   } as CommandNode;
 
@@ -196,7 +209,7 @@ function handleEnvironment(runtime: ParseRuntime, token: Token) {
 
   const envNode = runtime.stack.peek() as AstNode | undefined;
   if (!envNode || envNode.type !== NodeType.Environment) {
-    throw new Error('Unexpected \\end without a matching environment');
+    throw new Error('Unexpected \\end without a matching environment. Line: ' + token.line);
   }
   envNode.end = token.end;
   (envNode as InnerNode).suffix = runtime.input.slice(token.start, token.end + 1);
@@ -342,14 +355,14 @@ function handleCondition(runtime: ParseRuntime, token: Token) {
   if (kind === 'fi') {
     let top = runtime.stack.peek() as any;
     if (!top || top.type !== NodeType.ConditionBranch) {
-      throw new Error('Unexpected "fi" without an open condition');
+      throw new Error('Unexpected "fi" without an open condition at line ' + token.line);
     }
     top.end = token.end;
     runtime.stack.pop();
 
     top = runtime.stack.peek() as any;
     if (!top || top.type !== NodeType.Condition) {
-      throw new Error('Unexpected "fi" without an open condition');
+      throw new Error('Unexpected "fi" without an open condition at line ' + token.line);
     }
     top.end = token.end;
     (top as InnerNode).suffix = runtime.input.slice(token.start, token.end + 1);
@@ -357,7 +370,7 @@ function handleCondition(runtime: ParseRuntime, token: Token) {
     return;
   }
 
-  throw new Error(`Unknown condition token: ${kind}`);
+  throw new Error(`Unknown condition token: ${kind} at line ${token.line}`);
 }
 
 function handleComment(runtime: ParseRuntime, token: Token) {

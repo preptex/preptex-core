@@ -174,7 +174,6 @@ describe('Lexer line numbers', () => {
       TokenType.Comment,
       TokenType.Text,
     ]);
-    // console.log(tokens.map((t) => sliceToken(input, t.start, t.end)));
     expect(tokens.map((t) => t.start)).toEqual([0, 5, 16, 22, 31, 41]);
     expect(tokens.map((t) => t.line)).toEqual([1, 1, 1, 3, 3, 4]);
   });
@@ -217,8 +216,8 @@ describe('Lexer line numbers', () => {
     const input = '\\section{first}\n\nText line3\n';
     const lex = new Lexer(input);
     const tokens = collectTokens(lex);
-    expect(tokens.length).toBe(5);
-    const textToken = tokens[4];
+    expect(tokens.length).toBe(2);
+    const textToken = tokens[1];
     expect(textToken.type).toBe(TokenType.Text);
     expect(textToken.start).toBe(15);
     expect(textToken.end).toBe(27);
