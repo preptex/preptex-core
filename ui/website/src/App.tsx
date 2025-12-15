@@ -1,7 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import './App.css';
 
 import { ASTview, Codeview, ControlPanel, Filetree } from './components';
+import { useFiles } from './model/useFiles';
+import { useControl } from './model/useControl';
+import { useCoreProcess } from './model/useCoreProcess';
 
 type InputCmdHandlingUI = 'none' | 'flatten' | 'recursive';
 
@@ -12,51 +15,61 @@ type CoreOptionsUI = {
 };
 
 function App() {
-  const filesByName = useMemo<Record<string, string>>(
-    () => ({
-      'basic.tex': String.raw`\\documentclass{article}
-\\begin{document}
-Hello from basic.tex
-\\end{document}
-`,
-      'sub.tex': String.raw`This is sub.tex content.
-\\section{Sub}
-`,
-    }),
-    []
-  );
+  const seedFiles = useMemo<Record<string, string>>(() => ({}), []);
 
-  const fileNames = useMemo(() => Object.keys(filesByName), [filesByName]);
-  const [selectedFile, setSelectedFile] = useState<string>(fileNames[0] ?? '');
+  const { filesByName, fileNames, selectedFile, selectFile, upsertFiles } = useFiles(seedFiles);
+  const [entryFile, setEntryFile] = useState<string>(selectedFile || fileNames[0] || '');
 
-  const [options, setOptions] = useState<CoreOptionsUI>({
-    suppressComments: false,
-    handleInputCmd: 'none',
-    ifDecisions: [],
-  });
+  useEffect(() => {
+    if (!entryFile && fileNames.length > 0) {
+      setEntryFile(fileNames[0]);
+    }
+  }, [fileNames, entryFile]);
+
+  useEffect(() => {
+    if (entryFile && selectedFile !== entryFile) {
+      selectFile(entryFile);
+    }
+  }, [entryFile, selectFile]);
+
+  const { options, setOptions } = useControl();
 
   const code = filesByName[selectedFile] ?? '';
+
+  const coreRun = useCoreProcess(entryFile, filesByName, options);
 
   const astText = useMemo(() => {
     return JSON.stringify(
       {
         file: selectedFile,
         options,
-        note: 'AST rendering not wired to @preptex/core yet.',
+        core: coreRun,
       },
       null,
       2
     );
-  }, [options, selectedFile]);
+  }, [options, selectedFile, coreRun]);
 
   return (
     <div className="App">
       <div className="AppCell AppCell--leftTop">
-        <Filetree files={fileNames} selected={selectedFile} onSelect={setSelectedFile} />
+        <Filetree
+          files={fileNames}
+          selected={selectedFile}
+          onSelect={(name) => selectFile(name)}
+          onUploadFiles={(fl) => upsertFiles(fl)}
+        />
       </div>
 
       <div className="AppCell AppCell--leftBottom">
-        <ControlPanel options={options} onChange={setOptions} />
+        <ControlPanel
+          options={options}
+          onChange={setOptions}
+          files={fileNames}
+          entryFile={entryFile}
+          onEntryChange={setEntryFile}
+          availableIfConditions={coreRun?.declaredConditions ?? []}
+        />
       </div>
 
       <div className="AppCell AppCell--middle">

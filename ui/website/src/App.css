@@ -1,7 +1,8 @@
 .App {
   height: 100vh;
   display: grid;
-  grid-template-columns: minmax(240px, 320px) minmax(min-content, 2fr) 3fr;
+  /* left fixed-ish, middle min 400px and flexible, right flexible; middle and right share remaining space */
+  grid-template-columns: minmax(240px, 320px) minmax(600px, 1fr) 1fr;
   grid-template-rows: 1fr 1fr;
   align-items: stretch;
   gap: 0;
@@ -45,15 +46,34 @@
 }
 
 .CodeviewPre {
-  margin: 0 auto;
-  width: 100%;
-  max-width: 120ch;
-  min-width: 400px;
+  margin: 0;
+  max-width: none;
+  min-width: 0;
   padding: 12px;
   box-sizing: border-box;
   overflow: auto;
   white-space: pre;
   border: 1px solid;
+}
+
+.CodeviewContainer {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+
+.LineNumbers {
+  margin: 0;
+  padding: 12px 8px;
+  box-sizing: border-box;
+  color: rgba(0, 0, 0, 0.6);
+  text-align: right;
+  user-select: none;
+  border: 1px solid transparent;
+  border-right: 1px solid;
+  background: rgba(0, 0, 0, 0.02);
+  min-width: 3.2em;
 }
 
 .AstviewPre {
@@ -99,4 +119,32 @@
 .ControlRow textarea {
   width: 100%;
   box-sizing: border-box;
+}
+
+.ControlHint {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.ConditionsList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
+}
+
+.ConditionItem {
+  width: 100%;
+  text-align: center;
+  padding: 6px 8px;
+  border: 1px solid;
+  background: transparent;
+  cursor: pointer;
+}
+
+.ConditionItem--selected {
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.06);
 }
