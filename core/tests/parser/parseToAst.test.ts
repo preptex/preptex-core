@@ -63,16 +63,10 @@ describe('parseToAst', () => {
     const section = ast.children[0] as any;
     expect(section.type).toBe(NodeType.Section);
     expect(section.level).toBe(1);
-    expect(section.children.length).toBe(2);
+    expect(section.name).toBe('Title');
+    expect(section.children.length).toBe(1);
 
-    const titleNode = section.children[0];
-    expect(titleNode.type).toBe(NodeType.Group);
-    expect((titleNode as any).prefix).toBe('{');
-    expect((titleNode as any).suffix).toBe('}');
-    expect((titleNode as any).children[0].type).toBe(NodeType.Text);
-    expect((titleNode as any).children[0].value).toBe('Title');
-
-    const env = section.children[1];
+    const env = section.children[0];
     expect(env.type).toBe(NodeType.Environment);
     expect((env as any).name).toBe('doc');
     expect((env as any).children[0].type).toBe(NodeType.Text);
@@ -176,7 +170,8 @@ describe('parseToAst', () => {
       `\\[ x^2 \\text{math text $\\mathcal{S}$}\\]`,
       `\\cmd`,
       ` tail`,
-      `\\section{Second}`,
+      `\\section  {Second}`,
+      'final',
     ].join('');
     const ast = parse(input);
     expect(ast.children.length).toBe(2);
@@ -184,12 +179,11 @@ describe('parseToAst', () => {
     const section = ast.children[0] as any;
     expect(section.type).toBe(NodeType.Section);
     expect(section.level).toBe(1);
-    expect(section.children.length).toBe(4);
-    expect(section.children[0].type).toBe(NodeType.Group);
-    expect((section.children[0] as any).children[0].value).toBe('Top');
-    expect(section.prefix).toBe('\\section');
+    expect(section.children.length).toBe(3);
+    expect(section.name).toBe('Top');
+    expect(section.prefix).toBe('\\section{Top}');
 
-    const env = section.children[1] as any;
+    const env = section.children[0] as any;
     expect(env.type).toBe(NodeType.Environment);
     expect(env.name).toBe('doc');
     expect(env.children.length).toBe(2);
@@ -202,17 +196,16 @@ describe('parseToAst', () => {
     expect(ec[1].type).toBe(NodeType.Text);
     expect(ec[1].value).toBe(' some text ');
 
-    expect(section.children[2].type).toBe(NodeType.Text);
-    expect((section.children[2] as any).value).toBe(' ');
+    expect(section.children[1].type).toBe(NodeType.Text);
+    expect((section.children[1] as any).value).toBe(' ');
 
-    const sub = section.children[3] as any;
+    const sub = section.children[2] as any;
     expect(sub.type).toBe(NodeType.Section);
     expect(sub.level).toBe(2);
-    expect(sub.children.length).toBe(4);
-    expect(sub.children[0].type).toBe(NodeType.Group);
-    expect((sub.children[0] as any).children[0].value).toBe('Sub');
+    expect(sub.children.length).toBe(3);
+    expect(sub.name).toBe('Sub');
 
-    const mathBlock = sub.children[1] as any;
+    const mathBlock = sub.children[0] as any;
     expect(mathBlock.type).toBe(NodeType.Math);
     expect(mathBlock.delim).toBe('\\[');
     expect(mathBlock.prefix).toBe('\\[');
@@ -252,12 +245,24 @@ describe('parseToAst', () => {
     expect(mathcalArg.children[0].type).toBe(NodeType.Text);
     expect((mathcalArg.children[0] as any).value).toBe('S');
 
+    const cmd = sub.children[1] as any;
+    expect(cmd.type).toBe(NodeType.Command);
+    expect(cmd.name).toBe('cmd');
+    expect(cmd.value).toBe('\\cmd ');
+
+    const tailText = sub.children[2] as any;
+    expect(tailText.type).toBe(NodeType.Text);
+    expect(tailText.value).toBe('tail');
+
     const section2 = ast.children[1] as any;
     expect(section2.type).toBe(NodeType.Section);
     expect(section2.level).toBe(1);
-    expect(section2.prefix).toBe('\\section');
+    expect(section2.name).toBe('Second');
+    expect(section2.prefix).toBe('\\section  {Second}');
     expect(section2.children.length).toBe(1);
-    expect(section2.children[0].type).toBe(NodeType.Group);
-    expect((section2.children[0] as any).children[0].value).toBe('Second');
+    const finalText = section2.children[0] as any;
+    expect(finalText.type).toBe(NodeType.Text);
+    expect(finalText.value).toBe('final');
+    expect(section2.end).toBe(input.length - 1);
   });
 });

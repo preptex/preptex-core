@@ -4,6 +4,7 @@ export enum TokenType {
   Environment = 'Environment',
   Condition = 'Condition',
   ConditionDeclaration = 'ConditionDeclaration',
+  Section = 'Section',
   Command = 'Command',
   Input = 'Input',
   Brace = 'Brace',
@@ -27,6 +28,8 @@ export interface Token {
   end: number;
   line: number;
   name?: string;
+  // Section only
+  level?: number;
   // Environment only: indicates begin token; false implies end
   isBegin?: boolean;
   // Input only: parsed input path
@@ -38,6 +41,8 @@ export interface Token {
 // Single-character command names that represent math delimiters, e.g. \\[ \\] \\( \\)
 const MATH_DELIM_COMMANDS = new Set(['[', ']', '(', ')']);
 
+const ENVIRONMENT_COMMANDS = new Set(['begin', 'end']);
+
 export interface LexerOptions {
   enabledTokens?: Set<TokenType>;
   // When true (default), backslash+letter is escapable only if the following char is NOT a letter.
@@ -46,7 +51,6 @@ export interface LexerOptions {
 
 import {
   isEscapablePair,
-  parseControlSequenceNameEnd,
   isBraceTokenAt,
   isMathDelimTokenAt,
   isCommentTokenAt,
@@ -58,6 +62,7 @@ import {
   readControlSequenceName,
   skipWhitespace,
 } from './tokenUtils.js';
+import { SECTION_COMMANDS, SECTION_LEVELS } from '../parse/constants.js';
 
 export function peekNextTokenType(
   input: string,
@@ -77,11 +82,14 @@ export function peekNextTokenType(
   if (isEnabled(TokenType.Comment) && isCommentTokenAt(input, start)) {
     return TokenType.Comment;
   }
-  if (isEnabled(TokenType.Environment) && isEnvironmentTokenAt(input, start)) {
-    return TokenType.Environment;
-  }
   if (isControlSequenceTokenAt(input, start)) {
     const name = readControlSequenceName(input, start).name;
+    if (isEnabled(TokenType.Environment) && ENVIRONMENT_COMMANDS.has(name)) {
+      return TokenType.Environment;
+    }
+    if (isEnabled(TokenType.Section) && SECTION_COMMANDS.has(name)) {
+      return TokenType.Section;
+    }
     if (isEnabled(TokenType.ConditionDeclaration) && name === 'newif') {
       return TokenType.ConditionDeclaration;
     }
@@ -157,6 +165,8 @@ export class Lexer {
         return this.readConditionToken();
       case TokenType.Environment:
         return this.readEnvironment();
+      case TokenType.Section:
+        return this.readSection();
       case TokenType.Command:
         return this.readControlSequence();
       default:
@@ -238,6 +248,29 @@ export class Lexer {
     return token;
   }
 
+  private readSection(): Token {
+    const start = this.pos;
+    const name = this.parseControlSequenceName();
+    const line = this.getLineForIndex(start);
+    if (!SECTION_COMMANDS.has(name)) {
+      throw new Error(`Expected section command at position ${start}`);
+    }
+    const level = SECTION_LEVELS[name]!;
+    this.parseWhitespace();
+    if (this.pos >= this.input.length) {
+      throw new Error(`Unexpected end of input after \\${name} at position ${start}, line ${line}`);
+    }
+    const { name: envName, end } = this.parseEnvName();
+    return {
+      type: TokenType.Section,
+      level,
+      name: envName,
+      start,
+      end,
+      line,
+    };
+  }
+
   private readConditionToken(): Token {
     const start = this.pos;
     const line = this.getLineForIndex(start);
@@ -294,7 +327,9 @@ export class Lexer {
     }
     const firstCharPos = this.pos++;
     if (!/^[a-zA-Z@]$/.test(this.input[firstCharPos])) {
-      throw new Error(`Invalid condition name after \\newif at position ${afterNewIfPos}`);
+      throw new Error(
+        `Invalid condition name after \\newif: Name starts with ${this.input[firstCharPos]} at position ${afterNewIfPos}`
+      );
     }
 
     while (this.pos < this.input.length && /[a-zA-Z@]/.test(this.input[this.pos])) this.pos++;

@@ -67,4 +67,41 @@ describe('Lexer options: enabledTokens', () => {
     const cmdNames = tokens.filter((t) => t.type === TokenType.Command).map((t) => t.name);
     expect(cmdNames).toContain('next');
   });
+
+  it('suppressing section due to condition', () => {
+    const input =
+      '\\iflong\n' +
+      '\\subsection{The Upper Bound}\n' +
+      '\\fi\n' +
+      '\\ifshort\n' +
+      '\\section\n' +
+      '{The Upper Bound.}' +
+      '\\fi';
+    const enabled = new Set<TokenType>([
+      TokenType.Text,
+      TokenType.Comment,
+      TokenType.Command,
+      TokenType.Brace,
+      TokenType.Condition,
+    ]);
+    const lex = new Lexer(input, { enabledTokens: enabled });
+    const tokens = collectTokens(lex);
+
+    const types = tokens.map((t) => t.type);
+    expect(types).toEqual([
+      TokenType.Condition,
+      TokenType.Command,
+      TokenType.Brace,
+      TokenType.Text,
+      TokenType.Brace,
+      TokenType.Text,
+      TokenType.Condition,
+      TokenType.Condition,
+      TokenType.Command,
+      TokenType.Brace,
+      TokenType.Text,
+      TokenType.Brace,
+      TokenType.Condition,
+    ]);
+  });
 });

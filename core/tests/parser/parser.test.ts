@@ -5,6 +5,8 @@ import { transform } from '../../src/lib/transform/transform';
 import { suppressComments } from '../../src/lib/transform/transformers';
 import { collectNodesDFS } from '../util';
 import { AstNode, NodeType, type InputNode } from '../../src/lib/parse/types';
+import { SECTION_LEVELS } from '../../src/lib/parse/constants';
+import { InnerNode, SectionNode } from '../../dist';
 
 describe('Parser', () => {
   it('retains the parsed AST in memory', () => {
@@ -71,7 +73,7 @@ describe('Parser', () => {
 
   it('annotates nodes with source line numbers', () => {
     const parser = new Parser({} as CoreOptions);
-    parser.parse('first\n\\section{Mid}\nlast');
+    parser.parse('first\n\\section  {Mid}\nlast');
     const root = parser.getRoot();
     const nodes = collectNodesDFS(root);
 
@@ -79,17 +81,15 @@ describe('Parser', () => {
     const lines = nodes.map((n) => (n as AstNode).line);
     const childrenCount = nodes.map((n) => (n as any).children?.length);
     const values = nodes.map((n) => (n as any).value);
-    expect(nodes.length).toBe(6);
-    expect(types).toEqual([
-      NodeType.Root,
-      NodeType.Text,
-      NodeType.Section,
-      NodeType.Group,
-      NodeType.Text,
-      NodeType.Text,
-    ]);
-    expect(childrenCount).toEqual([2, undefined, 2, 1, undefined, undefined]);
-    expect(values).toEqual([undefined, 'first\n', undefined, undefined, 'Mid', '\nlast']);
-    expect(lines).toEqual([1, 1, 2, 2, 2, 2]);
+    expect(nodes.length).toBe(4);
+    expect(types).toEqual([NodeType.Root, NodeType.Text, NodeType.Section, NodeType.Text]);
+    expect(childrenCount).toEqual([2, undefined, 1, undefined]);
+    expect(values).toEqual([undefined, 'first\n', undefined, '\nlast']);
+    expect(lines).toEqual([1, 1, 2, 2]);
+
+    const sec: SectionNode = nodes[2] as SectionNode;
+    expect(sec.level).toBe(SECTION_LEVELS.section);
+    expect(sec.name).toBe('Mid');
+    expect(sec.prefix).toBe('\\section  {Mid}');
   });
 });
