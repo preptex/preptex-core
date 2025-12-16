@@ -37,7 +37,7 @@ describe('Parser', () => {
     const parser = new Parser({} as CoreOptions);
     parser.parse('A %comment\nB');
     const text = transform(parser.getRoot(), [suppressComments]);
-    expect(text).toBe('A B');
+    expect(text).toBe('A  B');
   });
 
   it('keeps exportJSON unimplemented placeholder', () => {

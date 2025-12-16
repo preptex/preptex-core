@@ -208,8 +208,15 @@ function handleEnvironment(runtime: ParseRuntime, token: Token) {
   }
 
   const envNode = runtime.stack.peek() as AstNode | undefined;
-  if (!envNode || envNode.type !== NodeType.Environment) {
-    throw new Error('Unexpected \\end without a matching environment. Line: ' + token.line);
+  if (!envNode) {
+    throw new Error(
+      `${token.line}: Unexpected "end" without a matching "begin" environment. Empty stack.`
+    );
+  }
+  if (envNode.type !== NodeType.Environment) {
+    throw new Error(
+      `${token.line}: Unexpected "end" without a matching "begin" environment. Found ${envNode.type} at line ${envNode.line}.`
+    );
   }
   envNode.end = token.end;
   (envNode as InnerNode).suffix = runtime.input.slice(token.start, token.end + 1);
@@ -355,14 +362,14 @@ function handleCondition(runtime: ParseRuntime, token: Token) {
   if (kind === 'fi') {
     let top = runtime.stack.peek() as any;
     if (!top || top.type !== NodeType.ConditionBranch) {
-      throw new Error('Unexpected "fi" without an open condition at line ' + token.line);
+      throw new Error(`${token.line}: Unexpected "fi" without an open condition. Found: ${top}.`);
     }
     top.end = token.end;
     runtime.stack.pop();
 
     top = runtime.stack.peek() as any;
     if (!top || top.type !== NodeType.Condition) {
-      throw new Error('Unexpected "fi" without an open condition at line ' + token.line);
+      throw new Error(`${token.line}: Unexpected "fi": missing parent environment. Found: ${top}.`);
     }
     top.end = token.end;
     (top as InnerNode).suffix = runtime.input.slice(token.start, token.end + 1);

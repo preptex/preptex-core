@@ -48,9 +48,9 @@ describe('transform', () => {
   };
 
   const transformers: Transformer[] = [
-    (node) => {
-      // Example transformer: process all nodes
-      return { selfRender: true, selfProcess: true };
+    (node, ctx) => {
+      // No-op transformer for testing
+      return ctx;
     },
   ];
 
