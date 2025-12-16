@@ -14,19 +14,16 @@ export default function Codeview({ filename, code }: CodeviewProps) {
       {filename ? <div className="PaneMeta">{filename}</div> : null}
 
       <div className="CodeviewContainer">
-        <pre className="LineNumbers" aria-hidden>
-          <code>
-            {lines.map(
-              (_, i) =>
-                // keep newline so pre preserves spacing
-                (i + 1).toString() + '\n'
-            )}
-          </code>
-        </pre>
-
-        <pre className="CodeviewPre">
-          <code>{code}</code>
-        </pre>
+        <div className="CodeviewGrid" role="presentation">
+          {lines.map((line, i) => (
+            <React.Fragment key={i}>
+              <code className="LineNumberCell" aria-hidden>
+                {i + 1}
+              </code>
+              <code className="CodeCell">{line === '' ? '\u00A0' : line}</code>
+            </React.Fragment>
+          ))}
+        </div>
       </div>
     </section>
   );

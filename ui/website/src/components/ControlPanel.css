@@ -1,0 +1,171 @@
+/* Styles specific to the ControlPanel and condition controls */
+
+.ControlRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.ControlSections {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ControlSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+}
+
+.ControlSection + .ControlSection {
+  border-top: 1px solid;
+}
+
+.ControlSectionTitle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ControlToggleFull {
+  width: 100%;
+}
+
+.ControlLabel {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ControlSelect {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.02);
+  color: inherit;
+  font: 13px/1.2 inherit;
+  line-height: 1.2;
+  appearance: none;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.ControlSelect:focus {
+  outline: 2px solid rgba(0, 0, 0, 0.12);
+  outline-offset: 2px;
+}
+
+.ControlHint {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.ConditionsList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
+}
+
+.ConditionsPanel {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transform-origin: top;
+  transform: translateY(-10px) scaleY(0.98);
+  /* Closing timing (keep snappy) */
+  transition:
+    max-height 320ms cubic-bezier(0.2, 0, 0, 1),
+    transform 320ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 220ms ease;
+  will-change: max-height, transform, opacity;
+  pointer-events: none;
+}
+
+.ConditionsPanel--open {
+  max-height: 60vh;
+  opacity: 1;
+  transform: translateY(0) scaleY(1);
+  /* Opening timing (longer + smoother) */
+  transition:
+    max-height 650ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 650ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 320ms ease;
+  pointer-events: auto;
+}
+
+.ConditionItem {
+  width: 100%;
+  text-align: center;
+  padding: 6px 8px;
+  border: 1px solid;
+  background: transparent;
+  cursor: pointer;
+}
+
+.ConditionItem--selected {
+  font-weight: 600;
+  background: rgba(100, 200, 0, 0.18);
+}
+
+/* Shared base for interactive controls to keep borders, padding and effects consistent */
+.ControlItem {
+  padding: 6px 8px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.01);
+  cursor: pointer;
+  font: 13px/1.2 inherit;
+  box-sizing: border-box;
+  transition:
+    background-color 140ms ease,
+    transform 90ms ease,
+    box-shadow 160ms ease,
+    opacity 140ms ease;
+  user-select: none;
+  border-radius: 6px;
+}
+
+/* Transform control button styling */
+.ControlButton {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.01);
+  cursor: pointer;
+  font: 13px/1.2 inherit;
+  line-height: 1.2;
+  border-radius: 6px;
+  transition:
+    transform 90ms ease,
+    background-color 140ms ease,
+    box-shadow 180ms ease,
+    opacity 140ms ease;
+  user-select: none;
+}
+
+.ControlButton:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+}
+
+.ControlButton:active:not(:disabled) {
+  transform: translateY(1px);
+  background: rgba(0, 0, 0, 0.07);
+  box-shadow: none;
+}
+
+.ControlButton:focus-visible {
+  outline: 2px solid rgba(0, 0, 0, 0.12);
+  outline-offset: 2px;
+}
+
+.ControlButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
