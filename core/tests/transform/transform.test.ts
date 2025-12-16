@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Parser } from '../../src/lib/parse/parser';
 import type { CoreOptions } from '../../src/lib/options';
-import { transform, type Transformer } from '../../src/lib/transform/transform';
+import { transform } from '../../src/lib/transform/transform';
 import { NodeType } from '../../src/lib/parse/types';
 import { suppressComments } from '../../src/lib/transform/transformers';
 
@@ -16,15 +16,8 @@ describe('Transformer pipeline', () => {
     const input = `Hello $x$ \\command{param} \\section{Title}\n% comment\nWorld`;
     const parser = createParser(input);
 
-    const transformers: Transformer[] = [
-      // boolean-only: return false to skip node output; true to process
-      (node) => {
-        const ret = (node as any).type !== NodeType.Comment;
-        return { selfRender: ret, selfProcess: ret };
-      },
-    ];
-    const result = transform(parser.getRoot(), transformers);
-    expect(result).toBe('Hello $x$ \\command{param} \\section{Title}\nWorld');
+    const result = transform(parser.getRoot(), [suppressComments]);
+    expect(result).toBe('Hello $x$ \\command{param} \\section{Title}\n World');
   });
 
   it('emits input commands as part of the rendered text', () => {
@@ -46,7 +39,7 @@ describe('Transformer pipeline', () => {
     const input = `Text % comment\nMore`;
     const parser = createParser(input);
     const text = transform(parser.getRoot(), [suppressComments]);
-    expect(text).toBe('Text More');
+    expect(text).toBe('Text  More');
   });
 
   it('flattens nested inputs and still applies transformers', () => {
@@ -61,6 +54,6 @@ describe('Transformer pipeline', () => {
       { flatten: true }
     );
 
-    expect(text).toBe('Header Hello World Footer');
+    expect(text).toBe('Header Hello  World Footer');
   });
 });

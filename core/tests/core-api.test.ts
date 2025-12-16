@@ -56,7 +56,7 @@ describe('process/transform API', () => {
     const project = processProject('sample.tex', read, options);
     const outputs = transformProject(project, options);
     const result = outputs[project.entry];
-    expect(result).toBe('Hello World');
+    expect(result).toBe('Hello  World');
   });
 
   it('applies conditional branch decisions (keep IF)', () => {
@@ -155,7 +155,7 @@ describe('process/transform API', () => {
     const project = processProject('main.tex', read, options);
     const outputs = transformProject(project, options);
     const result = outputs[project.entry];
-    expect(result).toBe('Intro Conclusion');
+    expect(result).toBe('Intro  Conclusion');
   });
 
   it('commented input file - no suppress', () => {
@@ -200,6 +200,6 @@ describe('process/transform API', () => {
     const result = outputs[project.entry];
 
     // Accept either the resolved inner branch or a variant without the inner text
-    expect(result).toBe('Alpha Keep Inner Omega');
+    expect(result).toBe('Alpha Keep  Inner Omega');
   });
 });

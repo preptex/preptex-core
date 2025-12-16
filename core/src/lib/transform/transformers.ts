@@ -1,4 +1,4 @@
-import type { Transformer, TransformerContext } from './transform.js';
+import type { Transformer, TransformContext } from './transform.js';
 import {
   NodeType,
   ConditionBranchType,
@@ -7,9 +7,11 @@ import {
   ConditionBranchNode,
 } from '../parse/types.js';
 
-export function suppressComments(node: AstNode): TransformerContext {
-  const process = node.type !== NodeType.Comment;
-  return { selfRender: process, selfProcess: process };
+export function suppressComments(node: AstNode, ctx: TransformContext): TransformContext {
+  if (node.type === NodeType.Comment) {
+    return { ...ctx, current_value: ' ' };
+  }
+  return ctx;
 }
 
 /**
@@ -28,24 +30,27 @@ export function filterConditions(
     toggleCommands.add(`${name}false`);
   }
 
-  return (node) => {
+  return (node, ctx) => {
     if (node.type === NodeType.Command && toggleCommands.has((node as CommandNode).name)) {
-      return { selfRender: false, selfProcess: false };
+      return { ...ctx, skip_node: true };
     }
     if (node.type === NodeType.ConditionDeclaration) {
-      return { selfRender: false, selfProcess: false };
+      return { ...ctx, skip_node: true };
     }
     if (node.type !== NodeType.ConditionBranch && node.type !== NodeType.Condition) {
-      return { selfRender: true, selfProcess: true };
+      return ctx;
     }
 
-    const selfRender = false;
-    let selfProcess = true;
+    if (node.type === NodeType.Condition) {
+      // Replace closing \fi suffix with a space
+      return { ...ctx, current_suffix: '' };
+    }
 
     const cNode = node as ConditionBranchNode;
     const keepIf = keep.has(cNode.name);
-    if (keepIf && cNode.branch === ConditionBranchType.Else) selfProcess = false; // skip ELSE
-    if (!keepIf && cNode.branch === ConditionBranchType.If) selfProcess = false; // skip IF
-    return { selfRender, selfProcess };
+    if (keepIf && cNode.branch === ConditionBranchType.Else) return { ...ctx, skip_node: true };
+    if (!keepIf && cNode.branch === ConditionBranchType.If) return { ...ctx, skip_node: true };
+    // Replace \if* or \else prefix with a space for the kept branch
+    return { ...ctx, current_prefix: '' };
   };
 }

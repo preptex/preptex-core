@@ -54,7 +54,6 @@ import {
   isBraceTokenAt,
   isMathDelimTokenAt,
   isCommentTokenAt,
-  isEnvironmentTokenAt,
   isControlSequenceTokenAt,
   isConditionName,
   TEXT_END_CHARS,
