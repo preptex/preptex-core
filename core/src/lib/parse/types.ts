@@ -110,7 +110,7 @@ export interface GroupNode extends InnerNode {
 
 export interface SectionNode extends InnerNode {
   type: NodeType.Section;
-  level: 1 | 2 | 3 | 4 | 5; // 1=\section, 2=\subsection, 3=\subsubsection, 4=\paragraph, 5=\subparagraph
+  level: 0 | 1 | 2 | 3 | 4 | 5; // 0=document, 1=\section, 2=\subsection, 3=\subsubsection, 4=\paragraph, 5=\subparagraph
   name: string;
   starred?: boolean; // \section* variant
 }

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Parser } from '../../src/lib/parse/parser';
 import type { SectionNode } from '../../src/lib/parse/types';
+import { NodeType } from '../../dist';
 
 const parse = (input: string) => {
   const parser = new Parser({});
@@ -111,5 +112,29 @@ describe('Parser sections', () => {
     expect(s3.type).toBe('Section');
     expect(s3.level).toBe(1);
     expect(s3.end).toBe(input.length - 1);
+  });
+
+  it('wraps document environment as a top-level Section and finalizes on end', () => {
+    const segments = [`\\begin{document}\\section{A} text `, `\\end{document}`];
+    const input = segments.join('');
+    const ast = parse(input);
+    expect(ast.children.length).toBe(1);
+
+    const doc = ast.children[0] as SectionNode;
+    expect((doc as any).type).toBe(NodeType.Section);
+    expect(doc.level).toBe(0);
+    expect(doc.name).toBe('document');
+    expect(doc.prefix).toBe('\\begin{document}');
+    expect(doc.suffix).toBe('\\end{document}');
+    expect(doc.end).toBe(input.length - 1);
+
+    // First child is the first content section inside document
+    const s1 = doc.children[0] as SectionNode;
+    expect((s1 as any).type).toBe('Section');
+    expect(s1.level).toBe(1);
+    expect(s1.end).toBe(segments[0].length - 1);
+    expect(s1.name).toBe('A');
+    expect(s1.prefix).toBe('\\section{A}');
+    expect(s1.suffix).toBe('');
   });
 });
