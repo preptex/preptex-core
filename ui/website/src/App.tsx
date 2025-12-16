@@ -82,18 +82,6 @@ function App() {
           onRemove={onRemove}
           onUploadFiles={(fl) => upsertFiles(fl)}
         />
-
-        <div className="FiletreeActions">
-          <button
-            type="button"
-            className="FiletreeItem"
-            onClick={onTransform}
-            disabled={!selectedFile}
-            title={selectedFile ? `Transform ${selectedFile}` : 'Select a file first'}
-          >
-            Transform
-          </button>
-        </div>
       </div>
 
       <div className="AppCell AppCell--leftBottom">
@@ -102,6 +90,7 @@ function App() {
           onChange={setOptions}
           entryFile={selectedFile}
           availableIfConditions={coreRun?.declaredConditions ?? []}
+          onTransform={onTransform}
         />
       </div>
 

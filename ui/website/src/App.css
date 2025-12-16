@@ -59,13 +59,50 @@
 }
 
 .CodeviewContainer {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  width: 100%;
-  /* Make the outer container scroll, not inner panes */
+  /* Outer scroll container so line numbers stay synced */
   overflow: auto;
   height: 75vh;
+  width: 100%;
+  border: 1px solid;
+  box-sizing: border-box;
+}
+
+.CodeviewGrid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  min-width: 100%;
+}
+
+.LineNumberCell {
+  padding: 0 8px;
+  box-sizing: border-box;
+  color: rgba(0, 0, 0, 0.6);
+  text-align: right;
+  user-select: none;
+  border-right: 1px solid;
+  background: rgba(0, 0, 0, 0.02);
+  min-width: 3.2em;
+  white-space: pre;
+}
+
+.CodeCell {
+  padding: 0 12px;
+  box-sizing: border-box;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.LineNumberCell,
+.CodeCell {
+  /* Match the previous pre padding visually */
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 1.4;
+}
+
+.CodeviewGrid {
+  padding: 12px 0;
 }
 
 .LineNumbers {
@@ -114,16 +151,18 @@
 
 .FiletreeDownload {
   padding: 8px 10px;
-  border: 1px solid;
+  border: 1px solid rgba(0, 0, 0, 0.12);
   background: transparent;
   cursor: pointer;
+  font: 13px/1.2 inherit;
 }
 
 .FiletreeRemove {
   padding: 8px 10px;
-  border: 1px solid;
+  border: 1px solid rgba(0, 0, 0, 0.12);
   background: transparent;
   cursor: pointer;
+  font: 13px/1.2 inherit;
 }
 
 .FiletreeItem--active {
@@ -132,51 +171,4 @@
 
 .FiletreeActions {
   margin-top: 10px;
-}
-
-.ControlRow {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 10px 0;
-}
-
-.ControlLabel {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.ControlRow select,
-.ControlRow textarea {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.ControlHint {
-  font-size: 12px;
-  opacity: 0.7;
-}
-
-.ConditionsList {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  gap: 8px;
-}
-
-.ConditionItem {
-  width: 100%;
-  text-align: center;
-  padding: 6px 8px;
-  border: 1px solid;
-  background: transparent;
-  cursor: pointer;
-}
-
-.ConditionItem--selected {
-  font-weight: 600;
-  background: rgb(100, 255, 0, 0.5);
 }

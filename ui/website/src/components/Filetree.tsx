@@ -9,6 +9,22 @@ export type FiletreeProps = {
   onUploadFiles?: (files: FileList) => void;
 };
 
+function shortenFilenameMiddle(filename: string, maxLength = 30): string {
+  if (filename.length <= maxLength) return filename;
+
+  const lastDot = filename.lastIndexOf('.');
+  const hasExt = lastDot > 0 && lastDot < filename.length - 1;
+  const ext = hasExt ? filename.slice(lastDot) : '';
+  const base = hasExt ? filename.slice(0, lastDot) : filename;
+
+  const ellipsis = '...';
+  const remaining = maxLength - ext.length - ellipsis.length;
+
+  const headLen = 5 + Math.ceil(remaining / 2);
+  const tailLen = remaining - headLen;
+  return base.slice(0, headLen) + ellipsis + base.slice(Math.max(0, base.length - tailLen)) + ext;
+}
+
 export default function Filetree({
   files,
   selected,
@@ -58,16 +74,21 @@ export default function Filetree({
             <div key={f} className="FiletreeRow">
               <button
                 type="button"
-                className={selected === f ? 'FiletreeItem FiletreeItem--active' : 'FiletreeItem'}
+                className={
+                  selected === f
+                    ? 'ControlItem FiletreeItem FiletreeItem--active'
+                    : 'ControlItem FiletreeItem'
+                }
                 onClick={() => onSelect(f)}
+                title={f}
               >
-                {f}
+                {shortenFilenameMiddle(f)}
               </button>
 
               {onDownload ? (
                 <button
                   type="button"
-                  className="FiletreeDownload"
+                  className="ControlItem FiletreeDownload"
                   aria-label={`Download ${f}`}
                   title={`Download ${f}`}
                   onClick={(e) => {
@@ -83,7 +104,7 @@ export default function Filetree({
               {onRemove ? (
                 <button
                   type="button"
-                  className="FiletreeRemove"
+                  className="ControlItem FiletreeRemove"
                   aria-label={`Remove ${f}`}
                   title={`Remove ${f}`}
                   onClick={(e) => {

@@ -13,7 +13,7 @@ export function useControl(initial?: Partial<CoreOptionsUI>) {
   const [options, setOptions] = useState<CoreOptionsUI>({
     suppressComments: initial?.suppressComments ?? false,
     handleInputCmd: initial?.handleInputCmd ?? 'none',
-    handleIfConditions: initial?.handleIfConditions ?? true,
+    handleIfConditions: initial?.handleIfConditions ?? false,
     ifDecisions: initial?.ifDecisions ?? [],
   });
 
