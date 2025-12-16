@@ -1,4 +1,4 @@
-import type { CoreOptions } from '../options.js';
+import type { CoreOptions, ParseOptions } from '../options.js';
 import { NodeType, type AstNode, type AstRoot, type InnerNode } from './types.js';
 import { parseToAst } from './parseToAst.js';
 
@@ -8,7 +8,7 @@ export class Parser {
   private declaredConditions: Set<string> = new Set();
   private inputFiles: Set<string> = new Set();
 
-  constructor(private options: CoreOptions) {}
+  constructor(private options: ParseOptions = {}) {}
 
   parse(input: string): void {
     this.input = input;

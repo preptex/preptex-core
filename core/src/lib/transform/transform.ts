@@ -28,6 +28,33 @@ export function transform(
   files: Record<string, AstRoot> = {},
   options: TransformOptions = {}
 ): string {
+  const resolveInputRoot = (requested: string): AstRoot | undefined => {
+    const table = files ?? {};
+    const normalize = (p: string) => p.replace(/\\/g, '/').replace(/^\.\//, '');
+
+    const raw = requested;
+    const req = normalize(raw);
+
+    const direct = table[raw] ?? table[req];
+    if (direct) return direct;
+
+    const withTex = req.toLowerCase().endsWith('.tex') ? undefined : `${req}.tex`;
+    if (withTex && table[withTex]) return table[withTex];
+
+    const lastSeg = req.includes('/') ? (req.split('/').pop() ?? req) : req;
+    if (lastSeg && table[lastSeg]) return table[lastSeg];
+    if (lastSeg && !lastSeg.toLowerCase().endsWith('.tex')) {
+      const lastWithTex = `${lastSeg}.tex`;
+      if (table[lastWithTex]) return table[lastWithTex];
+    }
+
+    const reqLower = req.toLowerCase();
+    for (const key of Object.keys(table)) {
+      if (normalize(key).toLowerCase() === reqLower) return table[key];
+    }
+    return undefined;
+  };
+
   type Frame = { node: AstNode; stage: 'enter' | 'exit'; ctx?: TransformContext };
   const stack: Frame[] = [{ node, stage: 'enter' }];
   let output = '';
@@ -47,8 +74,7 @@ export function transform(
       if (options.flatten && cur.type === NodeType.Input) {
         const inputNode = cur as InputNode;
         const file = inputNode.path;
-        const fileTable = files ?? {};
-        const target = file ? fileTable[file] : undefined;
+        const target = file ? resolveInputRoot(file) : undefined;
         if (file) {
           if (!target) {
             // When flattening is requested and the referenced file is missing,

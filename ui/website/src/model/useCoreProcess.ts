@@ -1,24 +1,36 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   process as coreProcess,
   transform as coreTransform,
+  combine_project,
   InputCmdHandling,
 } from '@preptex/core';
 
 import type { CoreOptionsUI } from './useControl';
+import type { FilesMutation } from './useFiles';
 
 export type CoreRunResult = {
   declaredConditions: string[];
-  isFlattened: boolean;
   error?: string;
 };
+
+type CoreProject = ReturnType<typeof coreProcess>;
 
 export function useCoreProcess(
   entryFile: string,
   filesByName: Record<string, string>,
+  mutation: FilesMutation,
   options: CoreOptionsUI
 ) {
   const [result, setResult] = useState<CoreRunResult | null>(null);
+
+  const globalVersionRef = useRef(0);
+  const versionedFilesRef = useRef<Record<string, { text: string; version: number }>>({});
+  const globalProjectRef = useRef<CoreProject | null>(null);
+
+  const normalizeText = useCallback((text: string) => text.replace(/\r\n/g, '\n'), []);
+
+  const { id: mutationId, upserts, removes } = mutation;
 
   const coreOptions = useMemo(
     () => ({
@@ -34,37 +46,57 @@ export function useCoreProcess(
     [options]
   );
 
-  const readFile = useCallback(
-    (name: string): string => {
-      const text = filesByName[name];
-      if (text === undefined) {
-        console.warn(`[preptex] Missing file: ${name}`);
-        return '';
-      }
-      return text;
-    },
-    [filesByName]
-  );
+  // Update global project incrementally whenever the user uploads/updates/removes files.
+  useEffect(() => {
+    try {
+      // Advance global version once per batch.
+      globalVersionRef.current = Math.max(globalVersionRef.current + 1, mutationId);
+      const version = globalVersionRef.current;
 
-  // Auto-parse whenever selection changes
+      // Apply removals: rebuild, since combine_project can't delete files.
+      if (removes.length > 0) {
+        for (const name of removes) {
+          delete versionedFilesRef.current[name];
+        }
+
+        globalProjectRef.current = coreProcess({ ...versionedFilesRef.current });
+      }
+
+      // Apply upserts: parse only the batch and combine into the global project.
+      const upsertNames = Object.keys(upserts);
+      if (upsertNames.length > 0) {
+        const batch: Record<string, { text: string; version: number }> = {};
+        for (const [name, raw] of Object.entries(upserts)) {
+          const text = normalizeText(String(raw ?? ''));
+          const vf = { text, version };
+          versionedFilesRef.current[name] = vf;
+          batch[name] = vf;
+        }
+
+        const batchProject = coreProcess(batch);
+        globalProjectRef.current = globalProjectRef.current
+          ? combine_project(globalProjectRef.current, batchProject)
+          : batchProject;
+      }
+
+      const declared = Array.from(globalProjectRef.current?.getDeclaredConditions() ?? []);
+      setResult({ declaredConditions: declared });
+    } catch (err) {
+      setResult({ declaredConditions: [], error: String(err) });
+      console.log(err);
+    }
+  }, [mutationId, upserts, removes, normalizeText]);
+
+  // Keep UI state in sync when selection changes (even if no new mutation occurs).
   useEffect(() => {
     if (!entryFile) {
       setResult(null);
       return;
     }
 
-    try {
-      const project = coreProcess(entryFile, readFile, coreOptions);
-      const declared = Array.from(project.getDeclaredConditions());
-      setResult({
-        declaredConditions: declared,
-        isFlattened: project.isFlattened(),
-      });
-    } catch (err) {
-      setResult({ declaredConditions: [], isFlattened: false, error: String(err) });
-      console.log(err);
-    }
-  }, [entryFile, readFile, coreOptions]);
+    const declared = Array.from(globalProjectRef.current?.getDeclaredConditions() ?? []);
+    setResult((prev) => ({ declaredConditions: declared, error: prev?.error }));
+  }, [entryFile]);
 
   const transform = useCallback(
     (entryOverride?: string): Record<string, string> | null => {
@@ -74,15 +106,16 @@ export function useCoreProcess(
       }
 
       try {
-        const project = coreProcess(entry, readFile, coreOptions);
-        const outputs = coreTransform(project, coreOptions);
+        const project = globalProjectRef.current;
+        if (!project) return null;
+        const outputs = coreTransform(entry, project, coreOptions);
         return outputs;
       } catch (err) {
         console.log(err);
         return null;
       }
     },
-    [entryFile, readFile, coreOptions]
+    [entryFile, coreOptions]
   );
 
   return { result, transform } as const;

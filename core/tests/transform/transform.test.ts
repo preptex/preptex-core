@@ -1,12 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { Parser } from '../../src/lib/parse/parser';
-import type { CoreOptions } from '../../src/lib/options';
 import { transform } from '../../src/lib/transform/transform';
 import { NodeType } from '../../src/lib/parse/types';
 import { suppressComments } from '../../src/lib/transform/transformers';
 
 function createParser(input: string): Parser {
-  const p = new Parser({} as CoreOptions);
+  const p = new Parser();
   p.parse(input);
   return p;
 }

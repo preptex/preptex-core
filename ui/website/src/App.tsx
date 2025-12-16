@@ -14,6 +14,7 @@ function App() {
     fileNames,
     selectedFile,
     selectFile,
+    mutation,
     upsertFiles,
     upsertTextFiles,
     removeFile,
@@ -23,7 +24,7 @@ function App() {
 
   const code = filesByName[selectedFile] ?? '';
 
-  const { result: coreRun, transform } = useCoreProcess(selectedFile, filesByName, options);
+  const { result: coreRun, transform } = useCoreProcess(selectedFile, filesByName, mutation, options);
 
   const onDownload = (name: string) => {
     const text = filesByName[name] ?? '';

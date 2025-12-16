@@ -1,43 +1,59 @@
 import { Parser } from './parse/parser.js';
-import { CoreOptions, InputCmdHandling } from './options.js';
+import { CoreOptions, InputCmdHandling, type ParseOptions } from './options.js';
 import { transform as renderAst, type Transformer } from './transform/transform.js';
 import { filterConditions, suppressComments } from './transform/transformers.js';
 import type { AstRoot } from './parse/types.js';
 
-const SINGLE_ENTRY_ID = '__entry__';
+export type VersionedTextFile = {
+  text: string;
+  version: number;
+};
+
+export type ProjectFile = {
+  root: AstRoot;
+  version: number;
+  declaredConditions: ReadonlySet<string>;
+};
 
 export class Project {
-  private readonly files: Record<string, AstRoot>;
-  private readonly declaredConditions: Set<string>;
-  private readonly recursive: boolean;
-  private readonly entryPath: string;
+  private files: Record<string, ProjectFile>;
 
-  constructor(
-    entryPath: string,
-    files: Record<string, AstRoot>,
-    declared: Set<string>,
-    recursive: boolean
-  ) {
-    this.entryPath = entryPath;
-    this.files = Object.freeze({ ...files });
-    this.declaredConditions = new Set(declared);
-    this.recursive = recursive;
+  constructor(files: Record<string, ProjectFile>) {
+    this.files = { ...files };
   }
 
-  get entry(): string {
-    return this.entryPath;
+  getFiles(): Readonly<Record<string, ProjectFile>> {
+    // Return a snapshot to discourage external mutation.
+    return Object.freeze({ ...this.files });
   }
 
-  getRoot(): AstRoot {
-    const root = this.files[this.entryPath];
-    if (!root) {
-      throw new Error(`Project root not found for entry ${this.entryPath}`);
+  mergeFrom(other: Project): void {
+    for (const [name, file] of Object.entries(other.files)) {
+      const existing = this.files[name];
+      if (!existing) {
+        this.files[name] = file;
+        continue;
+      }
+
+      // Prefer the higher version; if equal, prefer `other`.
+      this.files[name] = file.version >= existing.version ? file : existing;
     }
-    return root;
   }
 
-  getFiles(): Readonly<Record<string, AstRoot>> {
-    return this.files;
+  getRoots(): Readonly<Record<string, AstRoot>> {
+    const roots: Record<string, AstRoot> = {};
+    for (const [name, file] of Object.entries(this.files)) {
+      roots[name] = file.root;
+    }
+    return roots;
+  }
+
+  getRoot(name: string): AstRoot {
+    const f = this.files[name];
+    if (!f) {
+      throw new Error(`Project root not found for file ${name}`);
+    }
+    return f.root;
   }
 
   getFileNames(): Readonly<string[]> {
@@ -45,90 +61,57 @@ export class Project {
   }
 
   getDeclaredConditions(): ReadonlySet<string> {
-    return new Set(this.declaredConditions);
-  }
-
-  isFlattened(): boolean {
-    return this.recursive;
+    const all = new Set<string>();
+    for (const f of Object.values(this.files)) {
+      for (const c of f.declaredConditions) all.add(c);
+    }
+    return all;
   }
 }
 
 export function process(
-  entry: string,
-  readFile: (filename: string) => string,
-  options: CoreOptions = {} as CoreOptions
+  files: Record<string, VersionedTextFile>,
+  options: ParseOptions = {} as ParseOptions
 ): Project {
-  const flattenInputs =
-    options.handleInputCmd === InputCmdHandling.FLATTEN ||
-    options.handleInputCmd === InputCmdHandling.RECURSIVE;
-
-  if (!readFile) {
-    throw new Error('Input processing requires a readFile callback');
+  if (!files || typeof files !== 'object') {
+    throw new Error('process() requires a record of filename -> {text, version}');
   }
 
-  // Non-flattening: parse only the entry file, but still treat it as a path
-  if (!flattenInputs) {
-    const text = readFile(entry);
-    if (text === undefined || text === null) {
-      throw new Error(`readFile callback returned no content for ${entry}`);
+  const parsed: Record<string, ProjectFile> = {};
+
+  for (const [file, input] of Object.entries(files)) {
+    const version = Number((input as any)?.version ?? 0);
+    if (!Number.isFinite(version)) {
+      throw new Error(`Invalid version for ${file}: ${String((input as any)?.version)}`);
     }
-
-    const parser = new Parser(options);
-    parser.parse(String(text));
-
-    const files: Record<string, AstRoot> = {
-      [entry]: parser.getRoot(),
-    };
-
-    return new Project(entry, files, new Set(parser.getDeclaredConditions()), false);
-  }
-
-  // Flattening / recursive: walk the input tree starting from the entry path
-  const entryFile = entry;
-  const discovered = new Set<string>();
-  const astByFile: Record<string, AstRoot> = {};
-  const declaredConditions = new Set<string>();
-  const stack: string[] = [entryFile];
-
-  while (stack.length) {
-    const file = stack.pop()!;
-    if (discovered.has(file)) {
-      throw new Error(`Multiple inclusion detected: ${file} is already processed`);
-    }
-    discovered.add(file);
-
-    const text = readFile(file);
-    if (text === undefined || text === null) {
-      throw new Error(`readFile callback returned no content for ${file}`);
-    }
-
+    const text = String((input as any)?.text ?? '');
     const fileParser = new Parser(options);
-    fileParser.parse(String(text));
-    const ast = fileParser.getRoot();
-    astByFile[file] = ast;
+    fileParser.parse(text);
 
-    for (const cond of fileParser.getDeclaredConditions()) {
-      declaredConditions.add(cond);
-    }
-
-    for (const child of fileParser.getInputFiles()) {
-      if (!discovered.has(child)) {
-        stack.push(child);
-      }
-    }
+    parsed[file] = {
+      root: fileParser.getRoot(),
+      version,
+      declaredConditions: new Set(fileParser.getDeclaredConditions()),
+    };
   }
 
-  if (!astByFile[entryFile]) {
-    throw new Error(`Failed to parse entry file: ${entryFile}`);
-  }
+  return new Project(parsed);
+}
 
-  return new Project(entryFile, astByFile, declaredConditions, true);
+export function combine_project(a: Project, b: Project): Project {
+  a.mergeFrom(b);
+  return a;
 }
 
 export function transform(
+  entry: string,
   project: Project,
   options: CoreOptions = {} as CoreOptions
 ): Record<string, string> {
+  if (!entry) {
+    throw new Error('Missing required entry filename');
+  }
+
   const transformers: Transformer[] = [];
   if (options.suppressComments) {
     transformers.push(suppressComments);
@@ -138,24 +121,27 @@ export function transform(
     transformers.push(filterConditions(options.ifDecisions, project.getDeclaredConditions()));
   }
 
-  // Recursive handling: run non-flattening transform on each discovered file
+  const roots = project.getRoots();
+  const entryRoot = project.getRoot(entry);
+
+  // Recursive: emit outputs for all project files (no flattening).
   if (options.handleInputCmd === InputCmdHandling.RECURSIVE) {
     const outputs: Record<string, string> = {};
-    for (const [file, ast] of Object.entries(project.getFiles())) {
+    for (const [file, ast] of Object.entries(roots)) {
       outputs[file] = renderAst(ast, transformers);
     }
     return outputs;
   }
 
-  // Flatten inputs: inline referenced files during transform
+  // Flatten: inline referenced files starting from the entry.
   if (options.handleInputCmd === InputCmdHandling.FLATTEN) {
-    const outputs: Record<string, string> = {};
-    outputs[project.entry] = renderAst(project.getRoot(), transformers, project.getFiles(), {
-      flatten: true,
-    });
-    return outputs;
+    return {
+      [entry]: renderAst(entryRoot, transformers, roots, { flatten: true }),
+    };
   }
 
-  // Default: emit as-is for single-root projects
-  return { [project.entry]: renderAst(project.getRoot(), transformers) };
+  // Default: transform only the entry.
+  return {
+    [entry]: renderAst(entryRoot, transformers),
+  };
 }
