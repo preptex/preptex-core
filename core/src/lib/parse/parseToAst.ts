@@ -56,24 +56,24 @@ export function parseToAst(input: string, options: CoreOptions, inputFiles?: Set
     handler(runtime, token);
   }
 
+  // Keep finalization for inputs without a document environment.
   finalizeOpenSections(runtime);
 
   return runtime.root;
 }
 
-function finalizeOpenSections(runtime: ParseRuntime): void {
-  const lastIndex = runtime.input.length === 0 ? -1 : runtime.input.length - 1;
-
-  let top = null;
-  while ((top = runtime.stack.peek())) {
-    if (top.type === NodeType.Section || top.type === NodeType.Root) {
-      const sec = runtime.stack.pop() as AstNode;
-      sec.end = lastIndex;
-    }
+function closeSectionsLevel(runtime: ParseRuntime, level: number, end: number): void {
+  let top = runtime.stack.peek();
+  while (top && top.type === NodeType.Section && (top as any).level >= level) {
+    const sec = runtime.stack.pop() as AstNode;
+    sec.end = end;
+    top = runtime.stack.peek();
   }
+}
 
-  // Any other node type here implies unclosed constructs (e.g. environments).
-  // Per spec, stop finalization and return.
+function finalizeOpenSections(runtime: ParseRuntime): void {
+  const lastIndex = runtime.input.length - 1;
+  closeSectionsLevel(runtime, 1, lastIndex);
 }
 
 function createRuntime(input: string, inputFiles?: Set<string>): ParseRuntime {
@@ -192,6 +192,23 @@ function handleEnvironment(runtime: ParseRuntime, token: Token) {
   const name = token.name ?? '';
 
   if (isBegin) {
+    // Special: treat \begin{document} as a top-level Section wrapper with highest level (0)
+    if (name === 'document') {
+      const docSection: SectionNode = {
+        type: NodeType.Section,
+        level: 0,
+        name: 'document',
+        start: token.start,
+        end: token.end,
+        line: token.line,
+        children: [],
+        prefix: runtime.input.slice(token.start, token.end + 1),
+        suffix: '',
+      };
+      parent.children.push(docSection);
+      runtime.stack.push(docSection as unknown as AstNode);
+      return;
+    }
     const envNode = {
       type: NodeType.Environment,
       name,
@@ -212,6 +229,24 @@ function handleEnvironment(runtime: ParseRuntime, token: Token) {
     throw new Error(
       `${token.line}: Unexpected "end" without a matching "begin" environment. Empty stack.`
     );
+  }
+  if (name === 'document') {
+    closeSectionsLevel(runtime, 1, token.start - 1);
+    const top = runtime.stack.peek() as AstNode | undefined;
+    if (!top) {
+      throw new Error(
+        `${token.line}: Unexpected "end{document}": missing document environment. Empty stack.`
+      );
+    }
+    if (top.type !== NodeType.Section || (top as any).name !== 'document') {
+      throw new Error(
+        `${token.line}: Unexpected "end{document}": missing document environment. Found: ${top} at line ${top.line}.`
+      );
+    }
+    top.end = token.end;
+    top.suffix = runtime.input.slice(token.start, token.end + 1);
+    runtime.stack.pop();
+    return;
   }
   if (envNode.type !== NodeType.Environment) {
     throw new Error(
