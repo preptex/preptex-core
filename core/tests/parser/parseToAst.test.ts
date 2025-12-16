@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { parseToAst } from '../../src/lib/parse/parseToAst';
 import { NodeType } from '../../src/lib/parse/types';
-import type { CoreOptions } from '../../src/lib/options';
+import type { ParseOptions } from '../../src/lib/options';
 
-const parse = (input: string) => parseToAst(input, {} as CoreOptions);
+const parse = (input: string) => parseToAst(input, {} as ParseOptions);
 
 describe('parseToAst', () => {
   it('parses environment at root', () => {

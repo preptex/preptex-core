@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Parser } from '../../src/lib/parse/parser';
 import { NodeType, AstRoot, ConditionBranchType } from '../../src/lib/parse/types';
-import type { CoreOptions } from '../../src/lib/options';
 import { InnerNode } from '../../dist';
 
 function findFirstCondition(root: AstRoot) {
@@ -10,7 +9,7 @@ function findFirstCondition(root: AstRoot) {
 
 describe('conditions parsing', () => {
   it('parses if/else/fi and splits branches', () => {
-    const parser = new Parser({} as CoreOptions);
+    const parser = new Parser();
     parser.parse('\\ifX A \\else B \\fi');
     const ast = parser.getRoot();
 
@@ -38,7 +37,7 @@ describe('conditions parsing', () => {
   });
 
   it('parses if/fi without else', () => {
-    const parser = new Parser({} as CoreOptions);
+    const parser = new Parser();
     parser.parse('\\ifY Only \\fi');
     const ast = parser.getRoot();
 
@@ -60,7 +59,7 @@ describe('conditions parsing', () => {
   });
 
   it('parses \\newif declarations into dedicated nodes', () => {
-    const parser = new Parser({} as CoreOptions);
+    const parser = new Parser();
     parser.parse('\\newif\\ifCool\nBody');
     const ast = parser.getRoot();
 
@@ -76,7 +75,7 @@ describe('conditions parsing', () => {
 
   it('parses iff command correctly', () => {
     const input = ['\\begin{lemma}\n\\[X\\iff Y\\]\\end{lemma}'].join('');
-    const parser = new Parser({} as CoreOptions);
+    const parser = new Parser();
     parser.parse(input);
     const root = parser.getRoot();
     expect(root.children.length).toBe(1);
@@ -84,7 +83,7 @@ describe('conditions parsing', () => {
   });
 
   it('handles suppressed sections', () => {
-    const parser = new Parser({} as CoreOptions);
+    const parser = new Parser();
     parser.parse(
       '\\iflong\n' +
         '\\subsection{The Upper Bound}\n' +

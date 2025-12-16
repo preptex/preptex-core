@@ -4,6 +4,12 @@ export enum InputCmdHandling {
   RECURSIVE = 'recursive',
 }
 
+// Parsing options are intentionally separate from transform options.
+// Parsing never performs IO or input-tree recursion.
+export interface ParseOptions {
+  // Reserved for future parse-time options.
+}
+
 export function inputCommandOption(options: Record<string, string | true>): InputCmdHandling {
   const flatten = options.flatten;
   const recursive = options.recursive;
@@ -21,7 +27,7 @@ export function inputCommandOption(options: Record<string, string | true>): Inpu
 
 export const INPUT_CMD_HANDLING_VALUES = new Set<string>(Object.values(InputCmdHandling));
 
-export interface CoreOptions {
+export interface CoreOptions extends ParseOptions {
   suppressComments?: boolean;
   ifDecisions?: Set<string>;
   handleInputCmd?: InputCmdHandling;

@@ -1,10 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { Parser } from '../../src/lib/parse/parser';
 import { NodeType, AstNode, AstRoot } from '../../src/lib/parse/types';
-import type { CoreOptions } from '../../src/lib/options';
 
 function parse(input: string): AstRoot {
-  const p = new Parser({} as CoreOptions);
+  const p = new Parser();
   p.parse(input);
   return p.getRoot();
 }

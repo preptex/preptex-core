@@ -2,6 +2,36 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { TransformCliOptions } from './args.js';
+import type { VersionedTextFile } from '@preptex/core';
+
+export async function readAllTexFiles(baseDir: string): Promise<Record<string, VersionedTextFile>> {
+  const fs = await import('node:fs/promises');
+  const out: Record<string, VersionedTextFile> = {};
+
+  const toKey = (absPath: string) =>
+    path.relative(baseDir, absPath).replace(/\\/g, '/').replace(/^\.\//, '');
+
+  const walk = async (dir: string): Promise<void> => {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    for (const ent of entries) {
+      const abs = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        await walk(abs);
+        continue;
+      }
+      if (!ent.isFile()) continue;
+      if (!ent.name.toLowerCase().endsWith('.tex')) continue;
+      const key = toKey(abs);
+      out[key] = {
+        text: await fs.readFile(abs, 'utf8'),
+        version: 1,
+      };
+    }
+  };
+
+  await walk(baseDir);
+  return out;
+}
 
 export function makeReader(baseDir: string): (filename: string) => string {
   const reader = (filename: string) => {
@@ -15,16 +45,17 @@ export async function writeOutputsRecursive(
   outputs: Record<string, string>,
   opts: TransformCliOptions
 ): Promise<void> {
-  const { entryPath, outDir, outName } = resolvePaths({
+  const { entryPath, baseDir, outDir, outName } = resolvePaths({
     input: opts.input!,
     workDir: opts.workDir,
     outDir: opts.outDir,
     output: opts.output,
   });
+  const entryKey = path.relative(baseDir, entryPath).replace(/\\/g, '/').replace(/^\.\//, '');
   await mkdir(outDir, { recursive: true });
   for (const [file, text] of Object.entries(outputs)) {
     let base = path.basename(file);
-    const fileName = file === entryPath ? outName : base;
+    const fileName = file === entryKey ? outName : base;
     const outPath = path.join(outDir, fileName);
     await writeFile(outPath, String(text), 'utf8');
   }

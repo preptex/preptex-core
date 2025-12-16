@@ -9,7 +9,7 @@ import {
   InputNode,
   type SectionNode,
 } from './types.js';
-import type { CoreOptions } from '../options.js';
+import type { ParseOptions } from '../options.js';
 import { Lexer, TokenType, type Token } from '../lexer/tokens.js';
 import { sanityCheck } from './sanity.js';
 
@@ -41,7 +41,11 @@ const HANDLERS: Map<TokenType, TokenHandler> = new Map([
   [TokenType.ConditionDeclaration, handleConditionDeclaration],
 ]);
 
-export function parseToAst(input: string, options: CoreOptions, inputFiles?: Set<string>): AstRoot {
+export function parseToAst(
+  input: string,
+  options: ParseOptions,
+  inputFiles?: Set<string>
+): AstRoot {
   void options;
   const runtime = createRuntime(input, inputFiles);
 

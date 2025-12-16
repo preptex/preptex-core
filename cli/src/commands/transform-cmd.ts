@@ -7,7 +7,7 @@ import {
 import { parseTransformArgs, printTransformHelp } from '../args.js';
 import path from 'node:path';
 import { resolvePaths } from '../io.js';
-import { makeReader, writeOutputsRecursive } from '../io.js';
+import { readAllTexFiles, writeOutputsRecursive } from '../io.js';
 import type { TransformCliOptions } from '../args.js';
 
 export async function handleTransform(args: string[]): Promise<void> {
@@ -48,9 +48,17 @@ export async function handleTransform(args: string[]): Promise<void> {
       outDir: options.outDir,
       output: options.output,
     });
-    const reader = makeReader(baseDir);
-    project = processProject(entryPath, reader, coreOptions);
-    const outputs = transformProject(project, coreOptions) as Record<string, string>;
+
+    // Load every .tex file in the working directory; core handles parsing.
+    const files = await readAllTexFiles(baseDir);
+    const entryKey = path.relative(baseDir, entryPath).replace(/\\/g, '/').replace(/^\.\//, '');
+
+    if (!files[entryKey]) {
+      throw new Error(`Entry file not found under work directory: ${entryKey}`);
+    }
+
+    project = processProject(files);
+    const outputs = transformProject(entryKey, project, coreOptions) as Record<string, string>;
 
     if (options.handleInputCmd === InputCmdHandling.RECURSIVE) {
       await writeOutputsRecursive(outputs, { ...options });
@@ -65,7 +73,7 @@ export async function handleTransform(args: string[]): Promise<void> {
       outDir: options.outDir,
     });
 
-    const single = outputs[project.entry] ?? Object.values(outputs)[0];
+    const single = outputs[entryKey] ?? Object.values(outputs)[0];
     if (!single) {
       throw new Error('No output generated from transformation.');
     }
