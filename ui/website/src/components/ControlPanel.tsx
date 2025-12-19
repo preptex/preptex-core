@@ -7,6 +7,7 @@ export type CoreOptionsUI = {
   handleInputCmd: InputCmdHandlingUI;
   handleIfConditions: boolean;
   ifDecisions: string[];
+  outputName: string;
 };
 
 export type ControlPanelProps = {
@@ -49,6 +50,21 @@ export default function ControlPanel({
         <div className="ControlSection" role="listitem">
           <div className="ControlSectionTitle">Entry</div>
           <div className="PaneMeta">{entryFile || 'No file selected'}</div>
+        </div>
+
+        <div className="ControlSection" role="listitem">
+          <label className="ControlSectionTitle" htmlFor="outputName">
+            Output
+          </label>
+          <input
+            id="outputName"
+            className="ControlSelect"
+            type="text"
+            placeholder="(default: &lt;entry&gt;.processed.tex)"
+            value={options.outputName}
+            onChange={(e) => onChange({ ...options, outputName: e.target.value })}
+          />
+          <div className="ControlHint">Optional output filename for the entry transform.</div>
         </div>
 
         <div className="ControlSection" role="listitem">

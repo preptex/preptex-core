@@ -7,6 +7,7 @@ export type CoreOptionsUI = {
   handleInputCmd: InputCmdHandlingUI;
   handleIfConditions: boolean;
   ifDecisions: string[];
+  outputName: string;
 };
 
 export function useControl(initial?: Partial<CoreOptionsUI>) {
@@ -15,6 +16,7 @@ export function useControl(initial?: Partial<CoreOptionsUI>) {
     handleInputCmd: initial?.handleInputCmd ?? 'none',
     handleIfConditions: initial?.handleIfConditions ?? false,
     ifDecisions: initial?.ifDecisions ?? [],
+    outputName: initial?.outputName ?? '',
   });
 
   return { options, setOptions } as const;
