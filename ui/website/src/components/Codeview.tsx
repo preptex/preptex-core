@@ -1,30 +1,58 @@
-import React, { useMemo } from 'react';
+import { useEffect, useRef } from 'react';
+import { EditorState } from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
 
 export type CodeviewProps = {
   filename?: string;
   code: string;
 };
 
-export default function Codeview({ filename, code }: CodeviewProps) {
-  const lines = useMemo(() => (code ? code.split(/\r?\n/) : ['']), [code]);
+export default function CodeMirrorView({ filename, code }: CodeviewProps) {
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const viewRef = useRef<EditorView | null>(null);
+
+  // Mount editor once
+  useEffect(() => {
+    if (!hostRef.current || viewRef.current) return;
+
+    const state = EditorState.create({
+      doc: code,
+      extensions: [EditorView.editable.of(false)],
+    });
+
+    viewRef.current = new EditorView({
+      state,
+      parent: hostRef.current,
+    });
+
+    return () => {
+      viewRef.current?.destroy();
+      viewRef.current = null;
+    };
+  }, []);
+
+  // Update document when code changes
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    const current = view.state.doc.toString();
+    if (current === code) return;
+
+    view.dispatch({
+      changes: {
+        from: 0,
+        to: current.length,
+        insert: code,
+      },
+    });
+  }, [code]);
 
   return (
-    <section aria-label="Code view">
+    <div className="CodeviewContainer">
       <h2>Codeview</h2>
       {filename ? <div className="PaneMeta">{filename}</div> : null}
-
-      <div className="CodeviewContainer">
-        <div className="CodeviewGrid" role="presentation">
-          {lines.map((line, i) => (
-            <React.Fragment key={i}>
-              <code className="LineNumberCell" aria-hidden>
-                {i + 1}
-              </code>
-              <code className="CodeCell">{line === '' ? '\u00A0' : line}</code>
-            </React.Fragment>
-          ))}
-        </div>
-      </div>
-    </section>
+      <div ref={hostRef} />
+    </div>
   );
 }
