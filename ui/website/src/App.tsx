@@ -37,10 +37,22 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  const normalizeOutputName = (raw: string): string => {
+    const trimmed = String(raw ?? '').trim();
+    if (!trimmed) return '';
+    // If user provided an extension, respect it. Otherwise default to .processed.tex
+    const hasExt = /\.[^./\\]+$/.test(trimmed);
+    return hasExt ? trimmed : `${trimmed}.processed.tex`;
+  };
+
   const writeOutputsToTree = (outputs: Record<string, string>) => {
     const next: Record<string, string> = {};
+    const overrideName = normalizeOutputName(options.outputName);
     for (const [name, text] of Object.entries(outputs)) {
-      const newname = name.replace(/\.tex$/i, '') + '.processed.tex';
+      const isEntry = name === selectedFile;
+      const newname = overrideName && isEntry
+        ? overrideName
+        : name.replace(/\.tex$/i, '') + '.processed.tex';
       next[newname] = text;
     }
     upsertTextFiles(next);
