@@ -1,9 +1,8 @@
 .App {
   height: 100vh;
   display: grid;
-  /* left fixed-ish, middle min 400px and flexible, right flexible; middle and right share remaining space */
-  grid-template-columns: minmax(240px, 320px) minmax(600px, 1fr) 1fr;
-  grid-template-rows: 1fr 1fr;
+  grid-template-columns: minmax(240px, 320px) minmax(400px, 1fr) 2fr;
+  grid-template-rows: 2fr 3fr;
   align-items: stretch;
   gap: 0;
 }
@@ -12,6 +11,8 @@
   overflow: auto;
   padding: 12px;
   box-sizing: border-box;
+  min-height: 0;
+  min-width: 0;
 }
 
 .AppCell--leftTop {
@@ -59,12 +60,50 @@
 }
 
 .CodeviewContainer {
-  /* Outer scroll container so line numbers stay synced */
-  overflow: auto;
-  height: 75vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
   width: 100%;
-  border: 1px solid;
+  padding: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.01);
   box-sizing: border-box;
+}
+
+.CodeviewHeader {
+  min-width: 0;
+}
+
+.CodeviewTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.CodeviewEditor {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.02);
+  box-sizing: border-box;
+}
+
+.CodeviewEditor .cm-editor {
+  height: 100%;
+}
+
+.CodeviewEditor .cm-scroller {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 12px;
 }
 
 .CodeviewGrid {
