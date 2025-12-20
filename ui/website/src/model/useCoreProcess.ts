@@ -23,6 +23,7 @@ export function useCoreProcess(
   options: CoreOptionsUI
 ) {
   const [result, setResult] = useState<CoreRunResult | null>(null);
+  const [projectVersion, setProjectVersion] = useState(0);
 
   const globalVersionRef = useRef(0);
   const versionedFilesRef = useRef<Record<string, { text: string; version: number }>>({});
@@ -81,6 +82,7 @@ export function useCoreProcess(
 
       const declared = Array.from(globalProjectRef.current?.getDeclaredConditions() ?? []);
       setResult({ declaredConditions: declared });
+      setProjectVersion((v) => v + 1);
     } catch (err) {
       setResult({ declaredConditions: [], error: String(err) });
       console.log(err);
@@ -118,5 +120,10 @@ export function useCoreProcess(
     [entryFile, coreOptions]
   );
 
-  return { result, transform } as const;
+  return {
+    result,
+    transform,
+    project: globalProjectRef.current,
+    projectVersion,
+  } as const;
 }

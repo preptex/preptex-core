@@ -16,7 +16,7 @@ export default function CodeMirrorView({ filename, code }: CodeviewProps) {
     if (!hostRef.current || viewRef.current) return;
 
     const state = EditorState.create({
-      doc: code,
+      doc: undefined,
       extensions: [EditorView.editable.of(false)],
     });
 
