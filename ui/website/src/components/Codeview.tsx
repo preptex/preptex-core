@@ -52,9 +52,11 @@ export default function CodeMirrorView({ filename, code }: CodeviewProps) {
 
   return (
     <div className="CodeviewContainer">
-      <h2>Codeview</h2>
-      {filename ? <div className="PaneMeta">{filename}</div> : null}
-      <div ref={hostRef} />
+      <div className="CodeviewHeader">
+        <h2 className="CodeviewTitle">Code</h2>
+        {filename ? <div className="PaneMeta">{filename}</div> : null}
+      </div>
+      <div className="CodeviewEditor" ref={hostRef} />
     </div>
   );
 }

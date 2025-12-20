@@ -5,6 +5,7 @@ import { ASTview, Codeview, ControlPanel, Filetree } from './components';
 import { useFiles } from './model/useFiles';
 import { useControl } from './model/useControl';
 import { useCoreProcess } from './model/useCoreProcess';
+import { TreeLayoutBuilder } from './components/astview/treebuilder';
 
 function App() {
   const seedFiles = useMemo<Record<string, string>>(() => ({}), []);
@@ -24,7 +25,19 @@ function App() {
 
   const code = filesByName[selectedFile] ?? '';
 
-  const { result: coreRun, transform } = useCoreProcess(selectedFile, filesByName, mutation, options);
+  const {
+    result: coreRun,
+    transform,
+    project,
+    projectVersion,
+  } = useCoreProcess(selectedFile, filesByName, mutation, options);
+
+  const rootNode = useMemo(() => {
+    void projectVersion;
+    const astRoot = project?.getRoots()?.[selectedFile];
+    if (!astRoot) return null;
+    return new TreeLayoutBuilder().build(astRoot);
+  }, [projectVersion, selectedFile, project]);
 
   const onDownload = (name: string) => {
     const text = filesByName[name] ?? '';
@@ -50,9 +63,8 @@ function App() {
     const overrideName = normalizeOutputName(options.outputName);
     for (const [name, text] of Object.entries(outputs)) {
       const isEntry = name === selectedFile;
-      const newname = overrideName && isEntry
-        ? overrideName
-        : name.replace(/\.tex$/i, '') + '.processed.tex';
+      const newname =
+        overrideName && isEntry ? overrideName : name.replace(/\.tex$/i, '') + '.processed.tex';
       next[newname] = text;
     }
     upsertTextFiles(next);
@@ -71,18 +83,6 @@ function App() {
   const onRemove = (name: string) => {
     removeFile(name);
   };
-
-  const astText = useMemo(() => {
-    return JSON.stringify(
-      {
-        file: selectedFile,
-        options,
-        core: coreRun,
-      },
-      null,
-      2
-    );
-  }, [options, selectedFile, coreRun]);
 
   return (
     <div className="App">
@@ -111,9 +111,7 @@ function App() {
         <Codeview filename={selectedFile} code={code} />
       </div>
 
-      <div className="AppCell AppCell--right">
-        <ASTview filename={selectedFile} ast={astText} />
-      </div>
+      <div className="AppCell AppCell--right">{rootNode ? <ASTview root={rootNode} /> : null}</div>
     </div>
   );
 }
