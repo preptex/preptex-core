@@ -1,6 +1,5 @@
-import React from 'react';
 import { LayoutNode } from '../types/LayoutNode';
-import { TreeNode } from './ASTNode';
+import { TreeNode } from '.';
 
 // export type ASTviewProps = {
 //   filename?: string;
@@ -11,7 +10,7 @@ interface ASTviewProps {
   root: LayoutNode;
 }
 
-const ASTview: React.FC<ASTviewProps> = ({ root }) => {
+export default function ASTview({ root }: ASTviewProps) {
   const nodes: LayoutNode[] = [];
   const edges: { x1: number; y1: number; x2: number; y2: number }[] = [];
 
@@ -80,6 +79,4 @@ const ASTview: React.FC<ASTviewProps> = ({ root }) => {
       </svg>
     </div>
   );
-};
-
-export default ASTview;
+}

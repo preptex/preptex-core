@@ -1,4 +1,3 @@
-import React from 'react';
 import { LayoutNode } from '../types/LayoutNode';
 
 interface TreeNodeProps {
@@ -8,7 +7,7 @@ interface TreeNodeProps {
 const NODE_WIDTH = 80;
 const NODE_HEIGHT = 30;
 
-export const TreeNode: React.FC<TreeNodeProps> = ({ node }) => {
+export default function TreeNode({ node }: TreeNodeProps) {
   return (
     <g transform={`translate(${node.x}, ${node.y})`}>
       <rect
@@ -25,4 +24,4 @@ export const TreeNode: React.FC<TreeNodeProps> = ({ node }) => {
       </text>
     </g>
   );
-};
+}
