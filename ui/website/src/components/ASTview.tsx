@@ -1,11 +1,6 @@
 import { LayoutNode } from '../types/LayoutNode';
 import { TreeNode } from '.';
 
-// export type ASTviewProps = {
-//   filename?: string;
-//   ast: string;
-// };
-
 interface ASTviewProps {
   root: LayoutNode;
 }

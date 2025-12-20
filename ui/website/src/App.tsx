@@ -84,18 +84,6 @@ function App() {
     removeFile(name);
   };
 
-  const astText = useMemo(() => {
-    return JSON.stringify(
-      {
-        file: selectedFile,
-        options,
-        core: coreRun,
-      },
-      null,
-      2
-    );
-  }, [options, selectedFile, coreRun]);
-
   return (
     <div className="App">
       <div className="AppCell AppCell--leftTop">
