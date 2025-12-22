@@ -4,8 +4,8 @@
 
 ## General todos
 
+- [ ] Make node id core functionality.
 - [ ] Suppress proofs option: add list of special tokens. Even if tokens are not parsed, should check for special ones.
-- [ ] Add default parsed tokens. Rest only by options.
 - [ ] Consistency issue: ChatGPT vs Windows Testing: After control sequences, suppress a single or all trailing spaces?
 - [ ] Use sanitizer to detect errors and condition/nesting intersections:
   - The former emits error.
@@ -71,11 +71,16 @@ Create UI Projects:
 
 - Components:
 
-- [ ] Tree visualizer
+- [x] Tree visualizer
 - [ ] Allow surrounding envs by envs/conditions (parent node),
 - [ ] and suppressing envs, etc. from visualizer.
-- [ ] Transformers
+- [x] Transformers
 - [ ] Custom builds
+
+---
+
+[ ] Add visible types map that can turn on and off some node types. Turn some off by default for light rendering.
+[ ] Expand token anyway when clicked.
 
 ## Completed Todos
 

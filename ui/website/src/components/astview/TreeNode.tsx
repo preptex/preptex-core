@@ -1,14 +1,16 @@
 import { LayoutNode } from '../../types/LayoutNode';
-import { AstNode, NodeType, SectionNode } from '@preptex/core';
+import { NodeType } from '@preptex/core';
 
 interface TreeNodeProps {
   node: LayoutNode;
+  hoveredId?: number | null;
+  setHoveredId?: (id: number | null) => void;
 }
 
 const NODE_WIDTH = 100;
 const NODE_HEIGHT = 40;
 
-export default function TreeNode({ node }: TreeNodeProps) {
+export default function TreeNode({ node, hoveredId, setHoveredId }: TreeNodeProps) {
   const clamp = (s: string, max = 16) =>
     s.length > max ? s.slice(0, Math.max(0, max - 1)) + '…' : s;
   const title = clamp(node.label ?? node.type);
@@ -16,7 +18,7 @@ export default function TreeNode({ node }: TreeNodeProps) {
 
   const renderShape = () => {
     const common = {
-      fill: '#ffffff',
+      fill: hoveredId === node.id ? '#f1f5f9' : '#ffffff',
       strokeWidth: node.strokeWidth,
       stroke: node.strokeColor || '#d4d4d8',
     } as const;
@@ -120,10 +122,10 @@ export default function TreeNode({ node }: TreeNodeProps) {
     <g
       transform={`translate(${node.x}, ${node.y})`}
       onMouseEnter={(e) => {
-        e.currentTarget.setAttribute('fill', '#f8fafc');
+        setHoveredId && setHoveredId(node.id ?? null);
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.setAttribute('fill', '#000');
+        setHoveredId && setHoveredId(null);
       }}
     >
       {renderShape()}
