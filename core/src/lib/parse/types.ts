@@ -30,6 +30,8 @@ export enum ConditionBranchType {
 
 export interface NodeBase {
   type: NodeType;
+  // Globally unique id within a parsed AST (assigned pre-order)
+  id: number;
   start: number;
   end: number;
   line: number;

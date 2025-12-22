@@ -77,11 +77,13 @@ describe('Parser', () => {
     const nodes = collectNodesDFS(root);
 
     const types = nodes.map((n) => n.type);
+    const ids = nodes.map((n) => (n as AstNode).id);
     const lines = nodes.map((n) => (n as AstNode).line);
     const childrenCount = nodes.map((n) => (n as any).children?.length);
     const values = nodes.map((n) => (n as any).value);
     expect(nodes.length).toBe(4);
     expect(types).toEqual([NodeType.Root, NodeType.Text, NodeType.Section, NodeType.Text]);
+    expect(ids).toEqual([0, 1, 2, 3]);
     expect(childrenCount).toEqual([2, undefined, 1, undefined]);
     expect(values).toEqual([undefined, 'first\n', undefined, '\nlast']);
     expect(lines).toEqual([1, 1, 2, 2]);
