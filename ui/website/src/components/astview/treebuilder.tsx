@@ -14,9 +14,9 @@ import { LayoutNode } from '../../types/LayoutNode';
 function sectionStrokeWidth(node?: AstNode): { strokeWidth: number; strokeColor?: string } {
   if (!node || ![NodeType.Root, NodeType.Section].includes(node.type)) return { strokeWidth: 1 };
   if (node.type === NodeType.Root || (node as SectionNode).level === 0) {
-    return { strokeWidth: 3, strokeColor: '#000' };
+    return { strokeWidth: 1.5, strokeColor: '#000' };
   }
-  if ((node as SectionNode).level <= 3) return { strokeWidth: 2 };
+  if ((node as SectionNode).level <= 3) return { strokeWidth: 1.5, strokeColor: '#AAAAAAff' };
   return { strokeWidth: 1 };
 }
 
@@ -34,22 +34,21 @@ export class TreeLayoutBuilder {
     const treeLayout = d3.tree<AstNode>().nodeSize([this.nodeX, this.nodeY]);
 
     const layoutRoot = treeLayout(hierarchy);
-    let id = 0;
-    return this.convert(layoutRoot, { id });
+    return this.convert(layoutRoot);
   }
 
-  private convert(node: d3.HierarchyPointNode<AstNode>, idObj: { id: number }): LayoutNode {
+  private convert(node: d3.HierarchyPointNode<AstNode>): LayoutNode {
     const info = this.getNodeInfo(node.data);
     const strokeInfo = sectionStrokeWidth(node.data);
     return {
       ...strokeInfo,
-      id: idObj.id++,
+      id: node.data.id,
       type: node.data.type,
       x: node.x,
       y: node.y,
       label: info.label,
       sublabel: info.sublabel,
-      children: node.children ? node.children.map((child: any) => this.convert(child, idObj)) : [],
+      children: node.children ? node.children.map((child) => this.convert(child)) : [],
     };
   }
 
