@@ -1,5 +1,5 @@
-import { LayoutNode } from '../types/LayoutNode';
-import { NodeType } from '@preptex/core';
+import { LayoutNode } from '../../types/LayoutNode';
+import { AstNode, NodeType, SectionNode } from '@preptex/core';
 
 interface TreeNodeProps {
   node: LayoutNode;
@@ -16,15 +16,10 @@ export default function TreeNode({ node }: TreeNodeProps) {
 
   const renderShape = () => {
     const common = {
-      fill: '#eef2ff',
-      stroke: '#4f46e5',
+      fill: '#ffffff',
+      strokeWidth: node.strokeWidth,
+      stroke: node.strokeColor || '#d4d4d8',
     } as const;
-
-    const sectionStrokeWidth = (level?: number) => {
-      if (level == null) return 2;
-      // level 0 (document) thickest, level 5 thinnest
-      return Math.max(1, 5 - level);
-    };
 
     switch (node.type) {
       case NodeType.Root: {
@@ -44,7 +39,6 @@ export default function TreeNode({ node }: TreeNodeProps) {
             width={NODE_WIDTH}
             height={NODE_HEIGHT}
             rx={NODE_HEIGHT / 2}
-            strokeWidth={2}
             {...common}
           />
         );
@@ -58,7 +52,6 @@ export default function TreeNode({ node }: TreeNodeProps) {
             width={NODE_WIDTH}
             height={NODE_HEIGHT}
             rx={NODE_HEIGHT / 2}
-            strokeWidth={2}
             {...common}
           />
         );
@@ -72,7 +65,6 @@ export default function TreeNode({ node }: TreeNodeProps) {
             width={NODE_WIDTH}
             height={NODE_HEIGHT}
             rx={6}
-            strokeWidth={sectionStrokeWidth(node.sectionLevel)}
             {...common}
           />
         );
@@ -92,7 +84,7 @@ export default function TreeNode({ node }: TreeNodeProps) {
         ]
           .map(([x, y]) => `${x},${y}`)
           .join(' ');
-        return <polygon points={points} strokeWidth={2} {...common} />;
+        return <polygon points={points} {...common} />;
       }
 
       case NodeType.Condition:
@@ -107,7 +99,7 @@ export default function TreeNode({ node }: TreeNodeProps) {
         ]
           .map(([x, y]) => `${x},${y}`)
           .join(' ');
-        return <polygon points={points} strokeWidth={2} {...common} />;
+        return <polygon points={points} {...common} />;
       }
 
       default:
@@ -118,7 +110,6 @@ export default function TreeNode({ node }: TreeNodeProps) {
             width={NODE_WIDTH}
             height={NODE_HEIGHT}
             rx={6}
-            strokeWidth={2}
             {...common}
           />
         );
@@ -126,7 +117,15 @@ export default function TreeNode({ node }: TreeNodeProps) {
   };
 
   return (
-    <g transform={`translate(${node.x}, ${node.y})`}>
+    <g
+      transform={`translate(${node.x}, ${node.y})`}
+      onMouseEnter={(e) => {
+        e.currentTarget.setAttribute('fill', '#f8fafc');
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.setAttribute('fill', '#000');
+      }}
+    >
       {renderShape()}
       <text textAnchor="middle" dominantBaseline="middle" fontSize={11}>
         {subtitle ? (

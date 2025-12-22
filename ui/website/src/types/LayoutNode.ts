@@ -6,8 +6,8 @@ export interface LayoutNode {
   label?: string;
   /** Secondary label line (optional). */
   sublabel?: string;
-  /** Section nesting level (0=document, 1=section, 2=subsection, ...). */
-  sectionLevel?: number;
   id?: number;
+  strokeWidth: number;
+  strokeColor?: string;
   children?: LayoutNode[];
 }

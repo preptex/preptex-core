@@ -1,5 +1,5 @@
-import { LayoutNode } from '../types/LayoutNode';
-import { TreeNode } from '.';
+import { LayoutNode } from '../../types/LayoutNode';
+import { TreeNode } from '..';
 
 interface ASTviewProps {
   root: LayoutNode;
@@ -53,7 +53,7 @@ export default function ASTview({ root }: ASTviewProps) {
   const vbH = Math.max(1, maxY - minY + pad * 2);
 
   return (
-    <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+    <div style={{ width: '100%', height: '100%', overflow: 'hidden', background: '#fafafa' }}>
       <svg
         width="100%"
         height="100%"

@@ -9,7 +9,16 @@ import {
   NodeType,
   SectionNode,
 } from '@preptex/core';
-import { LayoutNode } from '../types/LayoutNode';
+import { LayoutNode } from '../../types/LayoutNode';
+
+function sectionStrokeWidth(node?: AstNode): { strokeWidth: number; strokeColor?: string } {
+  if (!node || ![NodeType.Root, NodeType.Section].includes(node.type)) return { strokeWidth: 1 };
+  if (node.type === NodeType.Root || (node as SectionNode).level === 0) {
+    return { strokeWidth: 3, strokeColor: '#000' };
+  }
+  if ((node as SectionNode).level <= 3) return { strokeWidth: 2 };
+  return { strokeWidth: 1 };
+}
 
 export class TreeLayoutBuilder {
   private readonly nodeX = 120; // horizontal spacing
@@ -31,13 +40,14 @@ export class TreeLayoutBuilder {
 
   private convert(node: d3.HierarchyPointNode<AstNode>): LayoutNode {
     const info = this.getNodeInfo(node.data);
+    const strokeInfo = sectionStrokeWidth(node.data);
     return {
+      ...strokeInfo,
       type: node.data.type,
       x: node.x,
       y: node.y,
       label: info.label,
       sublabel: info.sublabel,
-      sectionLevel: info.sectionLevel,
       children: node.children ? node.children.map((child: any) => this.convert(child)) : [],
     };
   }

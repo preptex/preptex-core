@@ -5,7 +5,7 @@ import { ASTview, Codeview, ControlPanel, Filetree } from './components';
 import { useFiles } from './model/useFiles';
 import { useControl } from './model/useControl';
 import { useCoreProcess } from './model/useCoreProcess';
-import { TreeLayoutBuilder } from './components/treebuilder';
+import { TreeLayoutBuilder } from './components/astview/treebuilder';
 
 function App() {
   const seedFiles = useMemo<Record<string, string>>(() => ({}), []);
