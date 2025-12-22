@@ -6,7 +6,7 @@ export interface LayoutNode {
   label?: string;
   /** Secondary label line (optional). */
   sublabel?: string;
-  id?: number;
+  id: number;
   strokeWidth: number;
   strokeColor?: string;
   children?: LayoutNode[];
