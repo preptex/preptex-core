@@ -5,12 +5,14 @@ import { describe, it, expect } from 'vitest';
 describe('transform', () => {
   const mockAst: AstRoot = {
     type: NodeType.Root,
+    id: 0,
     start: 0,
     end: 0,
     line: 1,
     children: [
       {
         type: NodeType.Text,
+        id: 1,
         start: 0,
         end: 4,
         line: 1,
@@ -18,6 +20,7 @@ describe('transform', () => {
       },
       {
         type: NodeType.Input,
+        id: 2,
         start: 5,
         end: 10,
         line: 2,
@@ -31,12 +34,14 @@ describe('transform', () => {
 
   const mockFileAst: AstRoot = {
     type: NodeType.Root,
+    id: 0,
     start: 0,
     end: 0,
     line: 1,
     children: [
       {
         type: NodeType.Text,
+        id: 1,
         start: 0,
         end: 6,
         line: 1,
@@ -78,6 +83,7 @@ describe('transform', () => {
   it('should handle empty ASTs correctly', () => {
     const emptyAst: AstRoot = {
       type: NodeType.Root,
+      id: 0,
       start: 0,
       end: 0,
       line: 1,

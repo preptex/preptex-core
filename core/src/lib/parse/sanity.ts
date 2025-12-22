@@ -44,6 +44,8 @@ export function sanityCheck(input: string): SanityResult {
   const lex = new Lexer(input);
   const tokens = Array.from(lex.stream());
 
+  let nextId = 1;
+
   const notes: string[] = [];
   const enabled = new Set(getAllTokenTypes());
 
@@ -127,6 +129,7 @@ export function sanityCheck(input: string): SanityResult {
     // Opening if*
     stack.push({
       type: NodeType.Condition,
+      id: nextId++,
       start: t.start,
       end: t.end,
       line: t.line ?? 1,
@@ -194,6 +197,7 @@ export function sanityCheck(input: string): SanityResult {
         const name = t.name as string;
         stack.push({
           type: NodeType.Environment,
+          id: nextId++,
           start: t.start,
           end: t.end,
           line: t.line ?? 1,
@@ -204,6 +208,7 @@ export function sanityCheck(input: string): SanityResult {
       } else if (ctx === NodeType.Math) {
         stack.push({
           type: NodeType.Math,
+          id: nextId++,
           start: t.start,
           end: t.end,
           line: t.line ?? 1,
@@ -218,6 +223,7 @@ export function sanityCheck(input: string): SanityResult {
       } else if (ctx === NodeType.Group) {
         stack.push({
           type: NodeType.Group,
+          id: nextId++,
           start: t.start,
           end: t.end,
           line: t.line ?? 1,

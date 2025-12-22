@@ -4,7 +4,7 @@ import { NodeType, AstNode, AstRoot } from '../src/lib/parse/types';
 
 function makeNode(type: NodeType, extra: Partial<AstNode> = {}): AstNode {
   // minimal node with required fields for CallStack operations
-  const base = { type, start: 0, end: 0, line: 1 } as any;
+  const base = { type, id: 0, start: 0, end: 0, line: 1 } as any;
   return Object.assign(base, extra) as AstNode;
 }
 

@@ -18,6 +18,11 @@ interface ParseRuntime {
   root: AstRoot;
   stack: CallStack;
   inputFiles?: Set<string>;
+  nextId: number;
+}
+
+function allocId(runtime: ParseRuntime): number {
+  return runtime.nextId++;
 }
 
 function sliceTokenValue(input: string, start: number, end: number): string {
@@ -83,6 +88,7 @@ function finalizeOpenSections(runtime: ParseRuntime): void {
 function createRuntime(input: string, inputFiles?: Set<string>): ParseRuntime {
   const root: AstRoot = {
     type: NodeType.Root,
+    id: 0,
     start: 0,
     end: input.length - 1,
     line: 1,
@@ -97,6 +103,7 @@ function createRuntime(input: string, inputFiles?: Set<string>): ParseRuntime {
     root,
     stack,
     inputFiles,
+    nextId: 1,
   };
 }
 
@@ -112,6 +119,7 @@ function handleText(runtime: ParseRuntime, token: Token) {
   const parent = getParentNode(runtime) as InnerNode;
   parent.children.push({
     type: NodeType.Text,
+    id: allocId(runtime),
     start: token.start,
     end: token.end,
     line: token.line,
@@ -138,6 +146,7 @@ function handleSection(runtime: ParseRuntime, token: Token) {
 
   const sectionNode: SectionNode = {
     type: NodeType.Section,
+    id: allocId(runtime),
     level: level as SectionNode['level'],
     name,
     start: token.start,
@@ -157,6 +166,7 @@ function handleSection(runtime: ParseRuntime, token: Token) {
 function handleCommand(runtime: ParseRuntime, token: Token) {
   const cmdNode = {
     type: NodeType.Command,
+    id: allocId(runtime),
     start: token.start,
     end: token.end,
     line: token.line,
@@ -175,6 +185,7 @@ function handleBrace(runtime: ParseRuntime, token: Token) {
   if (name === '{') {
     const group = {
       type: NodeType.Group,
+      id: allocId(runtime),
       start: token.start,
       end: token.end,
       line: token.line,
@@ -200,6 +211,7 @@ function handleEnvironment(runtime: ParseRuntime, token: Token) {
     if (name === 'document') {
       const docSection: SectionNode = {
         type: NodeType.Section,
+        id: allocId(runtime),
         level: 0,
         name: 'document',
         start: token.start,
@@ -215,6 +227,7 @@ function handleEnvironment(runtime: ParseRuntime, token: Token) {
     }
     const envNode = {
       type: NodeType.Environment,
+      id: allocId(runtime),
       name,
       start: token.start,
       end: token.end,
@@ -269,6 +282,7 @@ function handleInput(runtime: ParseRuntime, token: Token) {
 
   const inputNode: InputNode = {
     type: NodeType.Input,
+    id: allocId(runtime),
     start: token.start,
     end: token.end,
     line: token.line,
@@ -307,6 +321,7 @@ function handleMathDelim(runtime: ParseRuntime, token: Token) {
   const parent = getParentNode(runtime) as InnerNode;
   const mathNode = {
     type: NodeType.Math,
+    id: allocId(runtime),
     delim,
     start: token.start,
     end: token.end,
@@ -339,6 +354,7 @@ function handleCondition(runtime: ParseRuntime, token: Token) {
 
     const conditionNode = {
       type: NodeType.Condition,
+      id: allocId(runtime),
       name,
       start: token.start,
       end: token.end,
@@ -353,6 +369,7 @@ function handleCondition(runtime: ParseRuntime, token: Token) {
 
     const ifBranch = {
       type: NodeType.ConditionBranch,
+      id: allocId(runtime),
       name,
       branch: ConditionBranchType.If,
       start: token.start,
@@ -383,6 +400,7 @@ function handleCondition(runtime: ParseRuntime, token: Token) {
 
     const elseBranch = {
       type: NodeType.ConditionBranch,
+      id: allocId(runtime),
       name: parent.name,
       branch: ConditionBranchType.Else,
       start: token.start,
@@ -423,6 +441,7 @@ function handleComment(runtime: ParseRuntime, token: Token) {
   const parent = getParentNode(runtime) as InnerNode;
   parent.children.push({
     type: NodeType.Comment,
+    id: allocId(runtime),
     start: token.start,
     end: token.end,
     line: token.line,
@@ -435,6 +454,7 @@ function handleConditionDeclaration(runtime: ParseRuntime, token: Token) {
   const parent = getParentNode(runtime) as InnerNode;
   parent.children.push({
     type: NodeType.ConditionDeclaration,
+    id: allocId(runtime),
     start: token.start,
     end: token.end,
     line: token.line,
