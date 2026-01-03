@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Parser } from '../../src/lib/parse/parser';
 import type { SectionNode } from '../../src/lib/parse/types';
-import { NodeType } from '../../dist';
+import { NodeType } from '../../src/lib/parse/types';
 
 const parse = (input: string) => {
   const parser = new Parser({});
@@ -69,6 +69,7 @@ describe('Parser sections', () => {
     expect(s2.name).toBe('Second');
     const textAfter = s2.children[0] as any;
     expect(textAfter.type).toBe('Text');
+    expect(textAfter.value).toBe(' more');
     expect(textAfter.value).toBe(' more');
   });
 
