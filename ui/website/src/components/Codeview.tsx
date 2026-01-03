@@ -13,10 +13,11 @@ export default function CodeMirrorView({ filename, code }: CodeviewProps) {
 
   // Mount editor once
   useEffect(() => {
+    const initialCode = code; // Capture initial code
     if (!hostRef.current || viewRef.current) return;
 
     const state = EditorState.create({
-      doc: code,
+      doc: initialCode,
       extensions: [EditorView.editable.of(false)],
     });
 
