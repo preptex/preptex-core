@@ -38,7 +38,7 @@ jobs:
           cache: npm
 
       - run: npm ci
-      - run: npm run build --workspace=packages/ui
+      - run: npm run build --workspace/ui/website
 
       - uses: actions/upload-pages-artifact@v3
         with:
