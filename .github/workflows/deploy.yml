@@ -1,0 +1,76 @@
+name: CI / CD
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Install ALL workspaces
+      - name: Install dependencies
+        run: npm ci
+
+      # Build core first (required by website)
+      - name: Build core
+        run: npm run build --workspace=@preptex/core
+
+      # Run tests (root-level or workspace tests)
+      - name: Run tests
+        run: npm test
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: ci
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Install ALL workspaces again (fresh runner)
+      - name: Install dependencies
+        run: npm ci
+
+      # Build core first
+      - name: Build core
+        run: npm run build --workspace=@preptex/core
+
+      # Build website
+      - name: Build website
+        run: npm run build --workspace=ui/website
+
+      # Upload existing build directory
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ui/website/build
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
