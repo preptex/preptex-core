@@ -1,7 +1,6 @@
 import { Lexer, TokenType, LexerOptions, getAllTokenTypes } from '../lexer/tokens.js';
 import { CallStack } from './callstack.js';
 import { NodeType, type AstNode } from './types.js';
-import { SECTION_COMMANDS } from './constants.js';
 
 // Context kinds tracked on the stack: reuse NodeType subset
 
@@ -40,15 +39,14 @@ export interface SanityResult {
 
 // Heuristic sanity check: detect intertwining of environments/sections/conditionals/math
 // and decide which token categories to suppress at lex time.
-export function sanityCheck(input: string): SanityResult {
-  const lex = new Lexer(input);
+export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): SanityResult {
+  const lex = new Lexer(input, lexerOptions);
   const tokens = Array.from(lex.stream());
 
   let nextId = 1;
 
   const notes: string[] = [];
-  const enabled = new Set(getAllTokenTypes());
-
+  const enabled = new Set(lexerOptions.enabledTokens ?? getAllTokenTypes());
   // Use CallStack to track grouping contexts
   const stack = new CallStack(undefined);
   type Ctx = NodeType;

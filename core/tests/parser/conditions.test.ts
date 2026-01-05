@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { Parser } from '../../src/lib/parse/parser';
 import { NodeType, AstRoot, ConditionBranchType } from '../../src/lib/parse/types';
 import { InnerNode } from '../../dist';
+import { getParser } from '../util';
 
 function findFirstCondition(root: AstRoot) {
   return (root.children as any[]).find((n) => n.type === NodeType.Condition);
@@ -9,8 +10,7 @@ function findFirstCondition(root: AstRoot) {
 
 describe('conditions parsing', () => {
   it('parses if/else/fi and splits branches', () => {
-    const parser = new Parser();
-    parser.parse('\\ifX A \\else B \\fi');
+    const parser = getParser('\\ifX A \\else B \\fi');
     const ast = parser.getRoot();
 
     const cond: any = findFirstCondition(ast);
@@ -37,8 +37,7 @@ describe('conditions parsing', () => {
   });
 
   it('parses if/fi without else', () => {
-    const parser = new Parser();
-    parser.parse('\\ifY Only \\fi');
+    const parser = getParser('\\ifY Only \\fi');
     const ast = parser.getRoot();
 
     const cond: any = findFirstCondition(ast);
@@ -59,8 +58,7 @@ describe('conditions parsing', () => {
   });
 
   it('parses \\newif declarations into dedicated nodes', () => {
-    const parser = new Parser();
-    parser.parse('\\newif\\ifCool\nBody');
+    const parser = getParser('\\newif\\ifCool\nBody');
     const ast = parser.getRoot();
 
     const decl = ast.children.find((n) => n.type === NodeType.ConditionDeclaration) as any;
@@ -75,24 +73,22 @@ describe('conditions parsing', () => {
 
   it('parses iff command correctly', () => {
     const input = ['\\begin{lemma}\n\\[X\\iff Y\\]\\end{lemma}'].join('');
-    const parser = new Parser();
-    parser.parse(input);
+    const parser = getParser(input);
     const root = parser.getRoot();
     expect(root.children.length).toBe(1);
     const defEnv = root.children[0] as InnerNode;
   });
 
   it('handles suppressed sections', () => {
-    const parser = new Parser();
-    parser.parse(
+    const input =
       '\\iflong\n' +
-        '\\subsection{The Upper Bound}\n' +
-        '\\fi\n' +
-        '\\ifshort\n' +
-        '\\section\n' +
-        '{The Upper Bound.}' +
-        '\\fi'
-    );
+      '\\subsection{The Upper Bound}\n' +
+      '\\fi\n' +
+      '\\ifshort\n' +
+      '\\section\n' +
+      '{The Upper Bound.}' +
+      '\\fi';
+    const parser = getParser(input);
     const ast = parser.getRoot();
     expect(ast.children.length).toBe(2);
     const firstCond: any = (ast.children[0] as any).children[0];

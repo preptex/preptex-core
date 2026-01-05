@@ -1,6 +1,7 @@
 import type { CoreOptions, ParseOptions } from '../options.js';
 import { NodeType, type AstNode, type AstRoot, type InnerNode } from './types.js';
 import { parseToAst } from './parseToAst.js';
+import { Lexer } from '../lexer/tokens.js';
 
 export class Parser {
   private input = '';
@@ -10,10 +11,10 @@ export class Parser {
 
   constructor(private options: ParseOptions = {}) {}
 
-  parse(input: string): void {
+  parse(lexer: Lexer, input: string): void {
     this.input = input;
     this.inputFiles.clear();
-    const root = parseToAst(input, this.options, this.inputFiles);
+    const root = parseToAst(lexer, input, this.options, this.inputFiles);
     this.root = root;
     this.declaredConditions = collectConditionDeclarations(root);
   }

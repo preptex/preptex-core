@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { Parser } from '../../src/lib/parse/parser';
 import type { SectionNode } from '../../src/lib/parse/types';
 import { NodeType } from '../../src/lib/parse/types';
+import { getParser } from '../util';
 
 const parse = (input: string) => {
-  const parser = new Parser({});
-  parser.parse(input);
+  const parser = getParser(input);
   return parser.getRoot();
 };
 
@@ -37,18 +37,6 @@ describe('Parser sections', () => {
     expect(secC.level).toBe(1);
     expect(secC.children.length).toBe(0);
     expect(secC.name).toBe('C');
-  });
-
-  // Not yet implemented
-  it('supports starred sections', () => {
-    const input = `\\section*{Intro $x$ and more}`;
-    void input;
-  });
-
-  // Not yet implemented
-  it('parses short title', () => {
-    const input = `\\section*[Short Title]{Long Title}\\subsection[ST]{LT}`;
-    void input;
   });
 
   it('handles consecutive sections correctly', () => {
