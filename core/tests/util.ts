@@ -1,4 +1,6 @@
 import { Lexer, type Token } from '../src/lib/lexer/tokens';
+import { Parser } from '../src/lib/parse/parser';
+import { sanityCheck } from '../src/lib/parse/sanity';
 import { AstNode, INNER_NODE_TYPES, InnerNode } from '../src/lib/parse/types';
 
 export function appendTextToToken(input: string, token: Token): any {
@@ -29,4 +31,12 @@ export function collectNodesDFS(root: InnerNode): AstNode[] {
     }
   }
   return out;
+}
+
+export function getParser(input: string) {
+  const sanity = sanityCheck(input, {});
+  const lex = new Lexer(input, sanity.lexerOptions);
+  const p = new Parser();
+  p.parse(lex, input);
+  return p;
 }

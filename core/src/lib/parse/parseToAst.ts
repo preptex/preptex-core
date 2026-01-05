@@ -11,7 +11,6 @@ import {
 } from './types.js';
 import type { ParseOptions } from '../options.js';
 import { Lexer, TokenType, type Token } from '../lexer/tokens.js';
-import { sanityCheck } from './sanity.js';
 
 interface ParseRuntime {
   input: string;
@@ -47,15 +46,13 @@ const HANDLERS: Map<TokenType, TokenHandler> = new Map([
 ]);
 
 export function parseToAst(
+  lexer: Lexer,
   input: string,
   options: ParseOptions,
   inputFiles?: Set<string>
 ): AstRoot {
   void options;
   const runtime = createRuntime(input, inputFiles);
-
-  const sanity = sanityCheck(input);
-  const lexer = new Lexer(input, sanity.lexerOptions);
 
   for (const token of lexer.stream()) {
     const handler = HANDLERS.get(token.type);

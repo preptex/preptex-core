@@ -3,6 +3,8 @@ import { CoreOptions, InputCmdHandling, type ParseOptions } from './options.js';
 import { transform as renderAst, type Transformer } from './transform/transform.js';
 import { filterConditions, suppressComments } from './transform/transformers.js';
 import type { AstRoot } from './parse/types.js';
+import { Lexer, LexerOptions } from './lexer/tokens.js';
+import { sanityCheck } from './parse/sanity.js';
 
 export type VersionedTextFile = {
   text: string;
@@ -71,7 +73,8 @@ export class Project {
 
 export function process(
   files: Record<string, VersionedTextFile>,
-  options: ParseOptions = {} as ParseOptions
+  lexerOptions: LexerOptions = {} as LexerOptions,
+  parseOptions: ParseOptions = {} as ParseOptions
 ): Project {
   if (!files || typeof files !== 'object') {
     throw new Error('process() requires a record of filename -> {text, version}');
@@ -85,8 +88,12 @@ export function process(
       throw new Error(`Invalid version for ${file}: ${String((input as any)?.version)}`);
     }
     const text = String((input as any)?.text ?? '');
-    const fileParser = new Parser(options);
-    fileParser.parse(text);
+
+    const sanity = sanityCheck(text, lexerOptions);
+    const lexer = new Lexer(text, sanity.lexerOptions);
+
+    const fileParser = new Parser(parseOptions);
+    fileParser.parse(lexer, text);
 
     parsed[file] = {
       root: fileParser.getRoot(),

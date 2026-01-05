@@ -2,9 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { parseToAst } from '../../src/lib/parse/parseToAst';
 import { NodeType } from '../../src/lib/parse/types';
 import type { ParseOptions } from '../../src/lib/options';
+import { Lexer } from '../../dist/lib/lexer/tokens';
 
-const parse = (input: string) => parseToAst(input, {} as ParseOptions);
-
+const parse = (input: string) => {
+  const l: Lexer = new Lexer(input, {});
+  return parseToAst(l, input, {} as ParseOptions);
+};
 describe('parseToAst', () => {
   it('parses environment at root', () => {
     const ast = parse(`\\begin{doc}Text\\end{doc}`);

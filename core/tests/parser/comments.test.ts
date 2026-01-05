@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { Parser } from '../../src/lib/parse/parser';
 import { NodeType, AstNode, AstRoot } from '../../src/lib/parse/types';
+import { Lexer } from '../../dist/lib/lexer/tokens';
 
 function parse(input: string): AstRoot {
-  const p = new Parser();
-  p.parse(input);
+  const l = new Lexer(input);
+  const p = new Parser(l);
+  p.parse(l, input);
   return p.getRoot();
 }
 

@@ -3,31 +3,26 @@ import { Parser } from '../../src/lib/parse/parser';
 import { transform } from '../../src/lib/transform/transform';
 import { NodeType } from '../../src/lib/parse/types';
 import { suppressComments } from '../../src/lib/transform/transformers';
-
-function createParser(input: string): Parser {
-  const p = new Parser();
-  p.parse(input);
-  return p;
-}
+import { getParser } from '../util';
 
 describe('Transformer pipeline', () => {
   it('parses, transforms, removes nodes, and aggregates text', () => {
     const input = `Hello $x$ \\command{param} \\section{Title}\n% comment\nWorld`;
-    const parser = createParser(input);
+    const parser = getParser(input);
 
     const result = transform(parser.getRoot(), [suppressComments]);
     expect(result).toBe('Hello $x$ \\command{param} \\section{Title}\n World');
   });
 
   it('emits input commands as part of the rendered text', () => {
-    const parser = createParser('Load \\input{chapter.tex} now');
+    const parser = getParser('Load \\input{chapter.tex} now');
     const result = transform(parser.getRoot(), []);
     expect(result).toBe('Load \\input{chapter.tex} now');
   });
 
   it('flattens input files when requested', () => {
-    const main = createParser('Start \\input{intro.tex} End');
-    const intro = createParser('Intro contents');
+    const main = getParser('Start \\input{intro.tex} End');
+    const intro = getParser('Intro contents');
 
     const text = transform(main.getRoot(), [], { 'intro.tex': intro.getRoot() }, { flatten: true });
 
@@ -36,15 +31,15 @@ describe('Transformer pipeline', () => {
 
   it('omits comments from the aggregated output text', () => {
     const input = `Text % comment\nMore`;
-    const parser = createParser(input);
+    const parser = getParser(input);
     const text = transform(parser.getRoot(), [suppressComments]);
     expect(text).toBe('Text  More');
   });
 
   it('flattens nested inputs and still applies transformers', () => {
-    const main = createParser('Header \\input{mid.tex} Footer');
-    const mid = createParser('Hello % comment\n\\input{sub.tex}');
-    const sub = createParser('World');
+    const main = getParser('Header \\input{mid.tex} Footer');
+    const mid = getParser('Hello % comment\n\\input{sub.tex}');
+    const sub = getParser('World');
 
     const text = transform(
       main.getRoot(),
