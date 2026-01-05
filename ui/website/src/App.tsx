@@ -30,7 +30,7 @@ function App() {
     transform,
     project,
     projectVersion,
-  } = useCoreProcess(selectedFile, filesByName, mutation, options);
+  } = useCoreProcess(selectedFile, mutation, options);
 
   const rootNode = useMemo(() => {
     void projectVersion;

@@ -11,8 +11,6 @@ export default function CodeMirrorView({ filename, code }: CodeviewProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
 
-  const initialCodeRef = useRef(code);
-
   // Mount editor once
   useEffect(() => {
     if (!hostRef.current || viewRef.current) return;
