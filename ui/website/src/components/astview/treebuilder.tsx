@@ -48,7 +48,9 @@ export class TreeLayoutBuilder {
       y: node.y,
       label: info.label,
       sublabel: info.sublabel,
-      children: node.children ? node.children.map((child) => this.convert(child)) : [],
+      children: node.children
+        ? node.children.map((child: d3.HierarchyPointNode<AstNode>) => this.convert(child))
+        : [],
     };
   }
 

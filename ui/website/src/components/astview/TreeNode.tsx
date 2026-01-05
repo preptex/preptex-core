@@ -5,12 +5,13 @@ interface TreeNodeProps {
   node: LayoutNode;
   hoveredId?: number | null;
   setHoveredId?: (id: number | null) => void;
+  onExpand?: (id: number) => void;
 }
 
 const NODE_WIDTH = 100;
 const NODE_HEIGHT = 40;
 
-export default function TreeNode({ node, hoveredId, setHoveredId }: TreeNodeProps) {
+export default function TreeNode({ node, hoveredId, setHoveredId, onExpand }: TreeNodeProps) {
   const clamp = (s: string, max = 16) =>
     s.length > max ? s.slice(0, Math.max(0, max - 1)) + '…' : s;
   const title = clamp(node.label ?? node.type);
@@ -121,6 +122,9 @@ export default function TreeNode({ node, hoveredId, setHoveredId }: TreeNodeProp
   return (
     <g
       transform={`translate(${node.x}, ${node.y})`}
+      onClick={() => {
+        onExpand && onExpand(node.id);
+      }}
       onMouseEnter={(e) => {
         setHoveredId && setHoveredId(node.id ?? null);
       }}
