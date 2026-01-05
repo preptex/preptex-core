@@ -12,6 +12,7 @@ export default function ASTview({ root }: ASTviewProps) {
   const gRef = useRef<SVGGElement>(null);
 
   const [hoveredId, setHoveredId] = useState<number | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(() => new Set());
 
   useEffect(() => {
     if (!svgRef.current || !gRef.current) return;
@@ -22,7 +23,7 @@ export default function ASTview({ root }: ASTviewProps) {
     const zoom = d3
       .zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.1, 6])
-      .on('zoom', (event) => {
+      .on('zoom', (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
         g.attr('transform', event.transform.toString());
       });
 
@@ -38,13 +39,11 @@ export default function ASTview({ root }: ASTviewProps) {
 
   function collect(node: LayoutNode) {
     nodes.push(node);
+
+    const isExpanded = expandedIds.has(node.id);
+    if (!isExpanded) return;
     for (const child of node.children || []) {
-      edges.push({
-        x1: node.x,
-        y1: node.y,
-        x2: child.x,
-        y2: child.y,
-      });
+      edges.push({ x1: node.x, y1: node.y, x2: child.x, y2: child.y });
       collect(child);
     }
   }
@@ -63,7 +62,23 @@ export default function ASTview({ root }: ASTviewProps) {
 
           <g>
             {nodes.map((n, i) => (
-              <TreeNode key={i} node={n} hoveredId={hoveredId} setHoveredId={setHoveredId} />
+              <TreeNode
+                key={n.id}
+                node={n}
+                hoveredId={hoveredId}
+                setHoveredId={setHoveredId}
+                onExpand={(id) =>
+                  setExpandedIds((prev) => {
+                    const next = new Set(prev);
+                    if (prev.has(id)) {
+                      next.delete(id);
+                    } else {
+                      next.add(id);
+                    }
+                    return next;
+                  })
+                }
+              />
             ))}
           </g>
         </g>
