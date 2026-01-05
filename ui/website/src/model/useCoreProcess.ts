@@ -8,7 +8,8 @@ import {
 
 import type { CoreOptionsUI } from './useControl';
 import type { FilesMutation } from './useFiles';
-
+import { TokenType } from '@preptex/core';
+import { LexerOptions } from '../../../../core/dist/lib/lexer/tokens';
 export type CoreRunResult = {
   declaredConditions: string[];
   error?: string;
@@ -16,12 +17,15 @@ export type CoreRunResult = {
 
 type CoreProject = ReturnType<typeof coreProcess>;
 
-export function useCoreProcess(
-  entryFile: string,
-  filesByName: Record<string, string>,
-  mutation: FilesMutation,
-  options: CoreOptionsUI
-) {
+const DEFAULT_TOKENS = new Set<TokenType>([
+  TokenType.Section,
+  TokenType.Condition,
+  TokenType.ConditionDeclaration,
+  TokenType.Input,
+  TokenType.Comment,
+]);
+
+export function useCoreProcess(entryFile: string, mutation: FilesMutation, options: CoreOptionsUI) {
   const [result, setResult] = useState<CoreRunResult | null>(null);
   const [projectVersion, setProjectVersion] = useState(0);
 
@@ -60,7 +64,9 @@ export function useCoreProcess(
           delete versionedFilesRef.current[name];
         }
 
-        globalProjectRef.current = coreProcess({ ...versionedFilesRef.current });
+        globalProjectRef.current = coreProcess({ ...versionedFilesRef.current }, {
+          enabledTokens: DEFAULT_TOKENS,
+        } as LexerOptions);
       }
 
       // Apply upserts: parse only the batch and combine into the global project.
@@ -74,7 +80,7 @@ export function useCoreProcess(
           batch[name] = vf;
         }
 
-        const batchProject = coreProcess(batch);
+        const batchProject = coreProcess(batch, { enabledTokens: DEFAULT_TOKENS } as LexerOptions);
         globalProjectRef.current = globalProjectRef.current
           ? combine_project(globalProjectRef.current, batchProject)
           : batchProject;
