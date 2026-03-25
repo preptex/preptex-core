@@ -8,8 +8,10 @@ interface ASTviewProps {
 }
 
 export default function ASTview({ root }: ASTviewProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const gRef = useRef<SVGGElement>(null);
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<number>>(() => new Set());
@@ -27,12 +29,36 @@ export default function ASTview({ root }: ASTviewProps) {
         g.attr('transform', event.transform.toString());
       });
 
+    zoomRef.current = zoom;
     svg.call(zoom);
 
     return () => {
+      zoomRef.current = null;
       svg.on('.zoom', null);
     };
   }, []);
+
+  useEffect(() => {
+    if (!containerRef.current || !svgRef.current || !zoomRef.current) return;
+
+    const applyInitialPosition = () => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect || rect.width <= 0 || rect.height <= 0) return;
+
+      const topMargin = 32;
+      const initial = d3.zoomIdentity.translate(rect.width / 2 - root.x, topMargin - root.y);
+      d3.select(svgRef.current!).call(zoomRef.current!.transform, initial);
+    };
+
+    applyInitialPosition();
+
+    const observer = new ResizeObserver(() => {
+      applyInitialPosition();
+    });
+    observer.observe(containerRef.current);
+
+    return () => observer.disconnect();
+  }, [root]);
 
   const nodes: LayoutNode[] = [];
   const edges: { x1: number; y1: number; x2: number; y2: number }[] = [];
@@ -51,7 +77,7 @@ export default function ASTview({ root }: ASTviewProps) {
   collect(root);
 
   return (
-    <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+    <div ref={containerRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
       <svg ref={svgRef} width="100%" height="100%" style={{ background: '#fafafa' }}>
         <g ref={gRef}>
           <g stroke="#999" strokeWidth={1}>
