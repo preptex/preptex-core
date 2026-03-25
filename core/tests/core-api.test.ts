@@ -5,6 +5,7 @@ import {
   combine_project,
 } from '../src/lib/core';
 import { InputCmdHandling } from '../src/lib/options';
+import { TokenType } from '../src/lib/lexer/tokens';
 
 const SAMPLE = ['Hello % comment', 'World'].join('\n');
 const CONDITIONAL_SAMPLE = 'Start \\ifX Keep\\else Drop\\fi End';
@@ -147,6 +148,58 @@ describe('process/transform API', () => {
 
     // Accept either the resolved inner branch or a variant without the inner text
     expect(result).toBe('Alpha Keep  Inner Omega');
+  });
+
+  it('flattens input files when using the UI lexer token subset', () => {
+    const uiTokens = new Set<TokenType>([
+      TokenType.Section,
+      TokenType.Condition,
+      TokenType.ConditionDeclaration,
+      TokenType.Command,
+      TokenType.Input,
+      TokenType.Comment,
+    ]);
+
+    const project = processProject(
+      {
+        'main.tex': { text: 'Start \\input{chapter.tex} End', version: 1 },
+        'chapter.tex': { text: 'Chapter body', version: 1 },
+      },
+      { enabledTokens: uiTokens }
+    );
+
+    const outputs = transformProject('main.tex', project, {
+      handleInputCmd: InputCmdHandling.FLATTEN,
+    });
+
+    expect(outputs['main.tex']).toBe('Start Chapter body End');
+  });
+
+  it('suppresses newif toggle commands when using the UI lexer token subset', () => {
+    const uiTokens = new Set<TokenType>([
+      TokenType.Section,
+      TokenType.Condition,
+      TokenType.ConditionDeclaration,
+      TokenType.Command,
+      TokenType.Input,
+      TokenType.Comment,
+    ]);
+
+    const project = processProject(
+      {
+        'main.tex': {
+          text: '\\newif\\iflong\n\\longtrue\n\\iflong Yes\\else No\\fi',
+          version: 1,
+        },
+      },
+      { enabledTokens: uiTokens }
+    );
+
+    const outputs = transformProject('main.tex', project, {
+      ifDecisions: new Set(['long']),
+    });
+
+    expect(outputs['main.tex']).toBe('Yes');
   });
 
   it('combines projects keeping higher version on conflicts', () => {

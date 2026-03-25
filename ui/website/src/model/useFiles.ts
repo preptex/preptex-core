@@ -45,11 +45,11 @@ export function useFiles(initial: FilesMap = {}) {
     // Track this as a single mutation batch.
     setMutation((m) => ({ id: m.id + 1, upserts: batch, removes: [] }));
 
-    // Always select the newly imported file (first in the uploaded batch).
-    if (entries.length > 0) {
+    // Keep the current entry when adding support files; only auto-select when nothing is selected yet.
+    if (entries.length > 0 && !selectedFile) {
       setSelectedFile(entries[0][0]);
     }
-  }, []);
+  }, [selectedFile]);
 
   const upsertTextFiles = useCallback((entries: Record<string, string>) => {
     setFilesByName((prev) => ({ ...prev, ...entries }));

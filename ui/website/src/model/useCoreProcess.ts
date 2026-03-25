@@ -4,12 +4,12 @@ import {
   transform as coreTransform,
   combine_project,
   InputCmdHandling,
+  type LexerOptions,
 } from '@preptex/core';
 
 import type { CoreOptionsUI } from './useControl';
 import type { FilesMutation } from './useFiles';
 import { TokenType } from '@preptex/core';
-import { LexerOptions } from '../../../../core/dist/lib/lexer/tokens';
 export type CoreRunResult = {
   declaredConditions: string[];
   error?: string;
@@ -21,6 +21,7 @@ const DEFAULT_TOKENS = new Set<TokenType>([
   TokenType.Section,
   TokenType.Condition,
   TokenType.ConditionDeclaration,
+  TokenType.Command,
   TokenType.Input,
   TokenType.Comment,
 ]);
@@ -116,9 +117,18 @@ export function useCoreProcess(entryFile: string, mutation: FilesMutation, optio
       try {
         const project = globalProjectRef.current;
         if (!project) return null;
+        setResult((prev) => ({
+          declaredConditions: prev?.declaredConditions ?? [],
+          error: undefined,
+        }));
         const outputs = coreTransform(entry, project, coreOptions);
         return outputs;
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setResult((prev) => ({
+          declaredConditions: prev?.declaredConditions ?? [],
+          error: message,
+        }));
         console.log(err);
         return null;
       }

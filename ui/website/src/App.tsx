@@ -61,13 +61,18 @@ function App() {
   const writeOutputsToTree = (outputs: Record<string, string>) => {
     const next: Record<string, string> = {};
     const overrideName = normalizeOutputName(options.outputName);
+    let firstOutputName = '';
     for (const [name, text] of Object.entries(outputs)) {
       const isEntry = name === selectedFile;
       const newname =
         overrideName && isEntry ? overrideName : name.replace(/\.tex$/i, '') + '.processed.tex';
       next[newname] = text;
+      if (!firstOutputName) firstOutputName = newname;
     }
     upsertTextFiles(next);
+    if (firstOutputName) {
+      selectFile(firstOutputName);
+    }
   };
 
   const onTransform = () => {
@@ -105,6 +110,7 @@ function App() {
           availableIfConditions={coreRun?.declaredConditions ?? []}
           onTransform={onTransform}
         />
+        {coreRun?.error ? <div className="PaneMeta">{coreRun.error}</div> : null}
       </div>
 
       <div className="AppCell AppCell--middle">
