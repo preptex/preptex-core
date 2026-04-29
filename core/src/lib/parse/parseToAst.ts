@@ -9,8 +9,13 @@ import {
   InputNode,
   type SectionNode,
 } from './types.js';
+import { SECTION_LEVELS } from './constants.js';
 import type { ParseOptions } from '../options.js';
 import { Lexer, TokenType, type Token } from '../lexer/tokens.js';
+
+const SECTION_COMMAND_BY_LEVEL: ReadonlyMap<number, string> = new Map(
+  Object.entries(SECTION_LEVELS).map(([cmd, lvl]) => [lvl, cmd])
+);
 
 interface ParseRuntime {
   input: string;
@@ -133,6 +138,24 @@ function handleSection(runtime: ParseRuntime, token: Token) {
 
   let parent = getParentNode(runtime) as AstNode;
 
+  // Sections are wrappers; they must not appear inside open groupings like environments,
+  // math blocks, or brace-groups because those closers assume they are on top of the stack.
+  // If they do appear there, treat the whole token span as a normal command node.
+  if (parent.type !== NodeType.Section && parent.type !== NodeType.Root) {
+    const cmdName = SECTION_COMMAND_BY_LEVEL.get(level) ?? 'section';
+    const cmdNode = {
+      type: NodeType.Command,
+      id: allocId(runtime),
+      start: token.start,
+      end: token.end,
+      line: token.line,
+      name: cmdName,
+      value: runtime.input.slice(token.start, token.end + 1),
+    } as CommandNode;
+    (parent as InnerNode).children.push(cmdNode);
+    return;
+  }
+
   while (parent.type === NodeType.Section && (parent as any).level >= level) {
     const closed = runtime.stack.pop() as SectionNode | undefined;
     if (closed?.type === NodeType.Section) {
@@ -195,6 +218,16 @@ function handleBrace(runtime: ParseRuntime, token: Token) {
     return;
   }
 
+  const top = runtime.stack.peek() as AstNode | undefined;
+  if (!top) {
+    throw new Error(`${token.line}: Unexpected "}" without a matching "{". Empty stack.`);
+  }
+  if (top.type !== NodeType.Group) {
+    throw new Error(
+      `${token.line}: Unexpected "}" without a matching "{". Found ${top.type} at line ${top.line}.`
+    );
+  }
+  top.end = token.end;
   runtime.stack.pop();
 }
 
@@ -267,6 +300,11 @@ function handleEnvironment(runtime: ParseRuntime, token: Token) {
       `${token.line}: Unexpected "end" without a matching "begin" environment. Found ${envNode.type} at line ${envNode.line}.`
     );
   }
+  if ((envNode as any).name !== name) {
+    throw new Error(
+      `${token.line}: Unexpected "end{${name}}" without a matching "begin{${name}}". Found open environment "${(envNode as any).name}" at line ${envNode.line}.`
+    );
+  }
   envNode.end = token.end;
   (envNode as InnerNode).suffix = runtime.input.slice(token.start, token.end + 1);
   runtime.stack.pop();
@@ -306,9 +344,21 @@ function handleMathDelim(runtime: ParseRuntime, token: Token) {
   }
   const isDollar = delim === '$' || delim === '$$';
   const isParenClose = delim === '\\]' || delim === '\\)';
-  const isClosing = (isDollar && top.type === NodeType.Math && top.delim === delim) || isParenClose;
 
-  if (isClosing) {
+  if (isParenClose) {
+    const expectedOpen = delim === '\\)' ? '\\(' : '\\[';
+    if (top.type !== NodeType.Math || top.delim !== expectedOpen) {
+      throw new Error(
+        `${token.line}: Unexpected math closer "${delim}" without matching opener "${expectedOpen}". Found ${top.type} at line ${top.line}.`
+      );
+    }
+    top.end = token.end;
+    top.suffix = runtime.input.slice(token.start, token.end + 1);
+    runtime.stack.pop();
+    return;
+  }
+
+  if (isDollar && top.type === NodeType.Math && top.delim === delim) {
     top.end = token.end;
     top.suffix = runtime.input.slice(token.start, token.end + 1);
     runtime.stack.pop();

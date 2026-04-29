@@ -75,6 +75,31 @@ describe('parseToAst', () => {
     expect((env as any).children[0].type).toBe(NodeType.Text);
   });
 
+  it('treats section inside environment as a Command node', () => {
+    const ast = parse('\\begin{doc}\\section{A}Text\\end{doc}');
+    expect(ast.children.length).toBe(1);
+    const env = ast.children[0] as any;
+    expect(env.type).toBe(NodeType.Environment);
+    expect(env.children.length).toBe(2);
+    expect(env.children[0].type).toBe(NodeType.Command);
+    expect(env.children[0].name).toBe('section');
+    expect(env.children[0].value).toBe('\\section{A}');
+    expect(env.children[1].type).toBe(NodeType.Text);
+    expect(env.children[1].value).toBe('Text');
+  });
+
+  it('throws on closing brace without matching opening brace', () => {
+    expect(() => parse('}')).toThrow();
+  });
+
+  it('throws on mismatched environment end', () => {
+    expect(() => parse('\\begin{a}x\\end{b}')).toThrow();
+  });
+
+  it('throws on explicit math closer without matching opener', () => {
+    expect(() => parse('\\) text')).toThrow();
+  });
+
   it('parses math mode command delimiters', () => {
     const ast = parse(`Text \\(a+b\\)\\[test\\]`);
     expect(ast.children.length).toBe(3);
