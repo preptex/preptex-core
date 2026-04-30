@@ -15,6 +15,7 @@ export type ProjectFile = {
   root: AstRoot;
   version: number;
   declaredConditions: ReadonlySet<string>;
+  notes: ReadonlyArray<string>;
 };
 
 export class Project {
@@ -69,6 +70,14 @@ export class Project {
     }
     return all;
   }
+
+  getNotes(): Readonly<Record<string, ReadonlyArray<string>>> {
+    const notes: Record<string, ReadonlyArray<string>> = {};
+    for (const [name, file] of Object.entries(this.files)) {
+      notes[name] = [...file.notes];
+    }
+    return Object.freeze(notes);
+  }
 }
 
 export function process(
@@ -99,6 +108,7 @@ export function process(
       root: fileParser.getRoot(),
       version,
       declaredConditions: new Set(fileParser.getDeclaredConditions()),
+      notes: [...sanity.notes, ...fileParser.getNotes()],
     };
   }
 

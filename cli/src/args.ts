@@ -16,6 +16,7 @@ export interface BaseCliOptions {
 
 export interface TransformCliOptions extends BaseCliOptions {
   suppressComments: boolean;
+  verbose?: boolean;
   handleInputCmd?: InputCmdHandling;
   workDir?: string;
   outDir?: string;
@@ -57,6 +58,7 @@ export function parseTransformArgs(argv: string[]): TransformCliOptions {
     input: '',
     help: false,
     suppressComments: false,
+    verbose: false,
   } as TransformCliOptions;
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -67,6 +69,10 @@ export function parseTransformArgs(argv: string[]): TransformCliOptions {
       case '-h':
       case '--help':
         opts.help = true;
+        break;
+      case '-v':
+      case '--verbose':
+        opts.verbose = true;
         break;
       case '-i':
       case '--input': {
@@ -153,7 +159,7 @@ export function parseTransformArgs(argv: string[]): TransformCliOptions {
 
 export function printTransformHelp(): void {
   const lines = [
-    'Usage: preptex transform --input <file> [--work-dir <dir>] [--output <file|dir>] [--suppress-comments] [--flatten|--recursive]',
+    'Usage: preptex transform --input <file> [--work-dir <dir>] [--output <file|dir>] [--suppress-comments] [--flatten|--recursive] [--verbose]',
     '',
     'Options:',
     '  -i, --input <file>       Main input file (path or filename if --work-dir used)',
@@ -163,6 +169,7 @@ export function printTransformHelp(): void {
     '      --recursive          Transform each discovered file separately and emit multiple outputs',
     '      --work-dir <dir>     Treat --input as a filename inside this directory (do not provide a path in --input)',
     '      --if-branches        Remove comments before emitting output',
+    '  -v, --verbose            Print step-by-step progress logs to stderr',
     '  -h, --help               Show this message',
   ];
   process.stdout.write(`${lines.join('\n')}\n`);

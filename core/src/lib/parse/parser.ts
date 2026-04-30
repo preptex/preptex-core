@@ -8,13 +8,15 @@ export class Parser {
   private root: AstRoot | null = null;
   private declaredConditions: Set<string> = new Set();
   private inputFiles: Set<string> = new Set();
+  private notes: string[] = [];
 
   constructor(private options: ParseOptions = {}) {}
 
   parse(lexer: Lexer, input: string): void {
     this.input = input;
     this.inputFiles.clear();
-    const root = parseToAst(lexer, input, this.options, this.inputFiles);
+    this.notes = [];
+    const root = parseToAst(lexer, input, this.options, this.inputFiles, this.notes);
     this.root = root;
     this.declaredConditions = collectConditionDeclarations(root);
   }
@@ -35,6 +37,11 @@ export class Parser {
   getInputFiles(): ReadonlySet<string> {
     this.ensureRoot();
     return new Set(this.inputFiles);
+  }
+
+  getNotes(): Readonly<string[]> {
+    this.ensureRoot();
+    return [...this.notes];
   }
 
   exportJSON(_options: CoreOptions): JSON {

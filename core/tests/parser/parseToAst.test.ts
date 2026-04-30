@@ -3,10 +3,11 @@ import { parseToAst } from '../../src/lib/parse/parseToAst';
 import { NodeType } from '../../src/lib/parse/types';
 import type { ParseOptions } from '../../src/lib/options';
 import { Lexer } from '../../src/lib/lexer/tokens';
+import { process as processProject } from '../../src/lib/core';
 
-const parse = (input: string) => {
+const parse = (input: string, notes?: string[]) => {
   const l: Lexer = new Lexer(input, {});
-  return parseToAst(l, input, {} as ParseOptions);
+  return parseToAst(l, input, {} as ParseOptions, undefined, notes);
 };
 describe('parseToAst', () => {
   it('parses environment at root', () => {
@@ -76,7 +77,8 @@ describe('parseToAst', () => {
   });
 
   it('treats section inside environment as a Command node', () => {
-    const ast = parse('\\begin{doc}\\section{A}Text\\end{doc}');
+    const notes: string[] = [];
+    const ast = parse('\\begin{doc}\\section{A}Text\\end{doc}', notes);
     expect(ast.children.length).toBe(1);
     const env = ast.children[0] as any;
     expect(env.type).toBe(NodeType.Environment);
@@ -86,6 +88,19 @@ describe('parseToAst', () => {
     expect(env.children[0].value).toBe('\\section{A}');
     expect(env.children[1].type).toBe(NodeType.Text);
     expect(env.children[1].value).toBe('Text');
+    expect(notes).toEqual([
+      expect.stringContaining('Section command parsed as command inside Environment Line: 1'),
+    ]);
+  });
+
+  it('aggregates parser fallback notes on project files', () => {
+    const project = processProject({
+      'main.tex': { text: '\\begin{doc}\n\\section{A}\n\\end{doc}', version: 1 },
+    });
+    const file = project.getFiles()['main.tex'] as { notes: ReadonlyArray<string> };
+    expect(file.notes).toEqual([
+      expect.stringContaining('Section command parsed as command inside Environment Line: 2'),
+    ]);
   });
 
   it('throws on closing brace without matching opening brace', () => {
