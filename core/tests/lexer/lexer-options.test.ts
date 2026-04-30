@@ -68,6 +68,38 @@ describe('Lexer options: enabledTokens', () => {
     expect(cmdNames).toContain('next');
   });
 
+  it('sectionMaxLevel suppresses deeper section levels', () => {
+    const input =
+      '\\section{S} ' +
+      '\\subsection{SS} ' +
+      '\\subsubsection{SSS} ' +
+      '\\paragraph{P} ' +
+      '\\subparagraph{SP}';
+
+    const enabled = new Set<TokenType>([
+      TokenType.Text,
+      TokenType.Comment,
+      TokenType.Command,
+      TokenType.Brace,
+      TokenType.Section,
+    ]);
+
+    const lex = new Lexer(input, { enabledTokens: enabled, sectionMaxLevel: 2 });
+    const tokens = collectTokens(lex);
+
+    const sectionTokens = tokens.filter((t) => t.type === TokenType.Section);
+    expect(sectionTokens.map((t) => ({ level: t.level, name: t.name }))).toEqual([
+      { level: 1, name: 'S' },
+      { level: 2, name: 'SS' },
+    ]);
+
+    const commandNames = tokens.filter((t) => t.type === TokenType.Command).map((t) => t.name);
+    // Deeper section commands should be tokenized as Command, not Section.
+    expect(commandNames).toContain('subsubsection');
+    expect(commandNames).toContain('paragraph');
+    expect(commandNames).toContain('subparagraph');
+  });
+
   it('suppressing section due to condition', () => {
     const input =
       '\\iflong\n' +

@@ -45,6 +45,10 @@ const ENVIRONMENT_COMMANDS = new Set(['begin', 'end']);
 
 export interface LexerOptions {
   enabledTokens?: Set<TokenType>;
+  // When set, only section commands with level <= sectionMaxLevel are tokenized as TokenType.Section.
+  // Higher-level section commands are tokenized as TokenType.Command instead.
+  // Example: sectionMaxLevel=1 allows \section but suppresses \subsection and deeper.
+  sectionMaxLevel?: number;
   // When true (default), backslash+letter is escapable only if the following char is NOT a letter.
   // When false, backslash+letter always starts a command.
 }
@@ -87,7 +91,9 @@ export function peekNextTokenType(
       return TokenType.Environment;
     }
     if (isEnabled(TokenType.Section) && SECTION_COMMANDS.has(name)) {
-      return TokenType.Section;
+      const maxLevel = opts.sectionMaxLevel;
+      const level = SECTION_LEVELS[name]!;
+      if (maxLevel == null || level <= maxLevel) return TokenType.Section;
     }
     if (isEnabled(TokenType.ConditionDeclaration) && name === 'newif') {
       return TokenType.ConditionDeclaration;

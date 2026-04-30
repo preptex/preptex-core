@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import process from 'node:process';
 import type { TransformCliOptions } from './args.js';
 import type { VersionedTextFile } from '@preptex/core';
 
@@ -52,12 +53,23 @@ export async function writeOutputsRecursive(
     output: opts.output,
   });
   const entryKey = path.relative(baseDir, entryPath).replace(/\\/g, '/').replace(/^\.\//, '');
+
+  if (opts.verbose) {
+    process.stderr.write(
+      `[verbose] writing ${Object.keys(outputs).length} output(s) to ${outDir} (recursive)\n`
+    );
+  }
+
   await mkdir(outDir, { recursive: true });
   for (const [file, text] of Object.entries(outputs)) {
     let base = path.basename(file);
     const fileName = file === entryKey ? outName : base;
     const outPath = path.join(outDir, fileName);
     await writeFile(outPath, String(text), 'utf8');
+
+    if (opts.verbose) {
+      process.stderr.write(`[verbose] wrote ${fileName}\n`);
+    }
   }
 }
 

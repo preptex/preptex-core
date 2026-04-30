@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { sanityCheck } from '../src/lib/parse/sanity';
 import { NodeType } from '../src/lib/parse/types';
+import { Lexer, TokenType } from '../src/lib/lexer/tokens';
 
 describe('Sanity prepass - intersecting pairs', () => {
   it('records intersection when closing mismatched ctx (math vs group)', () => {
@@ -57,13 +58,14 @@ describe('Sanity prepass - intersecting pairs', () => {
   });
 
   it('closing with empty stack does not produce intersecting pair', () => {
-    const input = '} orphan';
+    const input = '\n} orphan';
     const sanity = sanityCheck(input);
     expect(sanity.intersectingPairs).toEqual([]);
     expect(sanity.notes.some((n) => n.includes('empty stack'))).toBe(true);
+    expect(sanity.notes).toEqual([expect.stringContaining('Line: 2')]);
     // Unopened closing recorded exactly once
     const unopened = sanity.unopenedClosings;
-    expect(unopened).toEqual([expect.objectContaining({ ctx: NodeType.Group })]);
+    expect(unopened).toEqual([expect.objectContaining({ ctx: NodeType.Group, line: 2 })]);
     expect(sanity.openedUnclosedGroupings).toEqual([]);
   });
 
@@ -161,6 +163,19 @@ describe('Sanity prepass - intersecting pairs', () => {
   it('Section inside If logs note only', () => {
     const sanity = sanityCheck('\\iftrue \\section{A} \\fi');
     expect(sanity.notes.some((n) => n.toLowerCase().includes('section command'))).toBe(true);
+  });
+
+  it('Section suppression is level-aware (subsection in If suppresses deeper only)', () => {
+    const input = '\\iftrue \\subsection{A} \\fi \\section{B}';
+    const sanity = sanityCheck(input);
+    expect(sanity.lexerOptions.sectionMaxLevel).toBe(1);
+
+    // Second lex pass should still recognize \section, but not \subsection.
+    const lexer = new Lexer(input, sanity.lexerOptions);
+    const sectionTokens = Array.from(lexer.stream()).filter((t) => t.type === TokenType.Section);
+    expect(sectionTokens).toEqual([
+      expect.objectContaining({ type: TokenType.Section, level: 1, name: 'B' }),
+    ]);
   });
 
   it('Environment name mismatch does not currently produce intersections', () => {

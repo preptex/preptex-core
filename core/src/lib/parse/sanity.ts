@@ -1,6 +1,7 @@
 import { Lexer, TokenType, LexerOptions, getAllTokenTypes } from '../lexer/tokens.js';
 import { CallStack } from './callstack.js';
 import { NodeType, type AstNode } from './types.js';
+import { SECTION_LEVELS } from './constants.js';
 
 // Context kinds tracked on the stack: reuse NodeType subset
 
@@ -13,6 +14,35 @@ const NOTE_IF_IN_MATH = 'Disabled MathDelim due to conditional inside math conte
 const NOTE_IF_INTERSECTS_MATH = 'Disabled MathDelim due to conditional intersecting math context';
 const NOTE_MATH_INTERSECTS_IF = 'Disabled MathDelim due to math intersecting conditional context';
 const NOTE_NO_MATCHING_OPENER = 'Closing group encountered with no matching opener';
+
+const SECTION_COMMAND_BY_LEVEL: ReadonlyMap<number, string> = new Map(
+  Object.entries(SECTION_LEVELS).map(([cmd, lvl]) => [lvl, cmd])
+);
+
+function formatSectionInConditionalNote(
+  token: { name?: unknown },
+  lvl: number,
+  effectiveSectionMaxLevel: number | undefined
+): string {
+  const cmd = SECTION_COMMAND_BY_LEVEL.get(lvl);
+  const cmdText = cmd ? `\\${cmd}` : 'a section command';
+  const titleText = typeof token.name === 'string' && token.name.length > 0 ? `{${token.name}}` : '';
+  const effectiveText =
+    effectiveSectionMaxLevel == null ? 'unset' : String(effectiveSectionMaxLevel);
+
+  return (
+    `${NOTE_SECTION_IN_IF}: saw ${cmdText}${titleText} (TokenType.Section, level=${lvl}). ` +
+    `From section level ${lvl} onward, section commands are tokenized as TokenType.Command ` +
+    `(effective sectionMaxLevel=${effectiveText}).`
+  );
+}
+
+function formatSectionInConditionalUnknownLevelNote(): string {
+  return (
+    `${NOTE_SECTION_IN_IF}: saw a section TokenType.Section with unknown level. ` +
+    `From this level onward, section commands will be tokenized as TokenType.Command.`
+  );
+}
 
 export interface SanityResult {
   lexerOptions: LexerOptions;
@@ -46,7 +76,11 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
   let nextId = 1;
 
   const notes: string[] = [];
+  const addNote = (message: string, line?: number) => {
+    notes.push(`${message} Line: ${line ?? 1}`);
+  };
   const enabled = new Set(lexerOptions.enabledTokens ?? getAllTokenTypes());
+  let sectionMaxLevel = lexerOptions.sectionMaxLevel;
   // Use CallStack to track grouping contexts
   const stack = new CallStack(undefined);
   type Ctx = NodeType;
@@ -108,7 +142,7 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
           });
           if (topCtx === NodeType.Math && enabled.has(TokenType.MathDelim)) {
             enabled.delete(TokenType.MathDelim);
-            notes.push(NOTE_IF_INTERSECTS_MATH);
+            addNote(NOTE_IF_INTERSECTS_MATH, t.line);
           }
         }
       }
@@ -121,7 +155,7 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
           break;
         }
       }
-      if (!closedIf) notes.push(NOTE_NO_MATCHING_IF);
+      if (!closedIf) addNote(NOTE_NO_MATCHING_IF, t.line);
       return;
     }
     // Opening if*
@@ -138,16 +172,23 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
     } as unknown as AstNode);
     if (isInCtx(NodeType.Math) && enabled.has(TokenType.MathDelim)) {
       enabled.delete(TokenType.MathDelim);
-      notes.push(NOTE_IF_IN_MATH);
+      addNote(NOTE_IF_IN_MATH, t.line);
     }
   };
 
   // Sections handler (via Command tokens)
   const handleSection = (t: any) => {
     if (isInCtx(NodeType.Condition)) {
-      notes.push(NOTE_SECTION_IN_IF);
-      if (enabled.has(TokenType.Section)) {
-        enabled.delete(TokenType.Section);
+      const lvl = Number(t.level ?? NaN);
+      if (Number.isFinite(lvl)) {
+        // Disable this section level and deeper globally for the second lex pass.
+        // Example: seeing \subsection (2) inside an if allows \section (1) but suppresses >=2.
+        const newMax = Math.max(0, lvl - 1);
+        sectionMaxLevel = sectionMaxLevel == null ? newMax : Math.min(sectionMaxLevel, newMax);
+
+        addNote(formatSectionInConditionalNote(t, lvl, sectionMaxLevel), t.line);
+      } else {
+        addNote(formatSectionInConditionalUnknownLevelNote(), t.line);
       }
     }
   };
@@ -216,7 +257,7 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
         } as unknown as AstNode);
         if (isInCtx(NodeType.Condition) && enabled.has(TokenType.MathDelim)) {
           enabled.delete(TokenType.MathDelim);
-          notes.push(NOTE_MATH_IN_IF);
+          addNote(NOTE_MATH_IN_IF, t.line);
         }
       } else if (ctx === NodeType.Group) {
         stack.push({
@@ -235,7 +276,7 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
     // Closing logic: if the last opened (top of stack) is not the same type,
     // record intersecting pair, then still remove the matching opening from the stack
     if (stack.size() === 0) {
-      notes.push(NOTE_EMPTY_STACK);
+      addNote(NOTE_EMPTY_STACK, t.line);
       // Record as unopened closing
       unopenedClosings.push({ ctx, closePos: t.start, line: t.line ?? 1 });
       return;
@@ -261,7 +302,7 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
       ) {
         if (enabled.has(TokenType.MathDelim)) {
           enabled.delete(TokenType.MathDelim);
-          notes.push(NOTE_MATH_INTERSECTS_IF);
+          addNote(NOTE_MATH_INTERSECTS_IF, t.line);
         }
       }
     }
@@ -278,7 +319,7 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
       }
       temp.push(n);
     }
-    if (!removed) notes.push(NOTE_NO_MATCHING_OPENER + ' Line: ' + (top.line ?? ''));
+    if (!removed) addNote(NOTE_NO_MATCHING_OPENER, t.line);
     // Push back the non-matching contexts (keep them)
     for (let i = temp.length - 1; i >= 0; i--) stack.push(temp[i]);
   };
@@ -322,7 +363,7 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
   for (let i = tmpFinal.length - 1; i >= 0; i--) stack.push(tmpFinal[i]);
 
   return {
-    lexerOptions: { enabledTokens: enabled },
+    lexerOptions: { enabledTokens: enabled, sectionMaxLevel },
     notes,
     intersectingPairs,
     openedUnclosedGroupings,

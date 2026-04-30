@@ -22,11 +22,16 @@ interface ParseRuntime {
   root: AstRoot;
   stack: CallStack;
   inputFiles?: Set<string>;
+  notes?: string[];
   nextId: number;
 }
 
 function allocId(runtime: ParseRuntime): number {
   return runtime.nextId++;
+}
+
+function addNote(runtime: ParseRuntime, message: string, line?: number): void {
+  runtime.notes?.push(`${message} Line: ${line ?? 1}`);
 }
 
 function sliceTokenValue(input: string, start: number, end: number): string {
@@ -54,10 +59,11 @@ export function parseToAst(
   lexer: Lexer,
   input: string,
   options: ParseOptions,
-  inputFiles?: Set<string>
+  inputFiles?: Set<string>,
+  notes?: string[]
 ): AstRoot {
   void options;
-  const runtime = createRuntime(input, inputFiles);
+  const runtime = createRuntime(input, inputFiles, notes);
 
   for (const token of lexer.stream()) {
     const handler = HANDLERS.get(token.type);
@@ -87,7 +93,7 @@ function finalizeOpenSections(runtime: ParseRuntime): void {
   closeSectionsLevel(runtime, 1, lastIndex);
 }
 
-function createRuntime(input: string, inputFiles?: Set<string>): ParseRuntime {
+function createRuntime(input: string, inputFiles?: Set<string>, notes?: string[]): ParseRuntime {
   const root: AstRoot = {
     type: NodeType.Root,
     id: 0,
@@ -105,6 +111,7 @@ function createRuntime(input: string, inputFiles?: Set<string>): ParseRuntime {
     root,
     stack,
     inputFiles,
+    notes,
     nextId: 1,
   };
 }
@@ -143,6 +150,7 @@ function handleSection(runtime: ParseRuntime, token: Token) {
   // If they do appear there, treat the whole token span as a normal command node.
   if (parent.type !== NodeType.Section && parent.type !== NodeType.Root) {
     const cmdName = SECTION_COMMAND_BY_LEVEL.get(level) ?? 'section';
+    addNote(runtime, `Section command parsed as command inside ${parent.type}`, token.line);
     const cmdNode = {
       type: NodeType.Command,
       id: allocId(runtime),
