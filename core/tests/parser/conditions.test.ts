@@ -26,9 +26,9 @@ describe('conditions parsing', () => {
     const elseBranch = branches.find((b) => (b as any).branch === ConditionBranchType.Else);
     expect(ifBranch).toBeTruthy();
     expect(elseBranch).toBeTruthy();
-    expect((ifBranch as any).prefix).toBe('\\ifX ');
+    expect((ifBranch as any).prefix).toBe('\\ifX');
     expect((ifBranch as any).suffix).toBe('');
-    expect((elseBranch as any).prefix).toBe('\\else ');
+    expect((elseBranch as any).prefix).toBe('\\else');
     expect((elseBranch as any).suffix).toBe('');
     expect(ifBranch.children.length).toBeGreaterThan(0);
     expect(elseBranch.children.length).toBeGreaterThan(0);
@@ -51,7 +51,7 @@ describe('conditions parsing', () => {
     const ifBranch = branches.find((b) => (b as any).branch === ConditionBranchType.If);
     const elseBranch = branches.find((b) => (b as any).branch === ConditionBranchType.Else);
     expect(ifBranch).toBeTruthy();
-    expect((ifBranch as any).prefix).toBe('\\ifY ');
+    expect((ifBranch as any).prefix).toBe('\\ifY');
     expect((ifBranch as any).suffix).toBe('');
     expect((ifBranch as any).children.length).toBeGreaterThan(0);
     expect(elseBranch).toBeUndefined();
@@ -64,9 +64,11 @@ describe('conditions parsing', () => {
     const decl = ast.children.find((n) => n.type === NodeType.ConditionDeclaration) as any;
     expect(decl).toBeTruthy();
     expect(decl.name).toBe('Cool');
-    expect(decl.value).toBe('\\newif\\ifCool\n');
+    expect(decl.value).toBe('\\newif\\ifCool');
 
-    const textNode = ast.children.find((n) => n.type === NodeType.Text) as any;
+    const textNode = ast.children.find(
+      (n) => n.type === NodeType.Text && (n as any).value === 'Body'
+    ) as any;
     expect(textNode).toBeTruthy();
     expect(textNode.value).toBe('Body');
   });
@@ -90,23 +92,31 @@ describe('conditions parsing', () => {
       '\\fi';
     const parser = getParser(input);
     const ast = parser.getRoot();
-    expect(ast.children.length).toBe(2);
+    expect(ast.children.length).toBe(3);
     const firstCond: any = (ast.children[0] as any).children[0];
     expect(firstCond.type).toBe(NodeType.ConditionBranch);
     expect(firstCond.name).toBe('long');
     const fc = firstCond.children;
-    expect(fc.length).toBe(3);
+    expect(fc.length).toBe(4);
     expect(fc.map((x: InnerNode) => x.type)).toEqual([
+      NodeType.NewLine,
       NodeType.Command,
       NodeType.Group,
-      NodeType.Text,
+      NodeType.NewLine,
     ]);
 
-    const secondCond: any = (ast.children[1] as any).children[0];
+    expect((ast.children[1] as any).type).toBe(NodeType.NewLine);
+    expect((ast.children[1] as any).value).toBe('\n');
+
+    const secondCond: any = (ast.children[2] as any).children[0];
     expect(secondCond.type).toBe(NodeType.ConditionBranch);
     expect(secondCond.name).toBe('short');
     const sc = secondCond.children;
-    expect(secondCond.children.length).toBe(2);
-    expect(sc.map((x: InnerNode) => x.type)).toEqual([NodeType.Command, NodeType.Group]);
+    expect(secondCond.children.length).toBe(3);
+    expect(sc.map((x: InnerNode) => x.type)).toEqual([
+      NodeType.NewLine,
+      NodeType.Command,
+      NodeType.Group,
+    ]);
   });
 });

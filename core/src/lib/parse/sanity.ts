@@ -335,6 +335,7 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
   handlers.set(TokenType.MathDelim, handleGrouping);
   handlers.set(TokenType.Brace, handleGrouping);
   handlers.set(TokenType.Text, handleAtom);
+  handlers.set(TokenType.NewLine, handleAtom);
   handlers.set(TokenType.Comment, handleAtom);
   handlers.set(TokenType.Bracket, handleAtom);
   handlers.set(TokenType.ConditionDeclaration, handleAtom);

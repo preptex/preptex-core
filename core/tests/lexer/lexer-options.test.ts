@@ -115,6 +115,7 @@ describe('Lexer options: enabledTokens', () => {
       TokenType.Command,
       TokenType.Brace,
       TokenType.Condition,
+      TokenType.NewLine,
     ]);
     const lex = new Lexer(input, { enabledTokens: enabled });
     const tokens = collectTokens(lex);
@@ -122,13 +123,16 @@ describe('Lexer options: enabledTokens', () => {
     const types = tokens.map((t) => t.type);
     expect(types).toEqual([
       TokenType.Condition,
+      TokenType.NewLine,
       TokenType.Command,
       TokenType.Brace,
       TokenType.Text,
       TokenType.Brace,
-      TokenType.Text,
+      TokenType.NewLine,
       TokenType.Condition,
+      TokenType.NewLine,
       TokenType.Condition,
+      TokenType.NewLine,
       TokenType.Command,
       TokenType.Brace,
       TokenType.Text,

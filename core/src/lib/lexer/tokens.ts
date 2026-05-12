@@ -10,6 +10,7 @@ export enum TokenType {
   Brace = 'Brace',
   Bracket = 'Bracket',
   Comment = 'Comment',
+  NewLine = 'NewLine',
   MathDelim = 'MathDelim',
   Text = 'Text',
 }
@@ -58,6 +59,7 @@ import {
   isBraceTokenAt,
   isMathDelimTokenAt,
   isCommentTokenAt,
+  isNewLineTokenAt,
   isControlSequenceTokenAt,
   isConditionName,
   TEXT_END_CHARS,
@@ -84,6 +86,9 @@ export function peekNextTokenType(
   }
   if (isEnabled(TokenType.Comment) && isCommentTokenAt(input, start)) {
     return TokenType.Comment;
+  }
+  if (isEnabled(TokenType.NewLine) && isNewLineTokenAt(input, start)) {
+    return TokenType.NewLine;
   }
   if (isControlSequenceTokenAt(input, start)) {
     const name = readControlSequenceName(input, start).name;
@@ -156,6 +161,8 @@ export class Lexer {
         return this.readText();
       case TokenType.Comment:
         return this.readComment();
+      case TokenType.NewLine:
+        return this.readNewLine();
       case TokenType.Brace:
         return this.readBrace();
       case TokenType.Bracket:
@@ -202,6 +209,27 @@ export class Lexer {
       start,
       end,
       line: this.getLineForIndex(start),
+    };
+  }
+
+  private readNewLine(): Token {
+    const start = this.pos;
+    const line = this.getLineForIndex(start);
+    if (
+      this.input[this.pos] === '\r' &&
+      this.pos + 1 < this.input.length &&
+      this.input[this.pos + 1] === '\n'
+    ) {
+      this.pos += 2;
+    } else {
+      this.pos++;
+    }
+    return {
+      type: TokenType.NewLine,
+      name: this.input.slice(start, this.pos),
+      start,
+      end: this.pos - 1,
+      line,
     };
   }
 
@@ -280,7 +308,6 @@ export class Lexer {
     const start = this.pos;
     const line = this.getLineForIndex(start);
     let name = this.parseControlSequenceName();
-    this.suppressSingleTrailingWhitespace();
 
     let condition = undefined;
     if (name.startsWith('if')) {
@@ -321,7 +348,7 @@ export class Lexer {
       throw new Error(`Expected newif command at position ${start}`);
     }
     const afterNewIfPos = this.pos;
-    this.parseWhitespace();
+    this.parseWhitespace(false);
 
     if (this.pos >= this.input.length || this.input[this.pos] !== '\\') {
       throw new Error(`Expected condition name after \\newif at position ${afterNewIfPos}`);
@@ -346,18 +373,6 @@ export class Lexer {
     }
 
     const conditionName = commandName.slice(2);
-    this.parseWhitespace(false);
-
-    if (
-      this.pos < this.input.length - 1 &&
-      this.input[this.pos] === '\r' &&
-      this.input[this.pos + 1] === '\n'
-    ) {
-      this.pos++;
-    }
-    if (this.pos < this.input.length && this.input[this.pos] === '\n') {
-      this.pos++;
-    }
 
     return {
       type: TokenType.ConditionDeclaration,

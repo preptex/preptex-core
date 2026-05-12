@@ -36,9 +36,9 @@ describe('Lexer', () => {
       'doc',
       'Text ',
       'if',
-      'more ',
+      ' more ',
       'else',
-      'alt ',
+      ' alt ',
       'fi',
       '{',
       'inner',
@@ -102,8 +102,14 @@ describe('Lexer', () => {
       '\\\\\\%\\\\'; // 2 more literal backslashes
     const lex = new Lexer(input);
     const tokens = collectTokens(lex);
-    expect(tokens.map((t) => t.type)).toEqual([TokenType.Text]);
-    expect(sliceToken(input, tokens[0].start, tokens[0].end)).toBe(input);
+    expect(tokens.map((t) => t.type)).toEqual([
+      TokenType.Text,
+      TokenType.NewLine,
+      TokenType.Text,
+      TokenType.NewLine,
+      TokenType.Text,
+    ]);
+    expect(tokens.map((t) => sliceToken(input, t.start, t.end)).join('')).toBe(input);
   });
 
   it('tests escapables vs commands', () => {
@@ -113,7 +119,7 @@ describe('Lexer', () => {
     const names = tokens.map((t) =>
       t.type === TokenType.Text ? sliceToken(input, t.start, t.end) : t.name
     );
-    expect(names).toEqual(['\n \t', 'text', '{', 'abc', '}', '\\%abc']);
+    expect(names).toEqual(['\n', ' \t', 'text', '{', 'abc', '}', '\\%abc']);
   });
 
   it('captures exact inline comment name and text', () => {
@@ -134,9 +140,10 @@ describe('Lexer', () => {
     const tokens = collectTokens(lex);
     // First text chunk
     expect(tokens[0].type).toBe(TokenType.Text);
-    expect(sliceToken(input, tokens[0].start, tokens[0].end)).toBe('Before\n');
+    expect(sliceToken(input, tokens[0].start, tokens[0].end)).toBe('Before');
+    expect(tokens[1].type).toBe(TokenType.NewLine);
     // Environment comment token should include begin and body up to end
-    const c = tokens[1];
+    const c = tokens[2];
     expect(c.type).toBe(TokenType.Comment);
     expect(c.name).toBe('env-comment');
     expect(sliceToken(input, c.start, c.end)).toBe(
@@ -150,9 +157,22 @@ describe('Lexer', () => {
     const tokens = collectTokens(lex);
     expect(tokens[0].type).toBe(TokenType.ConditionDeclaration);
     expect(tokens[0].name).toBe('Example');
-    expect(sliceToken(input, tokens[0].start, tokens[0].end)).toBe('\\newif\\ifExample\n');
-    expect(tokens[1].type).toBe(TokenType.Text);
-    expect(sliceToken(input, tokens[1].start, tokens[1].end)).toBe('Next');
+    expect(sliceToken(input, tokens[0].start, tokens[0].end)).toBe('\\newif\\ifExample');
+    expect(tokens[1].type).toBe(TokenType.NewLine);
+    expect(tokens[2].type).toBe(TokenType.Text);
+    expect(sliceToken(input, tokens[2].start, tokens[2].end)).toBe('Next');
+  });
+
+  it('does not include trailing whitespace in condition tokens', () => {
+    const input = '\\ifExample\nBody\\else Else\\fi After';
+    const lex = new Lexer(input);
+    const tokens = collectTokens(lex);
+    expect(tokens[0].type).toBe(TokenType.Condition);
+    expect(sliceToken(input, tokens[0].start, tokens[0].end)).toBe('\\ifExample');
+    expect(tokens[1].type).toBe(TokenType.NewLine);
+    const elseToken = tokens.find((t) => t.type === TokenType.Condition && t.name === 'else');
+    expect(elseToken).toBeTruthy();
+    expect(sliceToken(input, elseToken!.start, elseToken!.end)).toBe('\\else');
   });
 
   it('Throw error when \\newif lacks condition name', () => {
@@ -169,13 +189,15 @@ describe('Lexer line numbers', () => {
     expect(tokens.map((t) => t.type)).toEqual([
       TokenType.Text,
       TokenType.Environment,
+      TokenType.NewLine,
       TokenType.Text,
+      TokenType.NewLine,
       TokenType.Environment,
       TokenType.Comment,
       TokenType.Text,
     ]);
-    expect(tokens.map((t) => t.start)).toEqual([0, 5, 16, 22, 31, 41]);
-    expect(tokens.map((t) => t.line)).toEqual([1, 1, 1, 3, 3, 4]);
+    expect(tokens.map((t) => t.start)).toEqual([0, 5, 16, 17, 21, 22, 31, 41]);
+    expect(tokens.map((t) => t.line)).toEqual([1, 1, 1, 2, 2, 3, 3, 4]);
   });
 
   it('counts lines in comments', () => {
@@ -206,22 +228,30 @@ describe('Lexer line numbers', () => {
     const tokens = collectTokens(lex);
     expect(tokens.map((t) => t.type)).toEqual([
       TokenType.ConditionDeclaration,
+      TokenType.NewLine,
       TokenType.ConditionDeclaration,
+      TokenType.NewLine,
       TokenType.Text,
     ]);
-    expect(tokens.map((t) => t.line)).toEqual([1, 2, 3]);
+    expect(tokens.map((t) => t.line)).toEqual([1, 1, 2, 2, 3]);
   });
 
   it('assigns text starting with new line correctly', () => {
     const input = '\\section{first}\n\nText line3\n';
     const lex = new Lexer(input);
     const tokens = collectTokens(lex);
-    expect(tokens.length).toBe(2);
-    const textToken = tokens[1];
+    expect(tokens.map((t) => t.type)).toEqual([
+      TokenType.Section,
+      TokenType.NewLine,
+      TokenType.NewLine,
+      TokenType.Text,
+      TokenType.NewLine,
+    ]);
+    const textToken = tokens[3];
     expect(textToken.type).toBe(TokenType.Text);
-    expect(textToken.start).toBe(15);
-    expect(textToken.end).toBe(27);
-    expect(textToken.line).toBe(1);
+    expect(textToken.start).toBe(17);
+    expect(textToken.end).toBe(26);
+    expect(textToken.line).toBe(3);
     expect((textToken as any).text).toBeUndefined();
   });
 });

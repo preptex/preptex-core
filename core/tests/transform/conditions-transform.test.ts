@@ -15,7 +15,7 @@ describe('conditions transform', () => {
     const parser = getParser(input);
     const text = runFilter(parser, ['X']);
     expect(parser.getRoot()).toBeTruthy();
-    expect(text).toBe('Hello');
+    expect(text).toBe(' Hello');
   });
 
   it('keeps ELSE branch when name not in list (aggregated text)', () => {
@@ -23,7 +23,7 @@ describe('conditions transform', () => {
     const parser = getParser(input);
     const text = runFilter(parser, ['X']);
     expect(parser.getRoot()).toBeTruthy();
-    expect(text).toBe('Beta');
+    expect(text).toBe(' Beta');
   });
 
   it('handles condition without else by skipping when not kept (aggregated text)', () => {
@@ -31,35 +31,35 @@ describe('conditions transform', () => {
     const parser = getParser(input);
     const text = runFilter(parser, ['X']);
     expect(parser.getRoot()).toBeTruthy();
-    expect(text).toBe('Start End');
+    expect(text).toBe('Start  End');
   });
 
   it('handles multiple conditions with mixed decisions', () => {
     const input = `A \\ifA KeepIf \\else KeepElse \\fi B \\ifB One \\else Two \\fi C`;
     const parser = getParser(input);
     const text = runFilter(parser, ['A']);
-    expect(text).toBe('A KeepIf B Two C');
+    expect(text).toBe('A  KeepIf  B  Two  C');
   });
 
   it('supports nested conditions and applies decisions independently', () => {
     const input = `Top \\ifOuter X \\ifInner InIf \\else InElse \\fi Y \\else Z \\fi End`;
     const parser = getParser(input);
     const text = runFilter(parser, ['Inner']);
-    expect(text).toBe('Top Z End');
+    expect(text).toBe('Top  Z  End');
   });
 
   it('suppresses \\newif declarations from output', () => {
     const input = `\\newif\\ifCool\n\\ifCool Hit\\else Miss\\fi`;
     const parser = getParser(input);
     const text = runFilter(parser, ['Cool']);
-    expect(text).toBe('Hit');
+    expect(text).toBe(' Hit');
   });
 
   it('suppresses \\newif declarations even when ELSE branch kept', () => {
     const input = `\\newif\\ifCool\n\\ifCool Hit\\else Miss\\fi`;
     const parser = getParser(input);
     const text = runFilter(parser, ['Other']);
-    expect(text).toBe('Miss');
+    expect(text).toBe(' Miss');
   });
 
   it('removes toggle commands for declared conditions', () => {
@@ -73,6 +73,27 @@ describe('conditions transform', () => {
     const input = `Start \\ifA HasSpace\\fi End`;
     const parser = getParser(input);
     const text = runFilter(parser, ['A']);
-    expect(text).toBe('Start HasSpaceEnd');
+    expect(text).toBe('Start  HasSpace End');
+  });
+
+  it('removes condition-only lines after branch filtering', () => {
+    const input = '\\ifA\nKeep\n\\fi\nAfter';
+    const parser = getParser(input);
+    const text = runFilter(parser, ['A']);
+    expect(text).toBe('Keep\nAfter');
+  });
+
+  it('keeps lines that contain text before condition markers', () => {
+    const input = 'Start \\ifA\nKeep\n\\fi End';
+    const parser = getParser(input);
+    const text = runFilter(parser, ['A']);
+    expect(text).toBe('Start \nKeep\n End');
+  });
+
+  it('preserves originally blank whitespace-only lines', () => {
+    const input = 'Before\n  \n\\ifA\nKeep\n\\fi\nAfter';
+    const parser = getParser(input);
+    const text = runFilter(parser, ['A']);
+    expect(text).toBe('Before\n  \nKeep\nAfter');
   });
 });

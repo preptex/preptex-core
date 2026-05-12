@@ -1,4 +1,4 @@
-export const TEXT_END_CHARS = new Set(['%', '{', '}', '[', ']', '$']);
+export const TEXT_END_CHARS = new Set(['%', '{', '}', '[', ']', '$', '\r', '\n']);
 
 const MATH_CONTROL_CHARS = new Set(['[', ']', '(', ')']);
 
@@ -88,6 +88,11 @@ export function isCommentTokenAt(input: string, start: number): boolean {
     return envName.name === 'comment';
   }
   return false;
+}
+
+export function isNewLineTokenAt(input: string, start: number): boolean {
+  const ch = input[start];
+  return ch === '\n' || ch === '\r';
 }
 
 export function isControlSequenceTokenAt(input: string, start: number): boolean {
