@@ -20,17 +20,25 @@ describe('Parser sections', () => {
     expect(secA.name).toBe('A');
 
     const secAc = secA.children;
-    expect(secAc.length).toBe(2);
-    expect((secAc[0] as any).type).toBe('Text');
-    expect((secAc[0] as any).value).toBe('\nalpha\n');
+    expect(secAc.length).toBe(4);
+    expect((secAc[0] as any).type).toBe(NodeType.NewLine);
+    expect((secAc[0] as any).value).toBe('\n');
+    expect((secAc[1] as any).type).toBe('Text');
+    expect((secAc[1] as any).value).toBe('alpha');
+    expect((secAc[2] as any).type).toBe(NodeType.NewLine);
+    expect((secAc[2] as any).value).toBe('\n');
 
-    expect((secAc[1] as any).type).toBe('Section');
-    const secB = secAc[1] as SectionNode;
+    expect((secAc[3] as any).type).toBe('Section');
+    const secB = secAc[3] as SectionNode;
     expect(secB.name).toBe('B');
     expect(secB.level).toBe(2);
-    expect(secB.children.length).toBe(1);
-    expect((secB.children[0] as any).type).toBe('Text');
-    expect((secB.children[0] as any).value).toBe('\nbeta\n');
+    expect(secB.children.length).toBe(3);
+    expect((secB.children[0] as any).type).toBe(NodeType.NewLine);
+    expect((secB.children[0] as any).value).toBe('\n');
+    expect((secB.children[1] as any).type).toBe('Text');
+    expect((secB.children[1] as any).value).toBe('beta');
+    expect((secB.children[2] as any).type).toBe(NodeType.NewLine);
+    expect((secB.children[2] as any).value).toBe('\n');
 
     expect((ast.children[1] as any).type).toBe('Section');
     const secC = ast.children[1] as SectionNode;

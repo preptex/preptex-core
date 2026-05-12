@@ -73,16 +73,35 @@ describe('Parser', () => {
     const lines = nodes.map((n) => (n as AstNode).line);
     const childrenCount = nodes.map((n) => (n as any).children?.length);
     const values = nodes.map((n) => (n as any).value);
-    expect(nodes.length).toBe(4);
-    expect(types).toEqual([NodeType.Root, NodeType.Text, NodeType.Section, NodeType.Text]);
-    expect(ids).toEqual([0, 1, 2, 3]);
-    expect(childrenCount).toEqual([2, undefined, 1, undefined]);
-    expect(values).toEqual([undefined, 'first\n', undefined, '\nlast']);
-    expect(lines).toEqual([1, 1, 2, 2]);
+    expect(nodes.length).toBe(6);
+    expect(types).toEqual([
+      NodeType.Root,
+      NodeType.Text,
+      NodeType.NewLine,
+      NodeType.Section,
+      NodeType.NewLine,
+      NodeType.Text,
+    ]);
+    expect(ids).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(childrenCount).toEqual([3, undefined, undefined, 2, undefined, undefined]);
+    expect(values).toEqual([undefined, 'first', '\n', undefined, '\n', 'last']);
+    expect(lines).toEqual([1, 1, 1, 2, 2, 3]);
 
-    const sec: SectionNode = nodes[2] as SectionNode;
+    const sec: SectionNode = nodes[3] as SectionNode;
     expect(sec.level).toBe(SECTION_LEVELS.section);
     expect(sec.name).toBe('Mid');
     expect(sec.prefix).toBe('\\section  {Mid}');
+  });
+
+  it('marks whether each newline ended an originally whitespace-only line', () => {
+    const parser = getParser('  \n\\ifA\nText');
+    const root = parser.getRoot();
+    const newLines = collectNodesDFS(root).filter((n) => n.type === NodeType.NewLine) as any[];
+
+    expect(newLines).toHaveLength(2);
+    expect(newLines[0].line).toBe(1);
+    expect(newLines[0].originalLineIsWhitespaceOnly).toBe(true);
+    expect(newLines[1].line).toBe(2);
+    expect(newLines[1].originalLineIsWhitespaceOnly).toBe(false);
   });
 });

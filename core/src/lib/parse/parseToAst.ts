@@ -48,6 +48,7 @@ const HANDLERS: Map<TokenType, TokenHandler> = new Map([
   [TokenType.Brace, handleBrace],
   [TokenType.Bracket, handleBracket],
   [TokenType.Comment, handleComment],
+  [TokenType.NewLine, handleNewLine],
   [TokenType.MathDelim, handleMathDelim],
   [TokenType.Environment, handleEnvironment],
   [TokenType.Input, handleInput],
@@ -134,6 +135,33 @@ function handleText(runtime: ParseRuntime, token: Token) {
     line: token.line,
     value: sliceTokenValue(runtime.input, token.start, token.end),
   });
+}
+
+function handleNewLine(runtime: ParseRuntime, token: Token) {
+  const parent = getParentNode(runtime) as InnerNode;
+  parent.children.push({
+    type: NodeType.NewLine,
+    id: allocId(runtime),
+    start: token.start,
+    end: token.end,
+    line: token.line,
+    value: sliceTokenValue(runtime.input, token.start, token.end),
+    originalLineIsWhitespaceOnly: isOriginalLineWhitespaceOnly(runtime.input, token.start),
+  });
+}
+
+function isOriginalLineWhitespaceOnly(input: string, lineEnd: number): boolean {
+  let lineStart = lineEnd;
+  while (lineStart > 0) {
+    const prev = input[lineStart - 1];
+    if (prev === '\n' || prev === '\r') break;
+    lineStart--;
+  }
+
+  for (let i = lineStart; i < lineEnd; i++) {
+    if (!/[\s]/.test(input[i])) return false;
+  }
+  return true;
 }
 
 function handleSection(runtime: ParseRuntime, token: Token) {

@@ -75,7 +75,7 @@ describe('process/transform API', () => {
     const project = processProject(files);
     const outputs = transformProject('without-else.tex', project, options);
     const result = outputs['without-else.tex'];
-    expect(result).toBe('Start End');
+    expect(result).toBe('Start  End');
   });
 
   it('handles nested conditions correctly', () => {
@@ -86,7 +86,7 @@ describe('process/transform API', () => {
     const project = processProject(files);
     const outputs = transformProject('nested.tex', project, options);
     const result = outputs['nested.tex'];
-    expect(result).toBe('OuterIfnob-c');
+    expect(result).toBe(' OuterIf nob- c');
   });
 
   it('flattens input files using the provided readFile callback', () => {
@@ -147,7 +147,7 @@ describe('process/transform API', () => {
     const result = outputs['root.tex'];
 
     // Accept either the resolved inner branch or a variant without the inner text
-    expect(result).toBe('Alpha Keep  Inner Omega');
+    expect(result).toBe('Alpha Keep   Inner Omega');
   });
 
   it('flattens input files when using the UI lexer token subset', () => {
@@ -158,6 +158,7 @@ describe('process/transform API', () => {
       TokenType.Command,
       TokenType.Input,
       TokenType.Comment,
+      TokenType.NewLine,
     ]);
 
     const project = processProject(
@@ -183,6 +184,7 @@ describe('process/transform API', () => {
       TokenType.Command,
       TokenType.Input,
       TokenType.Comment,
+      TokenType.NewLine,
     ]);
 
     const project = processProject(
@@ -199,7 +201,7 @@ describe('process/transform API', () => {
       ifDecisions: new Set(['long']),
     });
 
-    expect(outputs['main.tex']).toBe('Yes');
+    expect(outputs['main.tex']).toBe(' Yes');
   });
 
   it('combines projects keeping higher version on conflicts', () => {

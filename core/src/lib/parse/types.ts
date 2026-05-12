@@ -1,6 +1,7 @@
 export enum NodeType {
   Root = 'Root',
   Text = 'Text',
+  NewLine = 'NewLine',
   Comment = 'Comment',
   Command = 'Command',
   Environment = 'Environment',
@@ -55,6 +56,12 @@ export interface AstRoot extends InnerNode {
 export interface TextNode extends NodeBase {
   type: NodeType.Text;
   value: string;
+}
+
+export interface NewLineNode extends NodeBase {
+  type: NodeType.NewLine;
+  value: string;
+  originalLineIsWhitespaceOnly: boolean;
 }
 
 export interface CommentNode extends NodeBase {
@@ -128,6 +135,7 @@ export interface InputNode extends NodeBase {
 // Discriminated union for all AST nodes
 export type AstNode =
   | TextNode
+  | NewLineNode
   | CommentNode
   | CommandNode
   | ConditionDeclarationNode
@@ -145,6 +153,9 @@ export const isEnvironment = (n: NodeBase): n is EnvironmentNode =>
   (n as EnvironmentNode).type === NodeType.Environment;
 
 export const isText = (n: NodeBase): n is TextNode => (n as TextNode).type === NodeType.Text;
+
+export const isNewLine = (n: NodeBase): n is NewLineNode =>
+  (n as NewLineNode).type === NodeType.NewLine;
 
 export const isSection = (n: NodeBase): n is SectionNode =>
   (n as SectionNode).type === NodeType.Section;

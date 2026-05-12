@@ -5,6 +5,7 @@ import {
   type AstNode,
   type AstRoot,
   type InputNode,
+  type NewLineNode,
 } from '../parse/types.js';
 
 export interface TransformOptions {
@@ -58,6 +59,40 @@ export function transform(
   type Frame = { node: AstNode; stage: 'enter' | 'exit'; ctx?: TransformContext };
   const stack: Frame[] = [{ node, stage: 'enter' }];
   let output = '';
+  let currentLine = '';
+
+  const appendText = (text: string): void => {
+    let start = 0;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (ch !== '\n' && ch !== '\r') continue;
+
+      currentLine += text.slice(start, i);
+      let newline = ch;
+      if (ch === '\r' && i + 1 < text.length && text[i + 1] === '\n') {
+        newline = '\r\n';
+        i++;
+      }
+      output += currentLine + newline;
+      currentLine = '';
+      start = i + 1;
+    }
+    currentLine += text.slice(start);
+  };
+
+  const appendNewLineNode = (newLine: NewLineNode, value: string): void => {
+    if (value !== '\n' && value !== '\r' && value !== '\r\n') {
+      appendText(value);
+      return;
+    }
+
+    const lineBecameEmpty =
+      !newLine.originalLineIsWhitespaceOnly && currentLine.trim().length === 0;
+    if (!lineBecameEmpty) {
+      output += currentLine + value;
+    }
+    currentLine = '';
+  };
 
   while (stack.length > 0) {
     const frame = stack.pop()!;
@@ -87,7 +122,11 @@ export function transform(
         }
       }
 
-      output += ctx.current_value!;
+      if (cur.type === NodeType.NewLine) {
+        appendNewLineNode(cur as NewLineNode, ctx.current_value!);
+      } else {
+        appendText(ctx.current_value!);
+      }
       continue;
     }
 
@@ -102,7 +141,7 @@ export function transform(
       if (ctx.skip_node) continue;
 
       const prefix = ctx.current_prefix!;
-      if (prefix) output += prefix;
+      if (prefix) appendText(prefix);
       // Schedule suffix after children, carrying ctx forward
       stack.push({ node: cur, stage: 'exit', ctx });
       const children = (cur as InnerNode).children;
@@ -118,10 +157,10 @@ export function transform(
       };
       if (!ctx.skip_node) {
         const suffix = ctx.current_suffix!;
-        if (suffix) output += suffix;
+        if (suffix) appendText(suffix);
       }
     }
   }
 
-  return output;
+  return output + currentLine;
 }
