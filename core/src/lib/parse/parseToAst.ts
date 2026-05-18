@@ -186,6 +186,7 @@ function handleSection(runtime: ParseRuntime, token: Token) {
       end: token.end,
       line: token.line,
       name: cmdName,
+      is_starred: token.is_starred,
       value: runtime.input.slice(token.start, token.end + 1),
     } as CommandNode;
     (parent as InnerNode).children.push(cmdNode);
@@ -213,6 +214,8 @@ function handleSection(runtime: ParseRuntime, token: Token) {
     children: [],
     prefix: runtime.input.slice(token.start, token.end + 1),
     suffix: '',
+    is_starred: token.is_starred,
+    starred: token.is_starred,
   };
 
   (parent as InnerNode).children.push(sectionNode);
@@ -227,6 +230,7 @@ function handleCommand(runtime: ParseRuntime, token: Token) {
     end: token.end,
     line: token.line,
     name: token.name ?? '',
+    is_starred: token.is_starred,
     value: runtime.input.slice(token.start, token.end + 1),
   } as CommandNode;
 

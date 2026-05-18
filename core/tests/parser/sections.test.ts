@@ -134,4 +134,19 @@ describe('Parser sections', () => {
     expect(s1.prefix).toBe('\\section{A}');
     expect(s1.suffix).toBe('');
   });
+
+  it('tests section inside block', () => {
+    const input = '\\newcommand{\\cmd}{\\subparagraph{Inner}}\\n\\subparagraph{Outer}';
+    const ast = parse(input);
+    // Inner subparagraph - as command
+    const grp = ast.children[2] as any;
+    const cmd = grp.children[0] as any;
+    expect(cmd.type).toBe('Command');
+    expect(cmd.name).toBe('subparagraph');
+    // Outer subparagraph - as section
+    const sec = ast.children[4] as any;
+    expect(sec.type).toBe('Section');
+    expect(sec.level).toBe(5);
+    expect(sec.name).toBe('Outer');
+  });
 });

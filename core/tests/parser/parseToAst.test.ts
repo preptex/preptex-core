@@ -76,6 +76,22 @@ describe('parseToAst', () => {
     expect((env as any).children[0].type).toBe(NodeType.Text);
   });
 
+  it('preserves starred command metadata on AST nodes', () => {
+    const ast = parse('\\section*{Title}\\cmd*[opt]{arg}');
+    const section = ast.children[0] as any;
+    expect(section.type).toBe(NodeType.Section);
+    expect(section.name).toBe('Title');
+    expect(section.is_starred).toBe(true);
+    expect(section.starred).toBe(true);
+    expect(section.prefix).toBe('\\section*{Title}');
+
+    const cmd = section.children[0] as any;
+    expect(cmd.type).toBe(NodeType.Command);
+    expect(cmd.name).toBe('cmd');
+    expect(cmd.is_starred).toBe(true);
+    expect(cmd.value).toBe('\\cmd*');
+  });
+
   it('treats section inside environment as a Command node', () => {
     const notes: string[] = [];
     const ast = parse('\\begin{doc}\\section{A}Text\\end{doc}', notes);
