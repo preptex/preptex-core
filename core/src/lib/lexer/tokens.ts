@@ -29,6 +29,8 @@ export interface Token {
   end: number;
   line: number;
   name?: string;
+  // Commands only: true when a star immediately follows the control sequence name.
+  is_starred?: boolean;
   // Section only
   level?: number;
   // Environment only: indicates begin token; false implies end
@@ -147,6 +149,12 @@ export class Lexer {
     const { name, end } = readControlSequenceName(this.input, this.pos);
     this.pos = end + 1;
     return name;
+  }
+
+  private parseCommandStar(): boolean {
+    if (this.input[this.pos] !== '*') return false;
+    this.pos++;
+    return true;
   }
 
   next(): Token | null {
@@ -271,8 +279,16 @@ export class Lexer {
     const start = this.pos;
     const line = this.getLineForIndex(start);
     const name = this.parseControlSequenceName();
+    const is_starred = this.parseCommandStar();
     const commandEndExclusive = this.pos;
-    let token = { type: TokenType.Command, name, start, end: commandEndExclusive - 1, line };
+    const token: Token = {
+      type: TokenType.Command,
+      name,
+      is_starred,
+      start,
+      end: commandEndExclusive - 1,
+      line,
+    };
 
     const c = this.input[this.pos - 1];
     if (!MATH_DELIM_COMMANDS.has(name) && c !== '}') this.suppressSingleTrailingWhitespace();
@@ -284,6 +300,7 @@ export class Lexer {
   private readSection(): Token {
     const start = this.pos;
     const name = this.parseControlSequenceName();
+    const is_starred = this.parseCommandStar();
     const line = this.getLineForIndex(start);
     if (!SECTION_COMMANDS.has(name)) {
       throw new Error(`Expected section command at position ${start}`);
@@ -298,6 +315,7 @@ export class Lexer {
       type: TokenType.Section,
       level,
       name: envName,
+      is_starred,
       start,
       end,
       line,

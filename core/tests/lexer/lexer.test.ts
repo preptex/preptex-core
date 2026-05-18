@@ -122,6 +122,32 @@ describe('Lexer', () => {
     expect(names).toEqual(['\n', ' \t', 'text', '{', 'abc', '}', '\\%abc']);
   });
 
+  it('marks starred commands before their first option', () => {
+    const input = '\\cmd*[opt]{arg}\\plain{arg}';
+    const lex = new Lexer(input);
+    const tokens = collectTokens(lex);
+    const commands = tokens.filter((t) => t.type === TokenType.Command);
+
+    expect(commands[0]).toEqual(expect.objectContaining({ name: 'cmd', is_starred: true }));
+    expect(sliceToken(input, commands[0].start, commands[0].end)).toBe('\\cmd*');
+    expect(commands[1]).toEqual(expect.objectContaining({ name: 'plain', is_starred: false }));
+    expect(sliceToken(input, commands[1].start, commands[1].end)).toBe('\\plain');
+  });
+
+  it('marks starred sections and keeps the title as the section name', () => {
+    const input = '\\section*{Intro}\\section{Body}';
+    const lex = new Lexer(input);
+    const sections = collectTokens(lex).filter((t) => t.type === TokenType.Section);
+
+    expect(sections[0]).toEqual(
+      expect.objectContaining({ name: 'Intro', level: 1, is_starred: true })
+    );
+    expect(sliceToken(input, sections[0].start, sections[0].end)).toBe('\\section*{Intro}');
+    expect(sections[1]).toEqual(
+      expect.objectContaining({ name: 'Body', level: 1, is_starred: false })
+    );
+  });
+
   it('captures exact inline comment name and text', () => {
     const input = '% inline comment here\nNext';
     const lex = new Lexer(input);
@@ -254,4 +280,18 @@ describe('Lexer line numbers', () => {
     expect(textToken.line).toBe(3);
     expect((textToken as any).text).toBeUndefined();
   });
+
+
+  it('tests section inside block', () => {
+  const input = '\\newcommand{\\cmd}{\\subparagraph{Inner}}';
+  const lex = new Lexer(input);
+  const tokens = collectTokens(lex);
+  const section = tokens.find((t) => t.type === TokenType.Section);
+  expect(section).toBeTruthy();
+  expect(section!.name).toBe('Inner');
+  expect(section!.level).toBe(5); // subparagraph is level 5
+  });
+
 });
+
+
