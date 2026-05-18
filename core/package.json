@@ -1,6 +1,6 @@
 {
   "name": "@preptex/core",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Core library for processing LaTeX projects: parse with call-stack, transform text, and export artifacts with configurable options.",
   "license": "MIT",
   "repository": {
