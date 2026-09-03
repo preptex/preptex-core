@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { Parser } from '../../src/lib/parse/parser';
-import { NodeType, AstRoot, ConditionBranchType } from '../../src/lib/parse/types';
-import { InnerNode } from '../../dist';
+import {
+  ConditionBranchKind,
+  NodeType,
+  type AstRoot,
+  type InnerNode,
+} from '../../src/lib/parse/types';
 import { getParser } from '../util';
 
 function findFirstCondition(root: AstRoot) {
@@ -22,8 +25,8 @@ describe('conditions parsing', () => {
 
     // Branch children now are explicit ConditionBranch nodes
     const branches = (cond.children as any[]).filter((n) => n.type === NodeType.ConditionBranch);
-    const ifBranch = branches.find((b) => (b as any).branch === ConditionBranchType.If);
-    const elseBranch = branches.find((b) => (b as any).branch === ConditionBranchType.Else);
+    const ifBranch = branches.find((b) => (b as any).branch === ConditionBranchKind.If);
+    const elseBranch = branches.find((b) => (b as any).branch === ConditionBranchKind.Else);
     expect(ifBranch).toBeTruthy();
     expect(elseBranch).toBeTruthy();
     expect((ifBranch as any).prefix).toBe('\\ifX');
@@ -48,8 +51,8 @@ describe('conditions parsing', () => {
     expect(cond.suffix).toBe('\\fi');
 
     const branches = (cond.children as any[]).filter((n) => n.type === NodeType.ConditionBranch);
-    const ifBranch = branches.find((b) => (b as any).branch === ConditionBranchType.If);
-    const elseBranch = branches.find((b) => (b as any).branch === ConditionBranchType.Else);
+    const ifBranch = branches.find((b) => (b as any).branch === ConditionBranchKind.If);
+    const elseBranch = branches.find((b) => (b as any).branch === ConditionBranchKind.Else);
     expect(ifBranch).toBeTruthy();
     expect((ifBranch as any).prefix).toBe('\\ifY');
     expect((ifBranch as any).suffix).toBe('');

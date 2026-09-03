@@ -3,7 +3,7 @@ import { parseToAst } from '../../src/lib/parse/parseToAst';
 import { NodeType } from '../../src/lib/parse/types';
 import type { ParseOptions } from '../../src/lib/options';
 import { Lexer } from '../../src/lib/lexer/tokens';
-import { process as processProject } from '../../src/lib/core';
+import { DiagnosticCode, parseProject } from '../../src/index';
 
 const parse = (input: string, notes?: string[]) => {
   const l: Lexer = new Lexer(input, {});
@@ -81,14 +81,13 @@ describe('parseToAst', () => {
     const section = ast.children[0] as any;
     expect(section.type).toBe(NodeType.Section);
     expect(section.name).toBe('Title');
-    expect(section.is_starred).toBe(true);
     expect(section.starred).toBe(true);
     expect(section.prefix).toBe('\\section*{Title}');
 
     const cmd = section.children[0] as any;
     expect(cmd.type).toBe(NodeType.Command);
     expect(cmd.name).toBe('cmd');
-    expect(cmd.is_starred).toBe(true);
+    expect(cmd.starred).toBe(true);
     expect(cmd.value).toBe('\\cmd*');
   });
 
@@ -110,12 +109,19 @@ describe('parseToAst', () => {
   });
 
   it('aggregates parser fallback notes on project files', () => {
-    const project = processProject({
-      'main.tex': { text: '\\begin{doc}\n\\section{A}\n\\end{doc}', version: 1 },
-    });
-    const file = project.getFiles()['main.tex'] as { notes: ReadonlyArray<string> };
-    expect(file.notes).toEqual([
-      expect.stringContaining('Section command parsed as command inside Environment Line: 2'),
+    const project = parseProject([
+      {
+        path: 'main.tex',
+        source: '\\begin{doc}\n\\section{A}\n\\end{doc}',
+        version: 1,
+      },
+    ]);
+    expect(project.files[0].diagnostics).toEqual([
+      expect.objectContaining({
+        code: DiagnosticCode.SectionReclassified,
+        message: expect.stringContaining('Section command parsed as command inside Environment'),
+        range: expect.objectContaining({ line: 2 }),
+      }),
     ]);
   });
 
@@ -136,7 +142,7 @@ describe('parseToAst', () => {
     expect(ast.children.length).toBe(3);
     const m1 = ast.children[1] as any;
     expect(m1.type).toBe(NodeType.Math);
-    expect(m1.delim).toBe('\\(');
+    expect(m1.delimiter).toBe('\\(');
     expect(m1.prefix).toBe('\\(');
     expect(m1.suffix).toBe('\\)');
     expect(m1.children.length).toBe(1);
@@ -145,7 +151,7 @@ describe('parseToAst', () => {
 
     const m2 = ast.children[2] as any;
     expect(m2.type).toBe(NodeType.Math);
-    expect(m2.delim).toBe('\\[');
+    expect(m2.delimiter).toBe('\\[');
     expect(m2.prefix).toBe('\\[');
     expect(m2.suffix).toBe('\\]');
     expect(m2.children.length).toBe(1);
@@ -158,7 +164,7 @@ describe('parseToAst', () => {
     expect(ast.children.length).toBe(3);
     const m1 = ast.children[0] as any;
     expect(m1.type).toBe(NodeType.Math);
-    expect(m1.delim).toBe('$');
+    expect(m1.delimiter).toBe('$');
     expect(m1.prefix).toBe('$');
     expect(m1.suffix).toBe('$');
     expect(m1.children.length).toBe(1);
@@ -167,7 +173,7 @@ describe('parseToAst', () => {
 
     const m2 = ast.children[2] as any;
     expect(m2.type).toBe(NodeType.Math);
-    expect(m2.delim).toBe('$$');
+    expect(m2.delimiter).toBe('$$');
     expect(m2.prefix).toBe('$$');
     expect(m2.suffix).toBe('$$');
     expect(m2.children.length).toBe(1);
@@ -194,7 +200,7 @@ describe('parseToAst', () => {
 
     const math = env.children[0] as any;
     expect(math.type).toBe(NodeType.Math);
-    expect(math.delim).toBe('\\[');
+    expect(math.delimiter).toBe('\\[');
     expect(math.children.length).toBe(6);
     const mc = math.children;
     expect(mc[0].type).toBe(NodeType.Command);
@@ -211,7 +217,7 @@ describe('parseToAst', () => {
     expect(txtGrp.children[0].type).toBe(NodeType.Text);
     expect(txtGrp.children[1].type).toBe(NodeType.Math);
     const innerMath = txtGrp.children[1] as any;
-    expect(innerMath.delim).toBe('$');
+    expect(innerMath.delimiter).toBe('$');
     expect(innerMath.prefix).toBe('$');
     expect(innerMath.suffix).toBe('$');
     expect(innerMath.children.length).toBe(1);
@@ -248,7 +254,7 @@ describe('parseToAst', () => {
     expect(env.children.length).toBe(2);
     const ec = env.children;
     expect(ec[0].type).toBe(NodeType.Math);
-    expect((ec[0] as any).delim).toBe('\\(');
+    expect((ec[0] as any).delimiter).toBe('\\(');
     expect(ec[0].children.length).toBe(1);
     expect((ec[0].children[0] as any).type).toBe(NodeType.Text);
     expect((ec[0].children[0] as any).value).toBe('a+b');
@@ -266,7 +272,7 @@ describe('parseToAst', () => {
 
     const mathBlock = sub.children[0] as any;
     expect(mathBlock.type).toBe(NodeType.Math);
-    expect(mathBlock.delim).toBe('\\[');
+    expect(mathBlock.delimiter).toBe('\\[');
     expect(mathBlock.prefix).toBe('\\[');
     expect(mathBlock.suffix).toBe('\\]');
     expect(mathBlock.children.length).toBe(3);
@@ -288,7 +294,7 @@ describe('parseToAst', () => {
 
     const innerMath = textGroup.children[1] as any;
     expect(innerMath.type).toBe(NodeType.Math);
-    expect(innerMath.delim).toBe('$');
+    expect(innerMath.delimiter).toBe('$');
     expect(innerMath.prefix).toBe('$');
     expect(innerMath.suffix).toBe('$');
     expect(innerMath.children.length).toBe(2);

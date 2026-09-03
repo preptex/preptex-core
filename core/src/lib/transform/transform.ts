@@ -1,15 +1,17 @@
 import {
-  INNER_NODE_TYPES,
-  InnerNode,
   NodeType,
+  isContainerNode,
   type AstNode,
   type AstRoot,
-  type InputNode,
   type NewLineNode,
-} from '../parse/types.js';
+  type ProjectFilePath,
+} from '../../api-types.js';
+import { PrepTexError, PrepTexErrorCode } from '../../errors.js';
+import { normalizeVirtualPath, virtualDirname, withTexExtension } from '../virtual-path.js';
 
-export interface TransformOptions {
-  flatten?: boolean;
+interface RenderOptions {
+  readonly flatten?: boolean;
+  readonly sourcePath?: ProjectFilePath;
 }
 
 export interface TransformContext {
@@ -18,46 +20,99 @@ export interface TransformContext {
   current_value?: string;
   skip_node: boolean;
 }
-export type Transformer = (
-  node: Readonly<AstNode>,
-  context: Readonly<TransformContext>
-) => TransformContext;
+
+export type Transformer = (node: AstNode, context: Readonly<TransformContext>) => TransformContext;
+
+interface ResolvedInput {
+  readonly path: ProjectFilePath;
+  readonly root: AstRoot;
+}
+
+function createInputResolver(
+  files: Readonly<Record<ProjectFilePath, AstRoot>>
+): (requested: string, includingPath: string) => ResolvedInput | undefined {
+  const entries = Object.entries(files);
+
+  const findUnique = (candidate: string, ignoreCase: boolean): ResolvedInput | undefined => {
+    const normalizedCandidate = normalizeVirtualPath(candidate);
+    const matches = entries.filter(([path]) => {
+      const normalizedPath = normalizeVirtualPath(path);
+      return ignoreCase
+        ? normalizedPath.toLowerCase() === normalizedCandidate.toLowerCase()
+        : normalizedPath === normalizedCandidate;
+    });
+    if (matches.length !== 1) return undefined;
+    const [path, root] = matches[0]!;
+    return { path, root };
+  };
+
+  return (requested, includingPath) => {
+    if (/^(?:[a-zA-Z]:[\\/]|[\\/])/.test(requested) || requested.includes('\0')) {
+      return undefined;
+    }
+    const portableRequest = requested.replace(/\\/g, '/');
+    const hasParentTraversal = portableRequest.split('/').includes('..');
+    const requestedPath = hasParentTraversal ? '' : normalizeVirtualPath(portableRequest);
+    const parent = virtualDirname(includingPath);
+    const relativePath = normalizeVirtualPath(
+      parent.length > 0 ? `${parent}/${portableRequest}` : portableRequest
+    );
+    const candidates = Array.from(
+      new Set(
+        [
+          relativePath,
+          relativePath.length > 0 ? withTexExtension(relativePath) : '',
+          requestedPath,
+          requestedPath.length > 0 ? withTexExtension(requestedPath) : '',
+        ].filter((candidate) => candidate.length > 0)
+      )
+    );
+
+    for (const candidate of candidates) {
+      const exact = findUnique(candidate, false);
+      if (exact) return exact;
+    }
+    for (const candidate of candidates) {
+      const caseInsensitive = findUnique(candidate, true);
+      if (caseInsensitive) return caseInsensitive;
+    }
+
+    if (hasParentTraversal) return undefined;
+    const requestedBase = requestedPath.split('/').pop();
+    if (!requestedBase) return undefined;
+    const baseCandidates = new Set([requestedBase, withTexExtension(requestedBase)]);
+    const basenameMatches = entries.filter(([path]) => {
+      const base = normalizeVirtualPath(path).split('/').pop();
+      return base !== undefined && baseCandidates.has(base);
+    });
+    if (basenameMatches.length !== 1) return undefined;
+    const [path, root] = basenameMatches[0]!;
+    return { path, root };
+  };
+}
+
+function leafValue(node: AstNode): string {
+  if (isContainerNode(node)) return '';
+  return node.value;
+}
 
 export function transform(
   node: AstNode,
-  transformers: Transformer[],
-  files: Record<string, AstRoot> = {},
-  options: TransformOptions = {}
+  transformers: readonly Transformer[],
+  files: Readonly<Record<ProjectFilePath, AstRoot>> = {},
+  options: RenderOptions = {}
 ): string {
-  const resolveInputRoot = (requested: string): AstRoot | undefined => {
-    const table = files ?? {};
-    const normalize = (p: string) => p.replace(/\\/g, '/').replace(/^\.\//, '');
-
-    const raw = requested;
-    const req = normalize(raw);
-
-    const direct = table[raw] ?? table[req];
-    if (direct) return direct;
-
-    const withTex = req.toLowerCase().endsWith('.tex') ? undefined : `${req}.tex`;
-    if (withTex && table[withTex]) return table[withTex];
-
-    const lastSeg = req.includes('/') ? (req.split('/').pop() ?? req) : req;
-    if (lastSeg && table[lastSeg]) return table[lastSeg];
-    if (lastSeg && !lastSeg.toLowerCase().endsWith('.tex')) {
-      const lastWithTex = `${lastSeg}.tex`;
-      if (table[lastWithTex]) return table[lastWithTex];
-    }
-
-    const reqLower = req.toLowerCase();
-    for (const key of Object.keys(table)) {
-      if (normalize(key).toLowerCase() === reqLower) return table[key];
-    }
-    return undefined;
+  const resolveInput = createInputResolver(files);
+  type Frame = {
+    readonly node: AstNode;
+    readonly stage: 'enter' | 'exit';
+    readonly sourcePath: ProjectFilePath;
+    readonly context?: TransformContext;
   };
 
-  type Frame = { node: AstNode; stage: 'enter' | 'exit'; ctx?: TransformContext };
-  const stack: Frame[] = [{ node, stage: 'enter' }];
+  const initialPath = options.sourcePath ?? '<input>';
+  const stack: Frame[] = [{ node, stage: 'enter', sourcePath: initialPath }];
+  const activeRoots = new Map<AstRoot, ProjectFilePath>();
   let output = '';
   let currentLine = '';
 
@@ -88,78 +143,81 @@ export function transform(
 
     const lineBecameEmpty =
       !newLine.originalLineIsWhitespaceOnly && currentLine.trim().length === 0;
-    if (!lineBecameEmpty) {
-      output += currentLine + value;
-    }
+    if (!lineBecameEmpty) output += currentLine + value;
     currentLine = '';
   };
 
   while (stack.length > 0) {
-    const frame = stack.pop()!;
-    const { node: cur, stage } = frame;
+    const frame = stack.pop();
+    if (!frame) break;
+    const { node: current, stage, sourcePath } = frame;
 
-    if (!INNER_NODE_TYPES.has(cur.type)) {
-      // Leaf node
-      let ctx: TransformContext = {
-        current_value: ((cur as any).value as string) ?? '',
+    if (!isContainerNode(current)) {
+      let context: TransformContext = {
+        current_value: leafValue(current),
         skip_node: false,
       };
-      for (const t of transformers) ctx = t(cur, ctx);
-      if (ctx.skip_node) continue;
-      if (options.flatten && cur.type === NodeType.Input) {
-        const inputNode = cur as InputNode;
-        const file = inputNode.path;
-        const target = file ? resolveInputRoot(file) : undefined;
-        if (file) {
-          if (!target) {
-            // When flattening is requested and the referenced file is missing,
-            // fail fast so callers can catch configuration/IO issues.
-            throw new Error(`Missing input file: ${file}`);
-          }
-          // Push target root to process its content inline
-          stack.push({ node: target, stage: 'enter' });
-          continue;
+      for (const transformer of transformers) context = transformer(current, context);
+      if (context.skip_node) continue;
+
+      if (options.flatten && current.type === NodeType.Input) {
+        const target = resolveInput(current.path, sourcePath);
+        if (!target) {
+          throw new PrepTexError(
+            `Cannot resolve input "${current.path}" from "${sourcePath}".`,
+            PrepTexErrorCode.MissingInput
+          );
         }
+        if (activeRoots.has(target.root)) {
+          const firstPath = activeRoots.get(target.root) ?? target.path;
+          throw new PrepTexError(
+            `Circular input detected: "${firstPath}" is already active when included from "${sourcePath}".`,
+            PrepTexErrorCode.CircularInput
+          );
+        }
+        stack.push({ node: target.root, stage: 'enter', sourcePath: target.path });
+        continue;
       }
 
-      if (cur.type === NodeType.NewLine) {
-        appendNewLineNode(cur as NewLineNode, ctx.current_value!);
-      } else {
-        appendText(ctx.current_value!);
+      const value = context.current_value ?? '';
+      if (current.type === NodeType.NewLine) appendNewLineNode(current, value);
+      else appendText(value);
+      continue;
+    }
+
+    if (stage === 'enter') {
+      let context: TransformContext = frame.context ?? {
+        current_prefix: current.prefix,
+        current_suffix: current.suffix,
+        skip_node: false,
+      };
+      for (const transformer of transformers) context = transformer(current, context);
+      if (context.skip_node) continue;
+
+      if (current.type === NodeType.Root) {
+        const firstPath = activeRoots.get(current);
+        if (firstPath) {
+          throw new PrepTexError(
+            `Circular input detected: "${firstPath}" is already active when included from "${sourcePath}".`,
+            PrepTexErrorCode.CircularInput
+          );
+        }
+        activeRoots.set(current, sourcePath);
+      }
+
+      const prefix = context.current_prefix ?? '';
+      if (prefix) appendText(prefix);
+      stack.push({ node: current, stage: 'exit', sourcePath, context });
+      for (let index = current.children.length - 1; index >= 0; index--) {
+        const child = current.children[index];
+        if (child) stack.push({ node: child, stage: 'enter', sourcePath });
       }
       continue;
     }
 
-    // Inner node: manage prefix/children/suffix order via enter/exit stages
-    if (stage === 'enter') {
-      let ctx: TransformContext = frame.ctx ?? {
-        current_prefix: (cur as InnerNode).prefix,
-        current_suffix: (cur as InnerNode).suffix,
-        skip_node: false,
-      };
-      for (const t of transformers) ctx = t(cur, ctx);
-      if (ctx.skip_node) continue;
-
-      const prefix = ctx.current_prefix!;
-      if (prefix) appendText(prefix);
-      // Schedule suffix after children, carrying ctx forward
-      stack.push({ node: cur, stage: 'exit', ctx });
-      const children = (cur as InnerNode).children;
-      // Push children in reverse so they are processed left-to-right
-      for (let i = children.length - 1; i >= 0; i--) {
-        stack.push({ node: children[i], stage: 'enter' });
-      }
-    } else {
-      const ctx = frame.ctx ?? {
-        current_prefix: (cur as InnerNode).prefix,
-        current_suffix: (cur as InnerNode).suffix,
-        skip_node: false,
-      };
-      if (!ctx.skip_node) {
-        const suffix = ctx.current_suffix!;
-        if (suffix) appendText(suffix);
-      }
-    }
+    const suffix = frame.context?.current_suffix ?? current.suffix;
+    if (!frame.context?.skip_node && suffix) appendText(suffix);
+    if (current.type === NodeType.Root) activeRoots.delete(current);
   }
 
   return output + currentLine;

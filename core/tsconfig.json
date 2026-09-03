@@ -4,6 +4,8 @@
     "rootDir": "src",
     "outDir": "dist",
     "declaration": true,
+    "lib": ["ES2020"],
+    "types": []
   },
   "include": ["src"],
   "exclude": ["dist"]

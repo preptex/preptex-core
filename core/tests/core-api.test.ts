@@ -1,157 +1,141 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  process as processProject,
-  transform as transformProject,
-  combine_project,
-} from '../src/lib/core';
-import { InputCmdHandling } from '../src/lib/options';
-import { TokenType } from '../src/lib/lexer/tokens';
+  InputHandlingMode,
+  TokenType,
+  mergeProjects,
+  parseProject,
+  transformProject,
+  type SourceFile,
+  type TransformResult,
+} from '../src/index';
 
 const SAMPLE = ['Hello % comment', 'World'].join('\n');
 const CONDITIONAL_SAMPLE = 'Start \\ifX Keep\\else Drop\\fi End';
 
-describe('process/transform API', () => {
-  it('flattens input files with a 4-file tree (A inputs B and C, B inputs D)', () => {
-    // File structure:
-    // A: "Start \input{B.tex} Middle \input{C.tex} End"
-    // B: "B1 \input{D.tex} B2"
-    // C: "C1"
-    // D: "D1"
-    const files = {
-      'A.tex': { text: 'Start \\input{B.tex} Middle \\input{C.tex} End', version: 1 },
-      'B.tex': { text: 'B1 \\input{D.tex} B2', version: 1 },
-      'C.tex': { text: 'C1', version: 1 },
-      'D.tex': { text: 'D1', version: 1 },
-    };
+function projectFile(path: string, source: string, version = 1): SourceFile {
+  return { path, source, version };
+}
 
-    const options = { handleInputCmd: InputCmdHandling.FLATTEN } as const;
-    const project = processProject(files);
-    const outputs = transformProject('A.tex', project, options);
-    // Expected: Start B1 D1 B2 Middle C1 End
-    expect(outputs['A.tex']).toBe('Start B1 D1 B2 Middle C1 End');
+function outputSource(result: TransformResult, path: string): string {
+  const output = result.files.find((file) => file.path === path);
+  expect(output, `Expected transformed file ${path}`).toBeDefined();
+  return output!.source;
+}
+
+describe('public project API', () => {
+  it('flattens a nested four-file input tree', () => {
+    const project = parseProject([
+      projectFile('A.tex', 'Start \\input{B.tex} Middle \\input{C.tex} End'),
+      projectFile('B.tex', 'B1 \\input{D.tex} B2'),
+      projectFile('C.tex', 'C1'),
+      projectFile('D.tex', 'D1'),
+    ]);
+
+    const result = transformProject('A.tex', project, {
+      inputHandling: InputHandlingMode.Flatten,
+    });
+
+    expect(result.files).toHaveLength(1);
+    expect(outputSource(result, 'A.tex')).toBe('Start B1 D1 B2 Middle C1 End');
   });
 
-  it('returns aggregated text when no options provided', () => {
-    const files = { 'sample.tex': { text: SAMPLE, version: 1 } };
-    const project = processProject(files);
-    const outputs = transformProject('sample.tex', project);
-    const result = outputs['sample.tex'];
-    expect(result).toBe('Hello % comment\nWorld');
+  it('preserves comments and input commands by default', () => {
+    const project = parseProject([
+      projectFile('sample.tex', `${SAMPLE}\n\\input{chapter.tex}`),
+      projectFile('chapter.tex', 'Chapter'),
+    ]);
+
+    const result = transformProject('sample.tex', project);
+
+    expect(outputSource(result, 'sample.tex')).toBe(`${SAMPLE}\n\\input{chapter.tex}`);
   });
 
   it('suppresses comments when requested', () => {
-    const options = { suppressComments: true };
-    const files = { 'sample.tex': { text: SAMPLE, version: 1 } };
-    const project = processProject(files);
-    const outputs = transformProject('sample.tex', project, options);
-    const result = outputs['sample.tex'];
-    expect(result).toBe('Hello  World');
+    const project = parseProject([projectFile('sample.tex', SAMPLE)]);
+
+    const result = transformProject('sample.tex', project, { suppressComments: true });
+
+    expect(outputSource(result, 'sample.tex')).toBe('Hello  World');
   });
 
-  it('applies conditional branch decisions (keep IF)', () => {
-    const options = { ifDecisions: new Set(['X']) };
-    const files = { 'conditional.tex': { text: CONDITIONAL_SAMPLE, version: 1 } };
-    const project = processProject(files);
-    const outputs = transformProject('conditional.tex', project, options);
-    const result = outputs['conditional.tex'];
-    expect(result).toContain('Keep');
-    expect(result).not.toContain('Drop');
+  it('keeps the selected conditional branch', () => {
+    const project = parseProject([projectFile('conditional.tex', CONDITIONAL_SAMPLE)]);
+
+    const result = transformProject('conditional.tex', project, {
+      enabledConditions: ['X'],
+    });
+
+    expect(outputSource(result, 'conditional.tex')).toBe('Start  Keep End');
   });
 
-  it('falls back to ELSE branch when name not selected', () => {
-    const options = { ifDecisions: new Set<string>() };
-    const files = { 'conditional.tex': { text: CONDITIONAL_SAMPLE, version: 1 } };
-    const project = processProject(files);
-    const outputs = transformProject('conditional.tex', project, options);
-    const result = outputs['conditional.tex'];
-    expect(result).toContain('Drop');
-    expect(result).not.toContain('Keep');
+  it('uses the else branch when a condition is not selected', () => {
+    const project = parseProject([projectFile('conditional.tex', CONDITIONAL_SAMPLE)]);
+
+    const result = transformProject('conditional.tex', project, {
+      enabledConditions: [],
+    });
+
+    expect(outputSource(result, 'conditional.tex')).toBe('Start  Drop End');
   });
 
-  it('omits IF branch entirely when no ELSE provided and name not selected', () => {
-    const withoutElse = 'Start \\ifY Hidden\\fi End';
-    const options = { ifDecisions: new Set<string>() };
-    const files = { 'without-else.tex': { text: withoutElse, version: 1 } };
-    const project = processProject(files);
-    const outputs = transformProject('without-else.tex', project, options);
-    const result = outputs['without-else.tex'];
-    expect(result).toBe('Start  End');
+  it('omits an unselected branch that has no else branch', () => {
+    const project = parseProject([projectFile('without-else.tex', 'Start \\ifY Hidden\\fi End')]);
+
+    const result = transformProject('without-else.tex', project, {
+      enabledConditions: [],
+    });
+
+    expect(outputSource(result, 'without-else.tex')).toBe('Start  End');
   });
 
-  it('handles nested conditions correctly', () => {
-    const nestedSample =
+  it('resolves nested condition decisions', () => {
+    const source =
       '\\ifA OuterIf' + '\\ifB b\\else nob\\fi-' + '\\ifC c\\else noc\\fi' + '\\else Outerelse\\fi';
-    const options = { ifDecisions: new Set(['A', 'C']) };
-    const files = { 'nested.tex': { text: nestedSample, version: 1 } };
-    const project = processProject(files);
-    const outputs = transformProject('nested.tex', project, options);
-    const result = outputs['nested.tex'];
-    expect(result).toBe(' OuterIf nob- c');
+    const project = parseProject([projectFile('nested.tex', source)]);
+
+    const result = transformProject('nested.tex', project, {
+      enabledConditions: ['A', 'C'],
+    });
+
+    expect(outputSource(result, 'nested.tex')).toBe(' OuterIf nob- c');
   });
 
-  it('flattens input files using the provided readFile callback', () => {
-    const files = {
-      'main.tex': { text: 'Start \\input{chapter.tex} End', version: 1 },
-      'chapter.tex': { text: 'Chapter body', version: 1 },
-    };
+  it('does not resolve inputs that occur inside comments', () => {
+    const project = parseProject([
+      projectFile('main.tex', 'Intro % \\input{secret.tex}\nConclusion'),
+      projectFile('secret.tex', 'This is secret content.'),
+    ]);
 
-    const options = { handleInputCmd: InputCmdHandling.FLATTEN } as const;
-    const project = processProject(files);
-    const outputs = transformProject('main.tex', project, options);
-    const result = outputs['main.tex'];
-
-    expect(result).toBe('Start Chapter body End');
-  });
-
-  it('commented input file - suppress', () => {
-    const files = {
-      'main.tex': { text: 'Intro % \\input{secret.tex}\nConclusion', version: 1 },
-      'secret.tex': { text: 'This is secret content.', version: 1 },
-    };
-
-    const options = { handleInputCmd: InputCmdHandling.FLATTEN, suppressComments: true } as const;
-    const project = processProject(files);
-    const outputs = transformProject('main.tex', project, options);
-    const result = outputs['main.tex'];
-    expect(result).toBe('Intro  Conclusion');
-  });
-
-  it('commented input file - no suppress', () => {
-    const files = {
-      'main.tex': { text: 'Intro % \\input{secret.tex}\nConclusion', version: 1 },
-      'secret.tex': { text: 'This is secret content.', version: 1 },
-    };
-
-    const options = { handleInputCmd: InputCmdHandling.FLATTEN, suppressComments: false } as const;
-    const project = processProject(files);
-    const outputs = transformProject('main.tex', project, options);
-    const result = outputs['main.tex'];
-    expect(result).toBe('Intro % \\input{secret.tex}\nConclusion');
-  });
-
-  it('applies transforms while flattening nested inputs', () => {
-    const files = {
-      'root.tex': { text: 'Alpha \\input{mid.tex} Omega', version: 1 },
-      'mid.tex': { text: 'Keep % drop\n\\input{leaf.tex}', version: 1 },
-      'leaf.tex': { text: '\\ifX Inner\\else Outer\\fi', version: 1 },
-    };
-
-    const options = {
-      handleInputCmd: InputCmdHandling.FLATTEN,
+    const preserved = transformProject('main.tex', project, {
+      inputHandling: InputHandlingMode.Flatten,
+    });
+    const suppressed = transformProject('main.tex', project, {
+      inputHandling: InputHandlingMode.Flatten,
       suppressComments: true,
-      ifDecisions: new Set(['X']),
-    } as const;
+    });
 
-    const project = processProject(files);
-    const outputs = transformProject('root.tex', project, options);
-    const result = outputs['root.tex'];
-
-    // Accept either the resolved inner branch or a variant without the inner text
-    expect(result).toBe('Alpha Keep   Inner Omega');
+    expect(outputSource(preserved, 'main.tex')).toBe('Intro % \\input{secret.tex}\nConclusion');
+    expect(outputSource(suppressed, 'main.tex')).toBe('Intro  Conclusion');
   });
 
-  it('flattens input files when using the UI lexer token subset', () => {
-    const uiTokens = new Set<TokenType>([
+  it('applies serialization options while flattening nested inputs', () => {
+    const project = parseProject([
+      projectFile('root.tex', 'Alpha \\input{mid.tex} Omega'),
+      projectFile('mid.tex', 'Keep % drop\n\\input{leaf.tex}'),
+      projectFile('leaf.tex', '\\ifX Inner\\else Outer\\fi'),
+    ]);
+
+    const result = transformProject('root.tex', project, {
+      inputHandling: InputHandlingMode.Flatten,
+      suppressComments: true,
+      enabledConditions: ['X'],
+    });
+
+    expect(outputSource(result, 'root.tex')).toBe('Alpha Keep   Inner Omega');
+  });
+
+  it('accepts the frontend lexer token subset as a readonly array', () => {
+    const enabledTokens = [
       TokenType.Section,
       TokenType.Condition,
       TokenType.ConditionDeclaration,
@@ -159,67 +143,77 @@ describe('process/transform API', () => {
       TokenType.Input,
       TokenType.Comment,
       TokenType.NewLine,
-    ]);
-
-    const project = processProject(
-      {
-        'main.tex': { text: 'Start \\input{chapter.tex} End', version: 1 },
-        'chapter.tex': { text: 'Chapter body', version: 1 },
-      },
-      { enabledTokens: uiTokens }
+    ] as const;
+    const project = parseProject(
+      [
+        projectFile('main.tex', 'Start \\input{chapter.tex} End'),
+        projectFile('chapter.tex', 'Chapter body'),
+      ],
+      { enabledTokens }
     );
 
-    const outputs = transformProject('main.tex', project, {
-      handleInputCmd: InputCmdHandling.FLATTEN,
+    const result = transformProject('main.tex', project, {
+      inputHandling: InputHandlingMode.Flatten,
     });
 
-    expect(outputs['main.tex']).toBe('Start Chapter body End');
+    expect(outputSource(result, 'main.tex')).toBe('Start Chapter body End');
   });
 
-  it('suppresses newif toggle commands when using the UI lexer token subset', () => {
-    const uiTokens = new Set<TokenType>([
-      TokenType.Section,
-      TokenType.Condition,
-      TokenType.ConditionDeclaration,
-      TokenType.Command,
-      TokenType.Input,
-      TokenType.Comment,
-      TokenType.NewLine,
-    ]);
-
-    const project = processProject(
+  it('removes declarations and generated toggle commands when resolving conditions', () => {
+    const project = parseProject(
+      [projectFile('main.tex', '\\newif\\iflong\n\\longtrue\n\\iflong Yes\\else No\\fi')],
       {
-        'main.tex': {
-          text: '\\newif\\iflong\n\\longtrue\n\\iflong Yes\\else No\\fi',
-          version: 1,
-        },
-      },
-      { enabledTokens: uiTokens }
+        enabledTokens: [
+          TokenType.Section,
+          TokenType.Condition,
+          TokenType.ConditionDeclaration,
+          TokenType.Command,
+          TokenType.Input,
+          TokenType.Comment,
+          TokenType.NewLine,
+        ],
+      }
     );
 
-    const outputs = transformProject('main.tex', project, {
-      ifDecisions: new Set(['long']),
+    const result = transformProject('main.tex', project, {
+      enabledConditions: ['long'],
     });
 
-    expect(outputs['main.tex']).toBe(' Yes');
+    expect(outputSource(result, 'main.tex')).toBe(' Yes');
   });
 
-  it('combines projects keeping higher version on conflicts', () => {
-    const p1 = processProject({
-      'a.tex': { text: 'Old', version: 1 },
-      'b.tex': { text: 'OnlyIn1', version: 1 },
-    });
-    const p2 = processProject({
-      'a.tex': { text: 'New', version: 2 },
-      'c.tex': { text: 'OnlyIn2', version: 1 },
+  it('emits all files in deterministic order in separate mode', () => {
+    const project = parseProject([projectFile('z.tex', 'Z'), projectFile('a.tex', 'A')]);
+
+    const result = transformProject('z.tex', project, {
+      inputHandling: InputHandlingMode.Separate,
     });
 
-    const combined = combine_project(p1, p2);
-    expect(combined).toBe(p1);
-    const out = transformProject('a.tex', combined, { handleInputCmd: InputCmdHandling.RECURSIVE });
+    expect(result.files).toEqual([
+      { path: 'a.tex', source: 'A' },
+      { path: 'z.tex', source: 'Z' },
+    ]);
+  });
 
-    expect(out['a.tex']).toBe('New');
-    expect(out['b.tex']).toBe('OnlyIn1');
-    expect(out['c.tex']).toBe('OnlyIn2');
+  it('merges projects by version without changing unrelated files', () => {
+    const base = parseProject([
+      projectFile('a.tex', 'Old', 1),
+      projectFile('b.tex', 'OnlyInBase', 1),
+    ]);
+    const updates = parseProject([
+      projectFile('a.tex', 'New', 2),
+      projectFile('c.tex', 'OnlyInUpdates', 1),
+    ]);
+
+    const merged = mergeProjects(base, updates);
+    const result = transformProject('a.tex', merged, {
+      inputHandling: InputHandlingMode.Separate,
+    });
+
+    expect(result.files).toEqual([
+      { path: 'a.tex', source: 'New' },
+      { path: 'b.tex', source: 'OnlyInBase' },
+      { path: 'c.tex', source: 'OnlyInUpdates' },
+    ]);
   });
 });

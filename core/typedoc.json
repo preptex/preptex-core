@@ -1,0 +1,37 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "@preptex/core",
+  "includeVersion": true,
+  "entryPoints": ["./src/index.ts"],
+  "entryPointStrategy": "resolve",
+  "tsconfig": "./tsconfig.json",
+  "plugin": ["typedoc-plugin-markdown"],
+  "out": "../docs/api",
+  "router": "module",
+  "readme": "none",
+  "cleanOutputDir": true,
+  "githubPages": false,
+  "disableSources": true,
+  "excludeInternal": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "validation": {
+    "notExported": true,
+    "invalidLink": true,
+    "invalidPath": true,
+    "notDocumented": true
+  },
+  "requiredToBeDocumented": [
+    "Enum",
+    "EnumMember",
+    "Variable",
+    "Function",
+    "Class",
+    "Interface",
+    "Property",
+    "Method",
+    "Accessor",
+    "TypeAlias"
+  ],
+  "treatWarningsAsErrors": true
+}

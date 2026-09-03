@@ -1,5 +1,6 @@
 import { transform, type Transformer } from '../../src/lib/transform/transform';
 import { NodeType, type AstNode, type AstRoot, type InputNode } from '../../src/lib/parse/types';
+import { PrepTexErrorCode } from '../../src/index';
 import { describe, it, expect } from 'vitest';
 
 describe('transform', () => {
@@ -74,10 +75,14 @@ describe('transform', () => {
   });
 
   it('should handle missing files gracefully in flattening mode', () => {
-    // Expect transform to throw when flattening and file is missing
-    expect(() => transform(mockAst, transformers, {}, { flatten: true })).toThrow(
-      'Missing input file: file1'
-    );
+    let error: unknown;
+    try {
+      transform(mockAst, transformers, {}, { flatten: true });
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toMatchObject({ code: PrepTexErrorCode.MissingInput });
   });
 
   it('should handle empty ASTs correctly', () => {

@@ -1,8 +1,9 @@
 import {
-  process as processProject,
-  transform as transformProject,
-  CoreOptions,
-  InputCmdHandling,
+  parseProject,
+  transformProject,
+  InputHandlingMode,
+  type ParsedProject,
+  type TransformOptions,
 } from '@preptex/core';
 import { parseTransformArgs, printTransformHelp } from '../args.js';
 import path from 'node:path';
@@ -38,21 +39,23 @@ export async function handleTransform(args: string[]): Promise<void> {
     return;
   }
 
-  let project: ReturnType<typeof processProject>;
+  let project: ParsedProject;
 
-  const coreOptions: CoreOptions = {
+  const coreOptions: TransformOptions = {
     suppressComments: options.suppressComments,
-    handleInputCmd: options.handleInputCmd,
-    ifDecisions: options.ifDecisions,
-  } as CoreOptions;
+    ...(options.inputHandling === undefined ? {} : { inputHandling: options.inputHandling }),
+    ...(options.enabledConditions === undefined
+      ? {}
+      : { enabledConditions: options.enabledConditions }),
+  };
 
   try {
     vlog('resolving paths');
-    const { entryPath, baseDir } = resolvePaths({
+    const { entryPath, baseDir, outDir, outName } = resolvePaths({
       input: options.input,
-      workDir: options.workDir,
-      outDir: options.outDir,
-      output: options.output,
+      ...(options.workDir === undefined ? {} : { workDir: options.workDir }),
+      ...(options.outDir === undefined ? {} : { outDir: options.outDir }),
+      ...(options.output === undefined ? {} : { output: options.output }),
     });
 
     vlog(`baseDir: ${baseDir}`);
@@ -60,47 +63,38 @@ export async function handleTransform(args: string[]): Promise<void> {
 
     // Load every .tex file in the working directory; core handles parsing.
     vlog('reading .tex files');
-    const files = await readAllTexFiles(baseDir);
-    vlog(`discovered ${Object.keys(files).length} .tex file(s)`);
+    const files = await readAllTexFiles(baseDir, outDir);
+    vlog(`discovered ${files.length} .tex file(s)`);
     const entryKey = path.relative(baseDir, entryPath).replace(/\\/g, '/').replace(/^\.\//, '');
 
-    if (!files[entryKey]) {
+    if (!files.some((file) => file.path === entryKey)) {
       throw new Error(`Entry file not found under work directory: ${entryKey}`);
     }
 
     vlog(`entryKey: ${entryKey}`);
 
     vlog('processing project');
-    project = processProject(files);
-    for (const [file, projectFile] of Object.entries(project.getFiles())) {
-      const notes = (projectFile as { notes?: ReadonlyArray<string> }).notes ?? [];
-      for (const note of notes) {
-        process.stderr.write(`[${file}] ${note}\n`);
-      }
+    project = parseProject(files);
+    for (const diagnostic of project.diagnostics) {
+      process.stderr.write(
+        `[${diagnostic.path}:${diagnostic.range.line}] ${diagnostic.code}: ${diagnostic.message}\n`
+      );
     }
 
     vlog('transforming');
-    const outputs = transformProject(entryKey, project, coreOptions) as Record<string, string>;
-    vlog(`generated ${Object.keys(outputs).length} output(s)`);
+    const outputs = transformProject(entryKey, project, coreOptions);
+    vlog(`generated ${outputs.files.length} output(s)`);
 
-    if (options.handleInputCmd === InputCmdHandling.RECURSIVE) {
+    if (options.inputHandling === InputHandlingMode.Separate) {
       vlog('writing outputs recursively');
-      await writeOutputsRecursive(outputs, { ...options });
+      await writeOutputsRecursive(outputs.files, { ...options });
       return;
     }
-
-    // Always write to resolved outDir (defaulted in resolvePaths)
-    const { outDir, outName } = resolvePaths({
-      input: options.input,
-      output: options.output,
-      workDir: options.workDir,
-      outDir: options.outDir,
-    });
 
     vlog(`outDir: ${outDir}`);
     vlog(`outName: ${outName}`);
 
-    const single = outputs[entryKey] ?? Object.values(outputs)[0];
+    const single = outputs.files[0]?.source;
     if (!single) {
       throw new Error('No output generated from transformation.');
     }

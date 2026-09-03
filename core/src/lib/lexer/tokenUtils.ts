@@ -1,3 +1,5 @@
+import { ParseFailure } from '../parse/failure.js';
+
 export const TEXT_END_CHARS = new Set(['%', '{', '}', '[', ']', '$', '\r', '\n']);
 
 const MATH_CONTROL_CHARS = new Set(['[', ']', '(', ')']);
@@ -6,7 +8,7 @@ const ESPECIAL_COMMANDS = new Set(['iff']);
 
 export function skipWhitespace(input: string, pos: number, skipLines: boolean = true) {
   const matchStr = skipLines ? /\s/ : /[ \t]/;
-  while (pos < input.length && matchStr.test(input[pos])) pos++;
+  while (pos < input.length && matchStr.test(input.charAt(pos))) pos++;
   return pos;
 }
 
@@ -20,29 +22,34 @@ export function readControlSequenceName(input: string, pos: number): { name: str
     throw new Error(`Expected backslash at position ${pos}`);
   }
   const start = ++pos;
-  if (start < input.length && !/[a-zA-Z@]/.test(input[start])) {
+  if (start < input.length && !/[a-zA-Z@]/.test(input.charAt(start))) {
     throw new Error(
       `Invalid control sequence name at position ${start}. Sequence starts with ${input[start]}`
     );
   }
   // Parse command name (letters or single non-letter char)
-  while (pos < input.length && /[a-zA-Z@]/.test(input[pos])) pos++;
+  while (pos < input.length && /[a-zA-Z@]/.test(input.charAt(pos))) pos++;
   return { name: input.slice(start, pos), end: pos - 1 };
 }
 
 export function readEnvName(input: string, pos: number): { name: string; end: number } {
   pos = skipWhitespace(input, pos);
+  if (pos >= input.length) {
+    throw new ParseFailure(`Expected environment name at position ${pos}`, { position: pos });
+  }
   let name = '';
   const hasBrace = pos < input.length && input[pos] === '{';
   if (!hasBrace) {
-    return { name: input[pos], end: pos };
+    return { name: input.charAt(pos), end: pos };
   }
 
   pos++; // consume '{'
   const nameStart = pos;
   while (pos < input.length && input[pos] !== '}') pos++;
   if (pos >= input.length) {
-    throw new Error(`Unterminated environment name starting at position ${nameStart - 1}`);
+    throw new ParseFailure(`Unterminated environment name starting at position ${nameStart - 1}`, {
+      position: nameStart - 1,
+    });
   }
   name = input.slice(nameStart, pos);
   return { name, end: pos };
@@ -52,9 +59,9 @@ export function parseControlSequenceNameEnd(input: string, afterBackslash: numbe
   let nameEnd = afterBackslash;
   if (nameEnd >= input.length) return nameEnd;
   const nextChar = input[nameEnd];
-  if (/^[a-zA-Z@]$/.test(nextChar)) {
+  if (/^[a-zA-Z@]$/.test(nextChar ?? '')) {
     nameEnd++;
-    while (nameEnd < input.length && /[a-zA-Z@]/.test(input[nameEnd])) nameEnd++;
+    while (nameEnd < input.length && /[a-zA-Z@]/.test(input.charAt(nameEnd))) nameEnd++;
     return nameEnd;
   }
   return Math.min(input.length, nameEnd + 1);
@@ -84,8 +91,14 @@ export function isCommentTokenAt(input: string, start: number): boolean {
   if (input[start] === '%') return true;
   if (isEnvironmentTokenAt(input, start)) {
     const { name, end } = readControlSequenceName(input, start);
-    const envName = readEnvName(input, end + 1);
-    return envName.name === 'comment';
+    if (name !== 'begin') return false;
+    try {
+      const envName = readEnvName(input, end + 1);
+      return envName.name === 'comment';
+    } catch (error) {
+      if (error instanceof ParseFailure) return false;
+      throw error;
+    }
   }
   return false;
 }
@@ -99,7 +112,7 @@ export function isControlSequenceTokenAt(input: string, start: number): boolean 
   return (
     input[start] === '\\' &&
     !isEscapablePair(input[start + 1]) &&
-    !MATH_CONTROL_CHARS.has(input[start + 1])
+    !MATH_CONTROL_CHARS.has(input.charAt(start + 1))
   );
 }
 
@@ -120,7 +133,7 @@ export function isConditionName(name: string): boolean {
 export function scanTextEndExclusive(input: string, start: number): number {
   let pos = start;
   while (pos < input.length) {
-    const c = input[pos];
+    const c = input.charAt(pos);
     if (c === '%' || c === '{' || c === '}' || c === '[' || c === ']' || c === '$') break;
     if (c === '\\') {
       const nextChar = pos + 1 < input.length ? input[pos + 1] : '';

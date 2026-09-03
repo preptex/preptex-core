@@ -281,17 +281,13 @@ describe('Lexer line numbers', () => {
     expect((textToken as any).text).toBeUndefined();
   });
 
-
   it('tests section inside block', () => {
-  const input = '\\newcommand{\\cmd}{\\subparagraph{Inner}}';
-  const lex = new Lexer(input);
-  const tokens = collectTokens(lex);
-  const section = tokens.find((t) => t.type === TokenType.Section);
-  expect(section).toBeTruthy();
-  expect(section!.name).toBe('Inner');
-  expect(section!.level).toBe(5); // subparagraph is level 5
+    const input = '\\newcommand{\\cmd}{\\subparagraph{Inner}}';
+    const lex = new Lexer(input);
+    const tokens = collectTokens(lex);
+    const section = tokens.find((t) => t.type === TokenType.Section);
+    expect(section).toBeTruthy();
+    expect(section!.name).toBe('Inner');
+    expect(section!.level).toBe(5); // subparagraph is level 5
   });
-
 });
-
-

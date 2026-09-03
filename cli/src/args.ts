@@ -1,4 +1,4 @@
-import { InputCmdHandling, INPUT_CMD_HANDLING_VALUES } from '@preptex/core';
+import { InputHandlingMode, isInputHandlingMode } from '@preptex/core';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -17,11 +17,17 @@ export interface BaseCliOptions {
 export interface TransformCliOptions extends BaseCliOptions {
   suppressComments: boolean;
   verbose?: boolean;
-  handleInputCmd?: InputCmdHandling;
+  inputHandling?: InputHandlingMode;
   workDir?: string;
   outDir?: string;
   output?: string;
-  ifDecisions?: Set<string> | undefined;
+  enabledConditions?: readonly string[];
+}
+
+export interface AstCliOptions {
+  input: string;
+  help: boolean;
+  workDir?: string;
 }
 
 export type Command = 'transform' | 'ast';
@@ -59,7 +65,7 @@ export function parseTransformArgs(argv: string[]): TransformCliOptions {
     help: false,
     suppressComments: false,
     verbose: false,
-  } as TransformCliOptions;
+  };
 
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
@@ -105,10 +111,10 @@ export function parseTransformArgs(argv: string[]): TransformCliOptions {
         opts.suppressComments = true;
         break;
       case '--flatten':
-        opts.handleInputCmd = InputCmdHandling.FLATTEN;
+        opts.inputHandling = InputHandlingMode.Flatten;
         break;
       case '--recursive':
-        opts.handleInputCmd = InputCmdHandling.RECURSIVE;
+        opts.inputHandling = InputHandlingMode.Separate;
         break;
       case '-f':
       case '--if-branches': {
@@ -118,16 +124,16 @@ export function parseTransformArgs(argv: string[]): TransformCliOptions {
           .split(',')
           .map((s) => s.trim())
           .filter((s) => s.length > 0);
-        if (cs.length) opts.ifDecisions = new Set(cs);
+        if (cs.length) opts.enabledConditions = cs;
         break;
       }
       case '--handle-input-cmd': {
         const v = argv[++i];
         if (!v || v.startsWith('-')) throw new Error('--handle-input-cmd requires a value');
-        if (!INPUT_CMD_HANDLING_VALUES.has(v)) {
+        if (!isInputHandlingMode(v)) {
           throw new Error(`Invalid value for --handle-input-cmd: ${v}`);
         }
-        opts.handleInputCmd = v as InputCmdHandling;
+        opts.inputHandling = v;
         break;
       }
       default:
@@ -157,20 +163,63 @@ export function parseTransformArgs(argv: string[]): TransformCliOptions {
   return opts;
 }
 
+export function parseAstArgs(argv: string[]): AstCliOptions {
+  const options: AstCliOptions = { input: '', help: false };
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index];
+    switch (argument) {
+      case '-h':
+      case '--help':
+        options.help = true;
+        break;
+      case '-i':
+      case '--input': {
+        const value = argv[++index];
+        if (!value || value.startsWith('-')) throw new Error('--input requires a value');
+        options.input = value;
+        break;
+      }
+      case '--work-dir': {
+        const value = argv[++index];
+        if (!value || value.startsWith('-')) throw new Error('--work-dir requires a value');
+        options.workDir = value;
+        break;
+      }
+      default:
+        throw new Error(`Unknown ast option: ${String(argument)}`);
+    }
+  }
+  return options;
+}
+
 export function printTransformHelp(): void {
   const lines = [
-    'Usage: preptex transform --input <file> [--work-dir <dir>] [--output <file|dir>] [--suppress-comments] [--flatten|--recursive] [--verbose]',
+    'Usage: preptex transform --input <file> [--work-dir <dir>] [--out-dir <dir>] [--output <file>] [--suppress-comments] [--flatten|--recursive] [--verbose]',
     '',
     'Options:',
     '  -i, --input <file>       Main input file (path or filename if --work-dir used)',
-    '  -o, --output <file>      Where to write the transformed output (stdout if omitted)',
+    '  -o, --output <file>      Output filename (defaults to the input filename)',
+    '      --out-dir <dir>      Output directory (defaults to <input-dir>/transform)',
     '      --suppress-comments  Remove comments before emitting output',
-    '      --flatten            Inline \input files during transform (use with --work-dir to flatten files inside directory)',
+    '      --flatten            Inline \\input files during transform (use with --work-dir to flatten files inside directory)',
     '      --recursive          Transform each discovered file separately and emit multiple outputs',
     '      --work-dir <dir>     Treat --input as a filename inside this directory (do not provide a path in --input)',
-    '      --if-branches        Remove comments before emitting output',
+    '      --if-branches <list> Keep comma-separated condition IF branches',
+    '      --handle-input-cmd <preserve|flatten|separate>',
     '  -v, --verbose            Print step-by-step progress logs to stderr',
     '  -h, --help               Show this message',
+  ];
+  process.stdout.write(`${lines.join('\n')}\n`);
+}
+
+export function printAstHelp(): void {
+  const lines = [
+    'Usage: preptex ast --input <file> [--work-dir <dir>]',
+    '',
+    'Options:',
+    '  -i, --input <file>   LaTeX file to parse',
+    '      --work-dir <dir> Resolve a filename relative to this directory',
+    '  -h, --help           Show this message',
   ];
   process.stdout.write(`${lines.join('\n')}\n`);
 }
