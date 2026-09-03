@@ -17,6 +17,15 @@ and
 [architecture guide](https://github.com/preptex/preptex-core/blob/main/docs/architecture.md).
 The repository also contains the generated Markdown API reference.
 
+## Documentation in this package
+
+This package includes the complete specification files for developers and AI agents:
+
+- `dist/docs/integration.md`: Compact consumer guide, browser Web Worker model, complete frontend example, and error handling.
+- `dist/docs/architecture.md`: Architectural invariants, AST structures, condition models, and limitations.
+- `dist/docs/api/README.md`: Complete TypeDoc Markdown API reference.
+- `dist/index.d.ts`: Authoritative TypeScript declarations.
+
 ## Minimal example
 
 ```ts

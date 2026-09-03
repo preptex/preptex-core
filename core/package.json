@@ -39,7 +39,7 @@
     "type-test": "npm run build && tsc -p tsconfig.type-tests.json",
     "docs": "typedoc --options typedoc.json",
     "docs:check": "typedoc --options typedoc.json --emit none",
-    "prepack": "npm run clean && npm run build"
+    "prepack": "npm run clean && npm run build && node -e \"require('node:fs').cpSync('../docs', 'dist/docs', {recursive: true})\""
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
