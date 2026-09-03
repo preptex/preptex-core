@@ -193,8 +193,9 @@ inclusions are allowed and can enlarge output substantially.
 
 ### Frontend
 
-A frontend installs a published, versioned `@preptex/core` dependency. The 0.2.0
-API described here is prepared but not published by these repository changes.
+A frontend installs a published, versioned `@preptex/core` dependency. Version
+0.2.0 was published on 2026-09-03; this repository now prepares the compatible
+0.2.1 corrections and bundled documentation.
 Because the package is environment-neutral ESM, parsing can run in a browser or
 Web Worker without Node polyfills. Large documents should be parsed off the UI
 thread. Framework state should hold readonly project data or a derived view, not

@@ -1,8 +1,8 @@
-**@preptex/core v0.2.0**
+**@preptex/core v0.2.1**
 
 ***
 
-# @preptex/core v0.2.0
+# @preptex/core v0.2.1
 
 PrepTeX's environment-neutral public API for parsing and transforming virtual
 LaTeX projects.

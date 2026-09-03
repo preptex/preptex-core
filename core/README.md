@@ -5,11 +5,11 @@ LaTeX projects. The package exposes a small, documented ESM API with deeply
 readonly syntax trees, structured diagnostics, and typed errors.
 
 ```sh
-npm install --save-exact @preptex/core@0.2.0
+npm install --save-exact @preptex/core@0.2.1
 ```
 
-Version 0.2.0 is currently prepared in this repository and must be published
-before a separate application can install that exact registry version.
+Version 0.2.0 was published on 2026-09-03. This source tree contains the
+compatible 0.2.1 release, including the documentation bundle listed below.
 
 See the
 [integration guide](https://github.com/preptex/preptex-core/blob/main/docs/integration.md)

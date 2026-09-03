@@ -2,7 +2,19 @@
 
 All notable changes to this project will be documented here.
 
-## [0.2.0] - Unreleased
+## [0.2.1] - Unreleased
+
+### Fixed
+
+- Accept valid empty CLI transformation output instead of reporting that no
+  output was generated.
+- Reject `null` as an invalid `inputHandling` value at the runtime boundary.
+- Make the backend integration examples precise about worker isolation, safe
+  error serialization, and symlink-aware filesystem containment.
+- Include the integration, architecture, and generated API guides in the
+  published core package.
+
+## [0.2.0] - 2026-09-03
 
 ### Breaking
 

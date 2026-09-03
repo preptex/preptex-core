@@ -66,6 +66,9 @@ describe('public runtime validation', () => {
     expectInvalidArgument(() =>
       transformProject('main.tex', project, { inputHandling: 'unknown' } as never)
     );
+    expectInvalidArgument(() =>
+      transformProject('main.tex', project, { inputHandling: null } as never)
+    );
   });
 
   it('rejects drive-relative, absolute, and NUL-containing virtual paths', () => {

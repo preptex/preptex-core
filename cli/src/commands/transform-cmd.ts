@@ -94,7 +94,7 @@ export async function handleTransform(args: string[]): Promise<void> {
     vlog(`outDir: ${outDir}`);
     vlog(`outName: ${outName}`);
 
-    const single = outputs.files[0]?.source;
+    const single = outputs.files[0];
     if (!single) {
       throw new Error('No output generated from transformation.');
     }
@@ -102,7 +102,7 @@ export async function handleTransform(args: string[]): Promise<void> {
     const outPath = path.join(outDir, outName);
     vlog(`writing output to ${outPath}`);
     await (await import('node:fs/promises')).mkdir(outDir, { recursive: true });
-    await (await import('node:fs/promises')).writeFile(outPath, single, 'utf8');
+    await (await import('node:fs/promises')).writeFile(outPath, single.source, 'utf8');
     vlog('done');
     return;
   } catch (err) {
