@@ -6,7 +6,7 @@ its generated TypeScript declarations (`dist/index.d.ts`) as the integration
 boundary:
 
 ```sh
-npm install --save-exact @preptex/core@0.2.0
+npm install --save-exact @preptex/core@0.2.1
 ```
 
 Do not use a `file:` dependency in a released consumer. Pin the exact version
@@ -234,12 +234,56 @@ OS filesystem paths. When reading from or writing to disk:
 1. Canonicalize the authorized workspace root.
 2. Resolve symlinks using `fs.realpath`.
 3. Verify that the physical target path is strictly contained within the authorized directory:
+
    ```ts
-   const target = path.resolve(authorizedRoot, virtualPath);
-   if (!target.startsWith(authorizedRoot + path.sep)) {
-     throw new Error('Access denied: directory traversal detected.');
+   import { realpath } from 'node:fs/promises';
+   import path from 'node:path';
+   import type { ProjectFilePath } from '@preptex/core';
+
+   function assertVirtualPath(value: string): asserts value is ProjectFilePath {
+     const segments = value.split('/');
+     if (
+       value.length === 0 ||
+       value.includes('\0') ||
+       value.includes('\\') ||
+       path.posix.isAbsolute(value) ||
+       /^[A-Za-z]:/.test(value) ||
+       segments.some((segment) => segment === '' || segment === '.' || segment === '..')
+     ) {
+       throw new Error('Access denied: invalid virtual project path.');
+     }
+   }
+
+   function assertContained(root: string, target: string): void {
+     const relative = path.relative(root, target);
+     if (
+       relative === '' ||
+       relative === '..' ||
+       relative.startsWith(`..${path.sep}`) ||
+       path.isAbsolute(relative)
+     ) {
+       throw new Error('Access denied: path escapes the authorized root.');
+     }
+   }
+
+   export async function resolveExistingProjectPath(
+     authorizedRoot: string,
+     untrustedPath: string
+   ): Promise<string> {
+     assertVirtualPath(untrustedPath);
+     const canonicalRoot = await realpath(authorizedRoot);
+     const lexicalTarget = path.resolve(canonicalRoot, ...untrustedPath.split('/'));
+     const canonicalTarget = await realpath(lexicalTarget);
+     assertContained(canonicalRoot, canonicalTarget);
+     return canonicalTarget;
    }
    ```
+
+This helper is deliberately for existing paths. For a new output, validate its
+virtual path, resolve and check its existing physical parent, then create or
+replace the file through a storage primitive that does not follow an
+attacker-controlled symlink. Recheck containment immediately before the atomic
+write; a lexical `startsWith` check is not sufficient.
 
 ### 3. Downstream TeX sandboxing
 
@@ -272,80 +316,123 @@ internal server stack traces:
 | `PrepTexErrorCode.MissingInput`    | `422 Unprocessable` | `{ error: 'missing_input', message }`                                        |
 | `PrepTexErrorCode.CircularInput`   | `422 Unprocessable` | `{ error: 'circular_input', message }`                                       |
 
-### Complete backend worker example
+### Complete backend worker-module example
 
-A production-ready worker job handler executing project transformation:
+Put this handler in a `worker_threads` or Piscina worker module, not in the HTTP
+request handler. The parent must reject oversized jobs before dispatch, enforce
+a hard deadline by terminating the worker, and limit output before persistence.
+The injected logger keeps unexpected details in server logs while the returned
+DTO exposes only a correlation ID and generic message:
 
 ```ts
 import {
-  DiagnosticSeverity,
   InputHandlingMode,
   PrepTexError,
+  PrepTexErrorCode,
   PrepTexSyntaxError,
   parseProject,
   transformProject,
+  type ConditionName,
+  type ProjectFilePath,
   type SourceFile,
+  type SyntaxDiagnostic,
   type TransformedFile,
+  type WarningDiagnostic,
 } from '@preptex/core';
 
 export interface BackendJobRequest {
-  readonly entryPath: string;
+  readonly entryPath: ProjectFilePath;
   readonly files: readonly SourceFile[];
-  readonly enabledConditions?: readonly string[];
+  readonly enabledConditions?: readonly ConditionName[];
   readonly suppressComments?: boolean;
 }
 
-export interface BackendJobResult {
-  readonly success: boolean;
-  readonly files: readonly TransformedFile[];
-  readonly warnings: readonly string[];
-  readonly error?: {
-    readonly code: string;
-    readonly message: string;
-    readonly location?: { readonly path: string; readonly line: number };
-  };
+export interface BackendJobContext {
+  readonly correlationId: string;
+  readonly logUnexpectedError: (error: unknown, correlationId: string) => void;
 }
 
-export function executeBackendTransform(job: BackendJobRequest): BackendJobResult {
+export interface BackendJobSuccess {
+  readonly ok: true;
+  readonly files: readonly TransformedFile[];
+  readonly warnings: readonly WarningDiagnostic[];
+}
+
+export interface BackendSyntaxFailure {
+  readonly kind: 'syntax';
+  readonly code: PrepTexErrorCode.SyntaxError;
+  readonly message: string;
+  readonly correlationId: string;
+  readonly diagnostic: SyntaxDiagnostic;
+}
+
+export interface BackendExpectedFailure {
+  readonly kind: 'expected';
+  readonly code: Exclude<PrepTexErrorCode, PrepTexErrorCode.SyntaxError>;
+  readonly message: string;
+  readonly correlationId: string;
+}
+
+export interface BackendInternalFailure {
+  readonly kind: 'internal';
+  readonly code: 'internal-error';
+  readonly message: string;
+  readonly correlationId: string;
+}
+
+export interface BackendJobFailure {
+  readonly ok: false;
+  readonly error: BackendSyntaxFailure | BackendExpectedFailure | BackendInternalFailure;
+}
+
+export type BackendJobResult = BackendJobSuccess | BackendJobFailure;
+
+export function executeBackendTransform(
+  job: BackendJobRequest,
+  context: BackendJobContext
+): BackendJobResult {
   try {
     const project = parseProject(job.files);
-    const warnings = project.diagnostics
-      .filter((d) => d.severity === DiagnosticSeverity.Warning)
-      .map((d) => `[${d.path}:${d.range.line}] ${d.code}: ${d.message}`);
-
     const result = transformProject(job.entryPath, project, {
       inputHandling: InputHandlingMode.Flatten,
       enabledConditions: job.enabledConditions,
       suppressComments: job.suppressComments ?? true,
     });
 
-    return { success: true, files: result.files, warnings };
+    return { ok: true, files: result.files, warnings: project.diagnostics };
   } catch (err: unknown) {
     if (err instanceof PrepTexSyntaxError) {
       return {
-        success: false,
-        files: [],
-        warnings: [],
+        ok: false,
         error: {
+          kind: 'syntax',
           code: err.code,
           message: err.message,
-          location: { path: err.diagnostic.path, line: err.diagnostic.range.line },
+          correlationId: context.correlationId,
+          diagnostic: err.diagnostic,
         },
       };
     }
-    if (err instanceof PrepTexError) {
+    if (err instanceof PrepTexError && err.code !== PrepTexErrorCode.SyntaxError) {
       return {
-        success: false,
-        files: [],
-        warnings: [],
-        error: { code: err.code, message: err.message },
+        ok: false,
+        error: {
+          kind: 'expected',
+          code: err.code,
+          message: err.message,
+          correlationId: context.correlationId,
+        },
       };
     }
+    context.logUnexpectedError(err, context.correlationId);
     return {
-      success: false,
-      files: [],
-      warnings: [],
-      error: { code: 'internal_error', message: err instanceof Error ? err.message : String(err) },
+      ok: false,
+      error: {
+        kind: 'internal',
+        code: 'internal-error',
+        message: 'PrepTeX processing failed.',
+        correlationId: context.correlationId,
+      },
     };
   }
 }

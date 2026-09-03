@@ -7,11 +7,12 @@ consume the core through its published package, not through repository internals
 
 ## Install the core
 
-This checkout prepares the unreleased 0.2.0 API. After 0.2.0 is published, pin
-that real registry version in each consumer and commit the consumer's lockfile:
+Version 0.2.0 was published on 2026-09-03. This checkout prepares the compatible
+0.2.1 fixes and bundled documentation. After publishing 0.2.1, pin that real
+registry version in each consumer and commit the consumer's lockfile:
 
 ```sh
-npm install --save-exact @preptex/core@0.2.0
+npm install --save-exact @preptex/core@0.2.1
 ```
 
 ```ts

@@ -493,7 +493,8 @@ export function transformProject(
   >;
   for (const file of validatedProject.files) roots[file.path] = file.root;
   const transformers = createTransformers(options, validatedProject.declaredConditions);
-  const mode = options.inputHandling ?? InputHandlingMode.Preserve;
+  const mode =
+    options.inputHandling === undefined ? InputHandlingMode.Preserve : options.inputHandling;
   if (!Object.values(InputHandlingMode).includes(mode)) {
     throw new PrepTexError(
       `Unsupported inputHandling mode: ${String(mode)}.`,
