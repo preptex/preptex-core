@@ -3,11 +3,11 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import type { TransformCliOptions } from './args.js';
-import type { VersionedTextFile } from '@preptex/core';
+import type { SourceFile, TransformedFile } from '@preptex/core';
 
-export async function readAllTexFiles(baseDir: string): Promise<Record<string, VersionedTextFile>> {
+export async function readAllTexFiles(baseDir: string, excludeDir?: string): Promise<SourceFile[]> {
   const fs = await import('node:fs/promises');
-  const out: Record<string, VersionedTextFile> = {};
+  const out: SourceFile[] = [];
 
   const toKey = (absPath: string) =>
     path.relative(baseDir, absPath).replace(/\\/g, '/').replace(/^\.\//, '');
@@ -17,16 +17,23 @@ export async function readAllTexFiles(baseDir: string): Promise<Record<string, V
     for (const ent of entries) {
       const abs = path.join(dir, ent.name);
       if (ent.isDirectory()) {
+        if (ent.name === 'node_modules' || ent.name === '.git') {
+          continue;
+        }
+        if (excludeDir && normalizeForCompare(abs) === normalizeForCompare(excludeDir)) {
+          continue;
+        }
         await walk(abs);
         continue;
       }
       if (!ent.isFile()) continue;
       if (!ent.name.toLowerCase().endsWith('.tex')) continue;
       const key = toKey(abs);
-      out[key] = {
-        text: await fs.readFile(abs, 'utf8'),
+      out.push({
+        path: key,
+        source: await fs.readFile(abs, 'utf8'),
         version: 1,
-      };
+      });
     }
   };
 
@@ -43,29 +50,29 @@ export function makeReader(baseDir: string): (filename: string) => string {
 }
 
 export async function writeOutputsRecursive(
-  outputs: Record<string, string>,
+  outputs: readonly TransformedFile[],
   opts: TransformCliOptions
 ): Promise<void> {
   const { entryPath, baseDir, outDir, outName } = resolvePaths({
-    input: opts.input!,
-    workDir: opts.workDir,
-    outDir: opts.outDir,
-    output: opts.output,
+    input: opts.input,
+    ...(opts.workDir === undefined ? {} : { workDir: opts.workDir }),
+    ...(opts.outDir === undefined ? {} : { outDir: opts.outDir }),
+    ...(opts.output === undefined ? {} : { output: opts.output }),
   });
   const entryKey = path.relative(baseDir, entryPath).replace(/\\/g, '/').replace(/^\.\//, '');
 
   if (opts.verbose) {
     process.stderr.write(
-      `[verbose] writing ${Object.keys(outputs).length} output(s) to ${outDir} (recursive)\n`
+      `[verbose] writing ${outputs.length} output(s) to ${outDir} (recursive)\n`
     );
   }
 
   await mkdir(outDir, { recursive: true });
-  for (const [file, text] of Object.entries(outputs)) {
-    let base = path.basename(file);
-    const fileName = file === entryKey ? outName : base;
+  for (const output of outputs) {
+    const fileName = output.path === entryKey ? outName : output.path;
     const outPath = path.join(outDir, fileName);
-    await writeFile(outPath, String(text), 'utf8');
+    await mkdir(path.dirname(outPath), { recursive: true });
+    await writeFile(outPath, output.source, 'utf8');
 
     if (opts.verbose) {
       process.stderr.write(`[verbose] wrote ${fileName}\n`);

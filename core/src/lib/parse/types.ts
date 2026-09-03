@@ -1,18 +1,13 @@
-export enum NodeType {
-  Root = 'Root',
-  Text = 'Text',
-  NewLine = 'NewLine',
-  Comment = 'Comment',
-  Command = 'Command',
-  Environment = 'Environment',
-  Condition = 'Condition',
-  ConditionBranch = 'ConditionBranch',
-  ConditionDeclaration = 'ConditionDeclaration',
-  Math = 'Math',
-  Group = 'Group',
-  Section = 'Section',
-  Input = 'Input',
-}
+import {
+  CommentKind,
+  ConditionBranchKind,
+  NodeType,
+  type MathDelimiter,
+  type LineEnding,
+  type SectionLevel,
+} from '../../api-types.js';
+
+export { CommentKind, ConditionBranchKind, NodeType } from '../../api-types.js';
 
 export const INNER_NODE_TYPES: Set<NodeType> = new Set([
   NodeType.Root,
@@ -23,11 +18,6 @@ export const INNER_NODE_TYPES: Set<NodeType> = new Set([
   NodeType.Group,
   NodeType.Section,
 ]);
-
-export enum ConditionBranchType {
-  If = 'If',
-  Else = 'Else',
-}
 
 export interface NodeBase {
   type: NodeType;
@@ -60,13 +50,13 @@ export interface TextNode extends NodeBase {
 
 export interface NewLineNode extends NodeBase {
   type: NodeType.NewLine;
-  value: string;
+  value: LineEnding;
   originalLineIsWhitespaceOnly: boolean;
 }
 
 export interface CommentNode extends NodeBase {
   type: NodeType.Comment;
-  name: string;
+  kind: CommentKind;
   value: string;
 }
 
@@ -74,10 +64,7 @@ export interface CommandNode extends NodeBase {
   type: NodeType.Command;
   name: string;
   value: string;
-  is_starred?: boolean;
-  // textual representation of the command itself
-  prefix?: string;
-  suffix?: string;
+  starred: boolean;
 }
 
 export interface ConditionDeclarationNode extends NodeBase {
@@ -89,7 +76,6 @@ export interface ConditionDeclarationNode extends NodeBase {
 export interface EnvironmentNode extends InnerNode {
   type: NodeType.Environment;
   name: string;
-  args?: string[];
 }
 
 export interface ConditionNode extends InnerNode {
@@ -101,17 +87,12 @@ export interface ConditionNode extends InnerNode {
 export interface ConditionBranchNode extends InnerNode {
   type: NodeType.ConditionBranch;
   name: string; // condition name for convenience
-  branch: ConditionBranchType;
-}
-
-export enum ConditionBranchKind {
-  If = 'If',
-  Else = 'Else',
+  branch: ConditionBranchKind;
 }
 
 export interface MathNode extends InnerNode {
   type: NodeType.Math;
-  delim: string; // "$", "$$", "\(", "\[", etc
+  delimiter: MathDelimiter;
   // children: parsed nested content inside math
 }
 
@@ -121,18 +102,15 @@ export interface GroupNode extends InnerNode {
 
 export interface SectionNode extends InnerNode {
   type: NodeType.Section;
-  level: 0 | 1 | 2 | 3 | 4 | 5; // 0=document, 1=\section, 2=\subsection, 3=\subsubsection, 4=\paragraph, 5=\subparagraph
+  level: SectionLevel;
   name: string;
-  is_starred?: boolean;
-  starred?: boolean; // \section* variant
+  starred: boolean;
 }
 
 export interface InputNode extends NodeBase {
   type: NodeType.Input;
   path: string; // filename argument
   value: string;
-  resolved?: string; // resolved path when inlining
-  content?: AstRoot; // filled when flattened
 }
 
 // Discriminated union for all AST nodes

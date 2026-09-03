@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { Parser } from '../../src/lib/parse/parser';
 import { transform } from '../../src/lib/transform/transform';
 import { suppressComments } from '../../src/lib/transform/transformers';
 import { collectNodesDFS, getParser } from '../util';
-import { AstNode, NodeType, type InputNode } from '../../src/lib/parse/types';
+import {
+  NodeType,
+  type AstNode,
+  type InputNode,
+  type SectionNode,
+} from '../../src/lib/parse/types';
 import { SECTION_LEVELS } from '../../src/lib/parse/constants';
-import { InnerNode, SectionNode } from '../../dist';
 
 describe('Parser', () => {
   it('retains the parsed AST in memory', () => {
@@ -33,11 +36,6 @@ describe('Parser', () => {
     const parser = getParser('A %comment\nB');
     const text = transform(parser.getRoot(), [suppressComments]);
     expect(text).toBe('A  B');
-  });
-
-  it('keeps exportJSON unimplemented placeholder', () => {
-    const parser = getParser('Anything');
-    expect(() => parser.exportJSON({} as any)).toThrow('Export not implemented yet');
   });
 
   it('collects condition declarations from newif statements', () => {
@@ -94,7 +92,7 @@ describe('Parser', () => {
   });
 
   it('marks whether each newline ended an originally whitespace-only line', () => {
-    const parser = getParser('  \n\\ifA\nText');
+    const parser = getParser('  \n\\ifA\nText\\fi');
     const root = parser.getRoot();
     const newLines = collectNodesDFS(root).filter((n) => n.type === NodeType.NewLine) as any[];
 

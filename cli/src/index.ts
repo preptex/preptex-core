@@ -1,4 +1,7 @@
+#!/usr/bin/env node
+
 import { parseCommand, printGlobalHelp } from './args.js';
+import { handleAst } from './commands/ast-cmd.js';
 import { handleTransform } from './commands/transform-cmd.js';
 
 export async function runPreptexCli(argv: string[] = process.argv.slice(2)): Promise<void> {
@@ -15,7 +18,7 @@ export async function runPreptexCli(argv: string[] = process.argv.slice(2)): Pro
   }
 
   if (command === 'ast') {
-    throw new Error('AST command not implemented yet');
+    await handleAst(rest);
   }
 }
 

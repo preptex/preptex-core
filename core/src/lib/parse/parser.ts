@@ -1,7 +1,8 @@
-import type { CoreOptions, ParseOptions } from '../options.js';
+import type { ParseOptions } from '../options.js';
 import { NodeType, type AstNode, type AstRoot, type InnerNode } from './types.js';
 import { parseToAst } from './parseToAst.js';
 import { Lexer } from '../lexer/tokens.js';
+import type { ParseNotice } from './notices.js';
 
 export class Parser {
   private input = '';
@@ -9,6 +10,7 @@ export class Parser {
   private declaredConditions: Set<string> = new Set();
   private inputFiles: Set<string> = new Set();
   private notes: string[] = [];
+  private notices: ParseNotice[] = [];
 
   constructor(private options: ParseOptions = {}) {}
 
@@ -16,7 +18,8 @@ export class Parser {
     this.input = input;
     this.inputFiles.clear();
     this.notes = [];
-    const root = parseToAst(lexer, input, this.options, this.inputFiles, this.notes);
+    this.notices = [];
+    const root = parseToAst(lexer, input, this.options, this.inputFiles, this.notes, this.notices);
     this.root = root;
     this.declaredConditions = collectConditionDeclarations(root);
   }
@@ -44,11 +47,9 @@ export class Parser {
     return [...this.notes];
   }
 
-  exportJSON(_options: CoreOptions): JSON {
-    void _options;
+  getNotices(): readonly ParseNotice[] {
     this.ensureRoot();
-    // TODO: Implement export pipeline according to options.
-    throw new Error('Export not implemented yet');
+    return [...this.notices];
   }
 
   private ensureRoot(): AstRoot {

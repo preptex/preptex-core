@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { Parser } from '../../src/lib/parse/parser';
-import { NodeType, AstNode, AstRoot } from '../../src/lib/parse/types';
+import { CommentKind, NodeType, type AstNode, type AstRoot } from '../../src/lib/parse/types';
 import { Lexer } from '../../src/lib/lexer/tokens';
 
 function parse(input: string): AstRoot {
   const l = new Lexer(input);
-  const p = new Parser(l);
+  const p = new Parser();
   p.parse(l, input);
   return p.getRoot();
 }
@@ -15,7 +15,7 @@ describe('Parser comment handling', () => {
     const ast = parse('% this is a comment\nText');
     const rootChildren = ast.children;
     expect(rootChildren[0].type).toBe(NodeType.Comment);
-    expect((rootChildren[0] as any).name).toBe('%');
+    expect((rootChildren[0] as any).kind).toBe(CommentKind.Line);
     expect((rootChildren[0] as any).value).toBe('% this is a comment\n');
     expect(rootChildren[1].type).toBe(NodeType.Text);
   });
@@ -39,7 +39,7 @@ describe('Parser comment handling', () => {
     expect(env).toBeTruthy();
     const comment = ast.children.find((n) => n.type === NodeType.Comment);
     expect(comment).toBeTruthy();
-    expect((comment as any).name).toBe('%');
+    expect((comment as any).kind).toBe(CommentKind.Line);
     expect((comment as any).value).toBe('% after end\n');
   });
 
@@ -48,7 +48,7 @@ describe('Parser comment handling', () => {
     const comment = ast.children.find((n) => n.type === NodeType.Comment);
     expect(comment).toBeTruthy();
     // Lexer currently labels inline comments with '%'
-    expect((comment as any).name).toBe('%');
+    expect((comment as any).kind).toBe(CommentKind.Line);
     expect((comment as any).value).toBe('%\\begin{figure}\n');
   });
 
@@ -58,8 +58,7 @@ describe('Parser comment handling', () => {
     expect(children[0].type).toBe(NodeType.Text);
     expect((children[0] as any).value).toBe('Before');
     expect(children[1].type).toBe(NodeType.Comment);
-    // Lexer uses 'env-comment' for environment comments
-    expect((children[1] as any).name).toBe('env-comment');
+    expect((children[1] as any).kind).toBe(CommentKind.Environment);
     expect((children[1] as any).value).toBe('\\begin{comment}This is hidden\n\\end{comment}\n');
     expect(children[2].type).toBe(NodeType.Text);
     expect((children[2] as any).value).toBe('After');

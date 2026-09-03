@@ -56,6 +56,29 @@ describe('Lexer options: enabledTokens', () => {
     expect(types).toContain(TokenType.Text);
   });
 
+  it('keeps disabled comments opaque to other enabled token categories', () => {
+    const input = [
+      '% \\input{secret-line.tex}',
+      'Visible',
+      '\\begin{comment}',
+      '\\input{secret-environment.tex}',
+      '\\end{comment}',
+      'After',
+    ].join('\n');
+    const enabled = new Set<TokenType>([
+      TokenType.Text,
+      TokenType.NewLine,
+      TokenType.Input,
+      TokenType.Environment,
+    ]);
+
+    const tokens = collectTokens(new Lexer(input, { enabledTokens: enabled }));
+
+    expect(tokens.filter((token) => token.type === TokenType.Input)).toHaveLength(0);
+    expect(tokens.filter((token) => token.type === TokenType.Environment)).toHaveLength(0);
+    expect(tokens.map((token) => input.slice(token.start, token.end + 1)).join('')).toBe(input);
+  });
+
   it('letter escapable rule is inherent (\\+letter always starts a command)', () => {
     const input = '\\n X \\next';
     const lex = new Lexer(input);

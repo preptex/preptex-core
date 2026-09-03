@@ -1,25 +1,46 @@
 {
   "name": "@preptex/cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "CLI utilities for PrepTeX core parser and transformer.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/preptex/preptex-core.git",
+    "directory": "cli"
+  },
+  "bugs": {
+    "url": "https://github.com/preptex/preptex-core/issues"
+  },
+  "homepage": "https://github.com/preptex/preptex-core/tree/main/cli#readme",
   "dependencies": {
-    "@preptex/core": "file:../core"
+    "@preptex/core": "0.2.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
     "@vitest/coverage-v8": "^2.1.9"
   },
   "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc --project tsconfig.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "format": "prettier --ignore-path ../.prettierignore --write .",
+    "format:check": "prettier --ignore-path ../.prettierignore --check .",
     "start": "node ./dist/index.js",
-    "dev": "ts-node src/index.ts"
+    "prepack": "npm run clean && npm run build"
   },
   "engines": {
     "node": ">=18"
   },
   "bin": {
     "preptex": "./dist/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

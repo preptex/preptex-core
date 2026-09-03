@@ -1,11 +1,5 @@
 import type { Transformer, TransformContext } from './transform.js';
-import {
-  NodeType,
-  ConditionBranchType,
-  AstNode,
-  CommandNode,
-  ConditionBranchNode,
-} from '../parse/types.js';
+import { NodeType, ConditionBranchKind, type AstNode } from '../../api-types.js';
 
 export function suppressComments(node: AstNode, ctx: TransformContext): TransformContext {
   if (node.type === NodeType.Comment) {
@@ -31,7 +25,7 @@ export function filterConditions(
   }
 
   return (node, ctx) => {
-    if (node.type === NodeType.Command && toggleCommands.has((node as CommandNode).name)) {
+    if (node.type === NodeType.Command && toggleCommands.has(node.name)) {
       return { ...ctx, skip_node: true };
     }
     if (node.type === NodeType.ConditionDeclaration) {
@@ -46,10 +40,9 @@ export function filterConditions(
       return { ...ctx, current_suffix: '' };
     }
 
-    const cNode = node as ConditionBranchNode;
-    const keepIf = keep.has(cNode.name);
-    if (keepIf && cNode.branch === ConditionBranchType.Else) return { ...ctx, skip_node: true };
-    if (!keepIf && cNode.branch === ConditionBranchType.If) return { ...ctx, skip_node: true };
+    const keepIf = keep.has(node.name);
+    if (keepIf && node.branch === ConditionBranchKind.Else) return { ...ctx, skip_node: true };
+    if (!keepIf && node.branch === ConditionBranchKind.If) return { ...ctx, skip_node: true };
     // Replace \if* or \else prefix with a space for the kept branch
     return { ...ctx, current_prefix: '' };
   };

@@ -1,23 +1,8 @@
-// Lexer is intentionally options-free; suppression and transforms are handled post-lexing.
+import { TokenType } from '../../api-types.js';
 
-export enum TokenType {
-  Environment = 'Environment',
-  Condition = 'Condition',
-  ConditionDeclaration = 'ConditionDeclaration',
-  Section = 'Section',
-  Command = 'Command',
-  Input = 'Input',
-  Brace = 'Brace',
-  Bracket = 'Bracket',
-  Comment = 'Comment',
-  NewLine = 'NewLine',
-  MathDelim = 'MathDelim',
-  Text = 'Text',
-}
+export { TokenType } from '../../api-types.js';
 
-export const ALL_TOKEN_TYPES: ReadonlySet<TokenType> = new Set(
-  Object.values(TokenType) as TokenType[]
-);
+export const ALL_TOKEN_TYPES: ReadonlySet<TokenType> = new Set(Object.values(TokenType));
 
 export function getAllTokenTypes(): TokenType[] {
   return [...ALL_TOKEN_TYPES];
@@ -47,13 +32,27 @@ const MATH_DELIM_COMMANDS = new Set(['[', ']', '(', ')']);
 const ENVIRONMENT_COMMANDS = new Set(['begin', 'end']);
 
 export interface LexerOptions {
-  enabledTokens?: Set<TokenType>;
+  enabledTokens?: ReadonlySet<TokenType>;
   // When set, only section commands with level <= sectionMaxLevel are tokenized as TokenType.Section.
   // Higher-level section commands are tokenized as TokenType.Command instead.
   // Example: sectionMaxLevel=1 allows \section but suppresses \subsection and deeper.
   sectionMaxLevel?: number;
   // When true (default), backslash+letter is escapable only if the following char is NOT a letter.
   // When false, backslash+letter always starts a command.
+}
+
+function scanCommentEndExclusive(input: string, start: number): number {
+  if (input[start] === '%') {
+    let end = start;
+    while (end < input.length && input[end] !== '\r' && input[end] !== '\n') end++;
+    if (end >= input.length) return input.length;
+    return input[end] === '\r' && input[end + 1] === '\n' ? end + 2 : end + 1;
+  }
+
+  const lineEnding = '(?:\\r\\n|\\r|\\n)';
+  const terminator = new RegExp(`${lineEnding}\\\\end\\{comment\\}${lineEnding}`);
+  const match = terminator.exec(input.slice(start));
+  return match ? start + match.index + match[0].length : input.length;
 }
 
 import {
@@ -70,6 +69,7 @@ import {
   skipWhitespace,
 } from './tokenUtils.js';
 import { SECTION_COMMANDS, SECTION_LEVELS } from '../parse/constants.js';
+import { ParseFailure } from '../parse/failure.js';
 
 export function peekNextTokenType(
   input: string,
@@ -86,8 +86,8 @@ export function peekNextTokenType(
   if (isEnabled(TokenType.MathDelim) && isMathDelimTokenAt(input, start)) {
     return TokenType.MathDelim;
   }
-  if (isEnabled(TokenType.Comment) && isCommentTokenAt(input, start)) {
-    return TokenType.Comment;
+  if (isCommentTokenAt(input, start)) {
+    return isEnabled(TokenType.Comment) ? TokenType.Comment : TokenType.Text;
   }
   if (isEnabled(TokenType.NewLine) && isNewLineTokenAt(input, start)) {
     return TokenType.NewLine;
@@ -173,8 +173,6 @@ export class Lexer {
         return this.readNewLine();
       case TokenType.Brace:
         return this.readBrace();
-      case TokenType.Bracket:
-        return this.readBracket();
       case TokenType.MathDelim:
         return this.readMathToken();
       case TokenType.Input:
@@ -197,25 +195,12 @@ export class Lexer {
   private readComment(): Token {
     const start = this.pos;
     const envC = !(this.input[this.pos] == '%');
-    const remainder = this.input.slice(start);
-    const re = envC ? /\r?\n\\end\{comment\}\r?\n/ : /\r?\n/;
-    const m = re.exec(remainder);
-    let end: number;
-    if (m) {
-      end = start + m.index;
-      // Include the terminator in the comment text (match[0] is the terminator)
-      end += m[0].length - 1;
-    } else {
-      // No terminator found -> consume to EOF (preserve previous behaviour)
-      end = this.input.length;
-    }
-
-    this.pos = end + 1;
+    this.pos = scanCommentEndExclusive(this.input, start);
     return {
       type: TokenType.Comment,
       name: envC ? 'env-comment' : '%',
       start,
-      end,
+      end: this.pos - 1,
       line: this.getLineForIndex(start),
     };
   }
@@ -242,24 +227,16 @@ export class Lexer {
   }
 
   private readBrace(): Token {
-    const ch = this.input[this.pos];
+    const ch = this.input.charAt(this.pos);
     const start = this.pos;
     const line = this.getLineForIndex(start);
     this.pos++;
     return { type: TokenType.Brace, name: ch, start, end: this.pos - 1, line };
   }
 
-  private readBracket(): Token {
-    const ch = this.input[this.pos];
-    const start = this.pos;
-    const line = this.getLineForIndex(start);
-    this.pos++;
-    return { type: TokenType.Bracket, name: ch, start, end: this.pos - 1, line };
-  }
-
   private readMathToken(): Token {
-    const curr = this.input[this.pos];
-    const next = this.input[this.pos + 1];
+    const curr = this.input.charAt(this.pos);
+    const next = this.input.charAt(this.pos + 1);
     if (curr != '$' && (curr != '\\' || !MATH_DELIM_COMMANDS.has(next))) {
       throw new Error(`Expected math delimiter at position ${this.pos}`);
     }
@@ -308,7 +285,10 @@ export class Lexer {
     const level = SECTION_LEVELS[name]!;
     this.parseWhitespace();
     if (this.pos >= this.input.length) {
-      throw new Error(`Unexpected end of input after \\${name} at position ${start}, line ${line}`);
+      throw new ParseFailure(
+        `Unexpected end of input after \\${name} at position ${start}, line ${line}`,
+        { position: start, line }
+      );
     }
     const { name: envName, end } = this.parseEnvName();
     return {
@@ -335,7 +315,7 @@ export class Lexer {
     return {
       type: TokenType.Condition,
       name,
-      condition,
+      ...(condition === undefined ? {} : { condition }),
       start,
       end: this.pos - 1,
       line,
@@ -348,7 +328,20 @@ export class Lexer {
     if (name !== 'input') {
       throw new Error(`Expected input command at position ${start}`);
     }
+    const argumentStart = skipWhitespace(this.input, this.pos);
+    if (this.input[argumentStart] !== '{') {
+      throw new ParseFailure(`Expected a braced input path at position ${argumentStart}`, {
+        position: argumentStart,
+        line: this.getLineForIndex(argumentStart),
+      });
+    }
     const { name: envName, end } = this.parseEnvName();
+    if (!envName) {
+      throw new ParseFailure(`Input path must not be empty at position ${start}`, {
+        position: start,
+        line: this.getLineForIndex(start),
+      });
+    }
     return {
       type: TokenType.Input,
       name,
@@ -369,28 +362,44 @@ export class Lexer {
     this.parseWhitespace(false);
 
     if (this.pos >= this.input.length || this.input[this.pos] !== '\\') {
-      throw new Error(`Expected condition name after \\newif at position ${afterNewIfPos}`);
+      throw new ParseFailure(`Expected condition name after \\newif at position ${afterNewIfPos}`, {
+        position: afterNewIfPos,
+        line: this.getLineForIndex(start),
+      });
     }
     this.pos++;
     if (this.pos >= this.input.length) {
-      throw new Error(`Expected condition name after \\newif at position ${afterNewIfPos}`);
+      throw new ParseFailure(`Expected condition name after \\newif at position ${afterNewIfPos}`, {
+        position: afterNewIfPos,
+        line: this.getLineForIndex(start),
+      });
     }
     const firstCharPos = this.pos++;
-    if (!/^[a-zA-Z@]$/.test(this.input[firstCharPos])) {
-      throw new Error(
-        `Invalid condition name after \\newif: Name starts with ${this.input[firstCharPos]} at position ${afterNewIfPos}`
+    if (!/^[a-zA-Z@]$/.test(this.input.charAt(firstCharPos))) {
+      throw new ParseFailure(
+        `Invalid condition name after \\newif: Name starts with ${this.input[firstCharPos]} at position ${afterNewIfPos}`,
+        { position: firstCharPos, line: this.getLineForIndex(start) }
       );
     }
 
-    while (this.pos < this.input.length && /[a-zA-Z@]/.test(this.input[this.pos])) this.pos++;
+    while (this.pos < this.input.length && /[a-zA-Z@]/.test(this.input.charAt(this.pos))) {
+      this.pos++;
+    }
     const commandName = this.input.slice(firstCharPos, this.pos);
     if (!commandName.startsWith('if')) {
-      throw new Error(
-        `Invalid condition name "${commandName}" after \\newif at position ${afterNewIfPos}`
+      throw new ParseFailure(
+        `Invalid condition name "${commandName}" after \\newif at position ${afterNewIfPos}`,
+        { position: firstCharPos, line: this.getLineForIndex(start) }
       );
     }
 
     const conditionName = commandName.slice(2);
+    if (!conditionName) {
+      throw new ParseFailure(`Expected condition name after \\newif at position ${afterNewIfPos}`, {
+        position: firstCharPos,
+        line: this.getLineForIndex(start),
+      });
+    }
 
     return {
       type: TokenType.ConditionDeclaration,
@@ -410,9 +419,24 @@ export class Lexer {
     const isBegin = name === 'begin';
     this.parseWhitespace();
     if (this.pos >= this.input.length) {
-      throw new Error(`Unexpected end of input after \\${name} at position ${start}`);
+      throw new ParseFailure(`Unexpected end of input after \\${name} at position ${start}`, {
+        position: start,
+        line: this.getLineForIndex(start),
+      });
+    }
+    if (this.input[this.pos] !== '{') {
+      throw new ParseFailure(`Expected a braced environment name after \\${name}`, {
+        position: this.pos,
+        line: this.getLineForIndex(this.pos),
+      });
     }
     const { name: envName, end } = this.parseEnvName();
+    if (!envName) {
+      throw new ParseFailure(`Environment name after \\${name} must not be empty`, {
+        position: start,
+        line: this.getLineForIndex(start),
+      });
+    }
     return {
       type: TokenType.Environment,
       name: envName,
@@ -427,12 +451,33 @@ export class Lexer {
     const start = this.pos;
     const line = this.getLineForIndex(start);
     while (this.pos < this.input.length) {
-      const c = this.input[this.pos];
-      if (this.pos > start && TEXT_END_CHARS.has(c)) break;
+      if (
+        this.opts.enabledTokens !== undefined &&
+        !this.opts.enabledTokens.has(TokenType.Comment) &&
+        isCommentTokenAt(this.input, this.pos)
+      ) {
+        this.pos = scanCommentEndExclusive(this.input, this.pos);
+        continue;
+      }
+      const c = this.input.charAt(this.pos);
+      if (
+        this.pos > start &&
+        TEXT_END_CHARS.has(c) &&
+        peekNextTokenType(this.input, this.pos, this.opts) !== TokenType.Text
+      ) {
+        break;
+      }
       if (c === '\\') {
         const nextChar = this.pos + 1 < this.input.length ? this.input[this.pos + 1] : null;
-        if (this.pos > start && nextChar && !isEscapablePair(nextChar)) break;
-        this.pos += 2; // consume escaped pair as text
+        if (
+          this.pos > start &&
+          nextChar &&
+          !isEscapablePair(nextChar) &&
+          peekNextTokenType(this.input, this.pos, this.opts) !== TokenType.Text
+        ) {
+          break;
+        }
+        this.pos += nextChar === null ? 1 : 2; // consume an escaped pair or trailing backslash
         continue;
       }
       this.pos++;
@@ -443,10 +488,6 @@ export class Lexer {
       end: this.pos > start ? this.pos - 1 : start - 1,
       line,
     };
-    while (peekNextTokenType(this.input, this.pos, this.opts) === TokenType.Text) {
-      const nextToken = this.readText();
-      currToken.end = nextToken.end;
-    }
     return currToken;
   }
 
@@ -469,7 +510,7 @@ export class Lexer {
   private getLineForIndex(index: number): number {
     while (
       this.curr_line_index + 1 < this.lineStarts.length &&
-      this.lineStarts[this.curr_line_index + 1] <= index
+      this.lineStarts[this.curr_line_index + 1]! <= index
     ) {
       this.curr_line_index++;
     }

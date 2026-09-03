@@ -1,14 +1,19 @@
 import { CallStack } from './callstack.js';
 import {
-  AstNode,
-  InnerNode,
-  AstRoot,
   NodeType,
-  ConditionBranchType,
-  CommandNode,
-  InputNode,
+  ConditionBranchKind,
+  CommentKind,
+  type AstNode,
+  type InnerNode,
+  type AstRoot,
+  type CommandNode,
+  type InputNode,
   type SectionNode,
 } from './types.js';
+import type { LineEnding, MathDelimiter } from '../../api-types.js';
+import { DiagnosticCode } from '../../api-types.js';
+import type { ParseNotice } from './notices.js';
+import { ParseFailure } from './failure.js';
 import { SECTION_LEVELS } from './constants.js';
 import type { ParseOptions } from '../options.js';
 import { Lexer, TokenType, type Token } from '../lexer/tokens.js';
@@ -23,6 +28,7 @@ interface ParseRuntime {
   stack: CallStack;
   inputFiles?: Set<string>;
   notes?: string[];
+  notices?: ParseNotice[];
   nextId: number;
 }
 
@@ -30,8 +36,15 @@ function allocId(runtime: ParseRuntime): number {
   return runtime.nextId++;
 }
 
-function addNote(runtime: ParseRuntime, message: string, line?: number): void {
-  runtime.notes?.push(`${message} Line: ${line ?? 1}`);
+function addNote(runtime: ParseRuntime, message: string, token: Token): void {
+  runtime.notes?.push(`${message} Line: ${token.line}`);
+  runtime.notices?.push({
+    code: DiagnosticCode.SectionReclassified,
+    message,
+    start: token.start,
+    end: token.end,
+    line: token.line,
+  });
 }
 
 function sliceTokenValue(input: string, start: number, end: number): string {
@@ -46,7 +59,6 @@ const HANDLERS: Map<TokenType, TokenHandler> = new Map([
   [TokenType.Command, handleCommand],
   [TokenType.Section, handleSection],
   [TokenType.Brace, handleBrace],
-  [TokenType.Bracket, handleBracket],
   [TokenType.Comment, handleComment],
   [TokenType.NewLine, handleNewLine],
   [TokenType.MathDelim, handleMathDelim],
@@ -61,10 +73,11 @@ export function parseToAst(
   input: string,
   options: ParseOptions,
   inputFiles?: Set<string>,
-  notes?: string[]
+  notes?: string[],
+  notices?: ParseNotice[]
 ): AstRoot {
   void options;
-  const runtime = createRuntime(input, inputFiles, notes);
+  const runtime = createRuntime(input, inputFiles, notes, notices);
 
   for (const token of lexer.stream()) {
     const handler = HANDLERS.get(token.type);
@@ -74,8 +87,7 @@ export function parseToAst(
     handler(runtime, token);
   }
 
-  // Keep finalization for inputs without a document environment.
-  finalizeOpenSections(runtime);
+  finalizeParse(runtime);
 
   return runtime.root;
 }
@@ -89,12 +101,33 @@ function closeSectionsLevel(runtime: ParseRuntime, level: number, end: number): 
   }
 }
 
-function finalizeOpenSections(runtime: ParseRuntime): void {
+function finalizeParse(runtime: ParseRuntime): void {
   const lastIndex = runtime.input.length - 1;
   closeSectionsLevel(runtime, 1, lastIndex);
+
+  const top = runtime.stack.peek();
+  const stackSize = runtime.stack.size();
+  if (stackSize === 1 && top === runtime.root) return;
+
+  if (!top || top === runtime.root || stackSize === 1) {
+    const topType = top?.type ?? 'empty stack';
+    throw new Error(
+      `Parser invariant violated: expected one root after finalization; found ${stackSize} stack entries with ${topType} on top.`
+    );
+  }
+
+  throw new ParseFailure(`Unclosed ${top.type} construct opened on line ${top.line}.`, {
+    position: top.start,
+    line: top.line,
+  });
 }
 
-function createRuntime(input: string, inputFiles?: Set<string>, notes?: string[]): ParseRuntime {
+function createRuntime(
+  input: string,
+  inputFiles?: Set<string>,
+  notes?: string[],
+  notices?: ParseNotice[]
+): ParseRuntime {
   const root: AstRoot = {
     type: NodeType.Root,
     id: 0,
@@ -106,13 +139,13 @@ function createRuntime(input: string, inputFiles?: Set<string>, notes?: string[]
     suffix: '',
   };
   const stack = new CallStack(root);
-  stack.push(root);
   return {
     input,
     root,
     stack,
-    inputFiles,
-    notes,
+    ...(inputFiles === undefined ? {} : { inputFiles }),
+    ...(notes === undefined ? {} : { notes }),
+    ...(notices === undefined ? {} : { notices }),
     nextId: 1,
   };
 }
@@ -145,7 +178,7 @@ function handleNewLine(runtime: ParseRuntime, token: Token) {
     start: token.start,
     end: token.end,
     line: token.line,
-    value: sliceTokenValue(runtime.input, token.start, token.end),
+    value: sliceTokenValue(runtime.input, token.start, token.end) as LineEnding,
     originalLineIsWhitespaceOnly: isOriginalLineWhitespaceOnly(runtime.input, token.start),
   });
 }
@@ -159,7 +192,7 @@ function isOriginalLineWhitespaceOnly(input: string, lineEnd: number): boolean {
   }
 
   for (let i = lineStart; i < lineEnd; i++) {
-    if (!/[\s]/.test(input[i])) return false;
+    if (!/[\s]/.test(input.charAt(i))) return false;
   }
   return true;
 }
@@ -178,7 +211,7 @@ function handleSection(runtime: ParseRuntime, token: Token) {
   // If they do appear there, treat the whole token span as a normal command node.
   if (parent.type !== NodeType.Section && parent.type !== NodeType.Root) {
     const cmdName = SECTION_COMMAND_BY_LEVEL.get(level) ?? 'section';
-    addNote(runtime, `Section command parsed as command inside ${parent.type}`, token.line);
+    addNote(runtime, `Section command parsed as command inside ${parent.type}`, token);
     const cmdNode = {
       type: NodeType.Command,
       id: allocId(runtime),
@@ -186,7 +219,7 @@ function handleSection(runtime: ParseRuntime, token: Token) {
       end: token.end,
       line: token.line,
       name: cmdName,
-      is_starred: token.is_starred,
+      starred: Boolean(token.is_starred),
       value: runtime.input.slice(token.start, token.end + 1),
     } as CommandNode;
     (parent as InnerNode).children.push(cmdNode);
@@ -214,8 +247,7 @@ function handleSection(runtime: ParseRuntime, token: Token) {
     children: [],
     prefix: runtime.input.slice(token.start, token.end + 1),
     suffix: '',
-    is_starred: token.is_starred,
-    starred: token.is_starred,
+    starred: Boolean(token.is_starred),
   };
 
   (parent as InnerNode).children.push(sectionNode);
@@ -230,7 +262,7 @@ function handleCommand(runtime: ParseRuntime, token: Token) {
     end: token.end,
     line: token.line,
     name: token.name ?? '',
-    is_starred: token.is_starred,
+    starred: Boolean(token.is_starred),
     value: runtime.input.slice(token.start, token.end + 1),
   } as CommandNode;
 
@@ -260,11 +292,12 @@ function handleBrace(runtime: ParseRuntime, token: Token) {
 
   const top = runtime.stack.peek() as AstNode | undefined;
   if (!top) {
-    throw new Error(`${token.line}: Unexpected "}" without a matching "{". Empty stack.`);
+    throw new Error('Parser invariant violated: the root node is missing while closing a group.');
   }
   if (top.type !== NodeType.Group) {
-    throw new Error(
-      `${token.line}: Unexpected "}" without a matching "{". Found ${top.type} at line ${top.line}.`
+    throw new ParseFailure(
+      `${token.line}: Unexpected "}" without a matching "{". Found ${top.type} at line ${top.line}.`,
+      { position: token.start, line: token.line }
     );
   }
   top.end = token.end;
@@ -290,6 +323,7 @@ function handleEnvironment(runtime: ParseRuntime, token: Token) {
         children: [],
         prefix: runtime.input.slice(token.start, token.end + 1),
         suffix: '',
+        starred: false,
       };
       parent.children.push(docSection);
       runtime.stack.push(docSection as unknown as AstNode);
@@ -313,22 +347,19 @@ function handleEnvironment(runtime: ParseRuntime, token: Token) {
 
   const envNode = runtime.stack.peek() as AstNode | undefined;
   if (!envNode) {
-    throw new Error(
-      `${token.line}: Unexpected "end" without a matching "begin" environment. Empty stack.`
-    );
+    handleText(runtime, token);
+    return;
   }
   if (name === 'document') {
     closeSectionsLevel(runtime, 1, token.start - 1);
     const top = runtime.stack.peek() as AstNode | undefined;
     if (!top) {
-      throw new Error(
-        `${token.line}: Unexpected "end{document}": missing document environment. Empty stack.`
-      );
+      handleText(runtime, token);
+      return;
     }
     if (top.type !== NodeType.Section || (top as any).name !== 'document') {
-      throw new Error(
-        `${token.line}: Unexpected "end{document}": missing document environment. Found: ${top} at line ${top.line}.`
-      );
+      handleText(runtime, token);
+      return;
     }
     top.end = token.end;
     top.suffix = runtime.input.slice(token.start, token.end + 1);
@@ -336,14 +367,12 @@ function handleEnvironment(runtime: ParseRuntime, token: Token) {
     return;
   }
   if (envNode.type !== NodeType.Environment) {
-    throw new Error(
-      `${token.line}: Unexpected "end" without a matching "begin" environment. Found ${envNode.type} at line ${envNode.line}.`
-    );
+    handleText(runtime, token);
+    return;
   }
   if ((envNode as any).name !== name) {
-    throw new Error(
-      `${token.line}: Unexpected "end{${name}}" without a matching "begin{${name}}". Found open environment "${(envNode as any).name}" at line ${envNode.line}.`
-    );
+    handleText(runtime, token);
+    return;
   }
   envNode.end = token.end;
   (envNode as InnerNode).suffix = runtime.input.slice(token.start, token.end + 1);
@@ -371,25 +400,21 @@ function handleInput(runtime: ParseRuntime, token: Token) {
   }
 }
 
-function handleBracket(_runtime: ParseRuntime, _token: Token) {
-  void _runtime;
-  void _token;
-}
-
 function handleMathDelim(runtime: ParseRuntime, token: Token) {
-  const delim = token.name ?? '';
+  const delimiter = token.name ?? '';
   const top = runtime.stack.peek() as any;
   if (!top) {
     throw new Error('Stack empty');
   }
-  const isDollar = delim === '$' || delim === '$$';
-  const isParenClose = delim === '\\]' || delim === '\\)';
+  const isDollar = delimiter === '$' || delimiter === '$$';
+  const isParenClose = delimiter === '\\]' || delimiter === '\\)';
 
   if (isParenClose) {
-    const expectedOpen = delim === '\\)' ? '\\(' : '\\[';
-    if (top.type !== NodeType.Math || top.delim !== expectedOpen) {
-      throw new Error(
-        `${token.line}: Unexpected math closer "${delim}" without matching opener "${expectedOpen}". Found ${top.type} at line ${top.line}.`
+    const expectedOpen: MathDelimiter = delimiter === '\\)' ? '\\(' : '\\[';
+    if (top.type !== NodeType.Math || top.delimiter !== expectedOpen) {
+      throw new ParseFailure(
+        `${token.line}: Unexpected math closer "${delimiter}" without matching opener "${expectedOpen}". Found ${top.type} at line ${top.line}.`,
+        { position: token.start, line: token.line }
       );
     }
     top.end = token.end;
@@ -398,7 +423,7 @@ function handleMathDelim(runtime: ParseRuntime, token: Token) {
     return;
   }
 
-  if (isDollar && top.type === NodeType.Math && top.delim === delim) {
+  if (isDollar && top.type === NodeType.Math && top.delimiter === delimiter) {
     top.end = token.end;
     top.suffix = runtime.input.slice(token.start, token.end + 1);
     runtime.stack.pop();
@@ -409,20 +434,20 @@ function handleMathDelim(runtime: ParseRuntime, token: Token) {
   const mathNode = {
     type: NodeType.Math,
     id: allocId(runtime),
-    delim,
+    delimiter: delimiter as MathDelimiter,
     start: token.start,
     end: token.end,
     line: token.line,
     children: [],
     prefix: runtime.input.slice(token.start, token.end + 1),
     suffix:
-      delim === '$' || delim === '$$'
-        ? delim
-        : delim === '\\['
+      delimiter === '$' || delimiter === '$$'
+        ? delimiter
+        : delimiter === '\\['
           ? '\\]'
-          : delim === '\\('
+          : delimiter === '\\('
             ? '\\)'
-            : delim,
+            : delimiter,
   } as AstNode;
 
   parent.children.push(mathNode);
@@ -436,7 +461,10 @@ function handleCondition(runtime: ParseRuntime, token: Token) {
     const parent = getParentNode(runtime) as InnerNode;
     const name = token.condition ?? '';
     if (!name) {
-      throw new Error('Condition name missing in ' + kind);
+      throw new ParseFailure(`Condition name missing in ${kind} at line ${token.line}`, {
+        position: token.start,
+        line: token.line,
+      });
     }
 
     const conditionNode = {
@@ -458,7 +486,7 @@ function handleCondition(runtime: ParseRuntime, token: Token) {
       type: NodeType.ConditionBranch,
       id: allocId(runtime),
       name,
-      branch: ConditionBranchType.If,
+      branch: ConditionBranchKind.If,
       start: token.start,
       end: token.end,
       line: token.line,
@@ -474,8 +502,11 @@ function handleCondition(runtime: ParseRuntime, token: Token) {
 
   if (kind === 'else') {
     const top = runtime.stack.peek() as any;
-    if (!top || top.type !== NodeType.ConditionBranch || top.branch !== ConditionBranchType.If) {
-      throw new Error('Unexpected "else" without an open IF branch');
+    if (!top || top.type !== NodeType.ConditionBranch || top.branch !== ConditionBranchKind.If) {
+      throw new ParseFailure(`Unexpected "else" without an open IF branch at line ${token.line}`, {
+        position: token.start,
+        line: token.line,
+      });
     }
     top.end = token.start - 1;
     runtime.stack.pop();
@@ -489,7 +520,7 @@ function handleCondition(runtime: ParseRuntime, token: Token) {
       type: NodeType.ConditionBranch,
       id: allocId(runtime),
       name: parent.name,
-      branch: ConditionBranchType.Else,
+      branch: ConditionBranchKind.Else,
       start: token.start,
       end: token.end,
       line: token.line,
@@ -506,7 +537,10 @@ function handleCondition(runtime: ParseRuntime, token: Token) {
   if (kind === 'fi') {
     let top = runtime.stack.peek() as any;
     if (!top || top.type !== NodeType.ConditionBranch) {
-      throw new Error(`${token.line}: Unexpected "fi" without an open condition. Found: ${top}.`);
+      throw new ParseFailure(
+        `${token.line}: Unexpected "fi" without an open condition. Found: ${String(top)}.`,
+        { position: token.start, line: token.line }
+      );
     }
     top.end = token.end;
     runtime.stack.pop();
@@ -532,7 +566,7 @@ function handleComment(runtime: ParseRuntime, token: Token) {
     start: token.start,
     end: token.end,
     line: token.line,
-    name: token.name ?? '',
+    kind: token.name === 'env-comment' ? CommentKind.Environment : CommentKind.Line,
     value: sliceTokenValue(runtime.input, token.start, token.end),
   });
 }

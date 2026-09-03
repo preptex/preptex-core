@@ -1,7 +1,9 @@
-import { Lexer, TokenType, LexerOptions, getAllTokenTypes } from '../lexer/tokens.js';
+import { Lexer, TokenType, getAllTokenTypes, type LexerOptions } from '../lexer/tokens.js';
 import { CallStack } from './callstack.js';
 import { NodeType, type AstNode } from './types.js';
 import { SECTION_LEVELS } from './constants.js';
+import { DiagnosticCode, type WarningDiagnosticCode } from '../../api-types.js';
+import type { ParseNotice } from './notices.js';
 
 // Context kinds tracked on the stack: reuse NodeType subset
 
@@ -13,6 +15,8 @@ const NOTE_MATH_IN_IF = 'Disabled MathDelim due to math inside conditional conte
 const NOTE_IF_IN_MATH = 'Disabled MathDelim due to conditional inside math context';
 const NOTE_IF_INTERSECTS_MATH = 'Disabled MathDelim due to conditional intersecting math context';
 const NOTE_MATH_INTERSECTS_IF = 'Disabled MathDelim due to math intersecting conditional context';
+const NOTE_MIXED_MATH_DELIMITERS =
+  'Disabled MathDelim because nested or mismatched math delimiters cannot be represented safely';
 const NOTE_NO_MATCHING_OPENER = 'Closing group encountered with no matching opener';
 
 const SECTION_COMMAND_BY_LEVEL: ReadonlyMap<number, string> = new Map(
@@ -26,7 +30,8 @@ function formatSectionInConditionalNote(
 ): string {
   const cmd = SECTION_COMMAND_BY_LEVEL.get(lvl);
   const cmdText = cmd ? `\\${cmd}` : 'a section command';
-  const titleText = typeof token.name === 'string' && token.name.length > 0 ? `{${token.name}}` : '';
+  const titleText =
+    typeof token.name === 'string' && token.name.length > 0 ? `{${token.name}}` : '';
   const effectiveText =
     effectiveSectionMaxLevel == null ? 'unset' : String(effectiveSectionMaxLevel);
 
@@ -47,6 +52,7 @@ function formatSectionInConditionalUnknownLevelNote(): string {
 export interface SanityResult {
   lexerOptions: LexerOptions;
   notes: string[];
+  notices: ParseNotice[];
   intersectingPairs?: Array<{
     openCtx: NodeType;
     closeCtx: NodeType;
@@ -76,8 +82,17 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
   let nextId = 1;
 
   const notes: string[] = [];
-  const addNote = (message: string, line?: number) => {
-    notes.push(`${message} Line: ${line ?? 1}`);
+  const notices: ParseNotice[] = [];
+  const addNote = (code: WarningDiagnosticCode, message: string, token: any) => {
+    const line = typeof token.line === 'number' ? token.line : 1;
+    notes.push(`${message} Line: ${line}`);
+    notices.push({
+      code,
+      message,
+      start: typeof token.start === 'number' ? token.start : 0,
+      end: typeof token.end === 'number' ? token.end : 0,
+      line,
+    });
   };
   const enabled = new Set(lexerOptions.enabledTokens ?? getAllTokenTypes());
   let sectionMaxLevel = lexerOptions.sectionMaxLevel;
@@ -98,7 +113,7 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
         }
       }
     }
-    for (let i = tmp.length - 1; i >= 0; i--) stack.push(tmp[i]);
+    for (let i = tmp.length - 1; i >= 0; i--) stack.push(tmp[i]!);
     return found;
   };
 
@@ -142,7 +157,7 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
           });
           if (topCtx === NodeType.Math && enabled.has(TokenType.MathDelim)) {
             enabled.delete(TokenType.MathDelim);
-            addNote(NOTE_IF_INTERSECTS_MATH, t.line);
+            addNote(DiagnosticCode.TokenizationAdjusted, NOTE_IF_INTERSECTS_MATH, t);
           }
         }
       }
@@ -155,7 +170,7 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
           break;
         }
       }
-      if (!closedIf) addNote(NOTE_NO_MATCHING_IF, t.line);
+      if (!closedIf) addNote(DiagnosticCode.UnmatchedClosing, NOTE_NO_MATCHING_IF, t);
       return;
     }
     // Opening if*
@@ -172,7 +187,7 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
     } as unknown as AstNode);
     if (isInCtx(NodeType.Math) && enabled.has(TokenType.MathDelim)) {
       enabled.delete(TokenType.MathDelim);
-      addNote(NOTE_IF_IN_MATH, t.line);
+      addNote(DiagnosticCode.TokenizationAdjusted, NOTE_IF_IN_MATH, t);
     }
   };
 
@@ -186,9 +201,17 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
         const newMax = Math.max(0, lvl - 1);
         sectionMaxLevel = sectionMaxLevel == null ? newMax : Math.min(sectionMaxLevel, newMax);
 
-        addNote(formatSectionInConditionalNote(t, lvl, sectionMaxLevel), t.line);
+        addNote(
+          DiagnosticCode.SectionReclassified,
+          formatSectionInConditionalNote(t, lvl, sectionMaxLevel),
+          t
+        );
       } else {
-        addNote(formatSectionInConditionalUnknownLevelNote(), t.line);
+        addNote(
+          DiagnosticCode.SectionReclassified,
+          formatSectionInConditionalUnknownLevelNote(),
+          t
+        );
       }
     }
   };
@@ -200,22 +223,71 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
       // Backslash pairs: explicit open/close, no stack lookups
       if (t.name === '\\(' || t.name === '\\[') return true;
       if (t.name === '\\)' || t.name === '\\]') return false;
-      // Dollar delimiters: opening if there is no Math with the same delim on stack; else closing.
-      const tmp: AstNode[] = [];
-      let hasSameDelim = false;
-      while (stack.size() > 0) {
-        const n = stack.pop();
-        if (!n) break;
-        tmp.push(n);
-        if ((n as any).ctx === 'Math' && (n as any).delim === t.name) {
-          hasSameDelim = true;
-          break;
-        }
-      }
-      for (let i = tmp.length - 1; i >= 0; i--) stack.push(tmp[i]);
-      return !hasSameDelim;
+      return true;
     }
     throw new Error('Not a grouping token');
+  };
+
+  const findActiveMath = (): AstNode | undefined => {
+    const temporary: AstNode[] = [];
+    let active: AstNode | undefined;
+    while (stack.size() > 0) {
+      const node = stack.pop();
+      if (!node) break;
+      temporary.push(node);
+      if ((node as any).ctx === NodeType.Math) {
+        active = node;
+        break;
+      }
+    }
+    for (let index = temporary.length - 1; index >= 0; index--) {
+      stack.push(temporary[index]!);
+    }
+    return active;
+  };
+
+  const dropActiveMath = (): void => {
+    const retained: AstNode[] = [];
+    while (stack.size() > 0) {
+      const node = stack.pop();
+      if (!node) break;
+      if ((node as any).ctx !== NodeType.Math) retained.push(node);
+    }
+    for (let index = retained.length - 1; index >= 0; index--) {
+      stack.push(retained[index]!);
+    }
+  };
+
+  let ignoreMathTokens = false;
+  const classifyMathOpening = (t: any): boolean | undefined => {
+    if (ignoreMathTokens) return undefined;
+    const delimiter = t.name as string;
+    const active = findActiveMath();
+    const activeDelimiter = active ? ((active as any).delim as string | undefined) : undefined;
+    const expectedOpening = delimiter === '\\)' ? '\\(' : delimiter === '\\]' ? '\\[' : undefined;
+    const explicitlyOpens = delimiter === '\\(' || delimiter === '\\[';
+
+    let opening: boolean;
+    let mismatch = false;
+    if (explicitlyOpens) {
+      opening = true;
+      mismatch = active !== undefined;
+    } else if (expectedOpening !== undefined) {
+      opening = false;
+      mismatch = active !== undefined && activeDelimiter !== expectedOpening;
+    } else {
+      opening = activeDelimiter !== delimiter;
+      mismatch = active !== undefined && activeDelimiter !== delimiter;
+    }
+
+    if (!mismatch) return opening;
+    ignoreMathTokens = true;
+    if (enabled.has(TokenType.MathDelim)) {
+      enabled.delete(TokenType.MathDelim);
+      addNote(DiagnosticCode.TokenizationAdjusted, NOTE_MIXED_MATH_DELIMITERS, t);
+    }
+    dropActiveMath();
+    return undefined;
   };
 
   const get_group_ctx = (t: any): Ctx | null => {
@@ -227,7 +299,9 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
 
   // Grouping handler: environments, math, groups
   const handleGrouping = (t: any) => {
-    const isOpening = is_group_opening(t);
+    const mathOpening = t.type === TokenType.MathDelim ? classifyMathOpening(t) : undefined;
+    if (t.type === TokenType.MathDelim && mathOpening === undefined) return;
+    const isOpening = mathOpening ?? is_group_opening(t);
     const ctx = get_group_ctx(t);
     if (!ctx) return;
 
@@ -257,7 +331,7 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
         } as unknown as AstNode);
         if (isInCtx(NodeType.Condition) && enabled.has(TokenType.MathDelim)) {
           enabled.delete(TokenType.MathDelim);
-          addNote(NOTE_MATH_IN_IF, t.line);
+          addNote(DiagnosticCode.TokenizationAdjusted, NOTE_MATH_IN_IF, t);
         }
       } else if (ctx === NodeType.Group) {
         stack.push({
@@ -276,7 +350,7 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
     // Closing logic: if the last opened (top of stack) is not the same type,
     // record intersecting pair, then still remove the matching opening from the stack
     if (stack.size() === 0) {
-      addNote(NOTE_EMPTY_STACK, t.line);
+      addNote(DiagnosticCode.UnmatchedClosing, NOTE_EMPTY_STACK, t);
       // Record as unopened closing
       unopenedClosings.push({ ctx, closePos: t.start, line: t.line ?? 1 });
       return;
@@ -302,7 +376,7 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
       ) {
         if (enabled.has(TokenType.MathDelim)) {
           enabled.delete(TokenType.MathDelim);
-          addNote(NOTE_MATH_INTERSECTS_IF, t.line);
+          addNote(DiagnosticCode.TokenizationAdjusted, NOTE_MATH_INTERSECTS_IF, t);
         }
       }
     }
@@ -319,9 +393,9 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
       }
       temp.push(n);
     }
-    if (!removed) addNote(NOTE_NO_MATCHING_OPENER, t.line);
+    if (!removed) addNote(DiagnosticCode.UnmatchedClosing, NOTE_NO_MATCHING_OPENER, t);
     // Push back the non-matching contexts (keep them)
-    for (let i = temp.length - 1; i >= 0; i--) stack.push(temp[i]);
+    for (let i = temp.length - 1; i >= 0; i--) stack.push(temp[i]!);
   };
   const handleAtom = () => {
     // No stack effects; atom-level tokens do not affect sanity state
@@ -337,7 +411,6 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
   handlers.set(TokenType.Text, handleAtom);
   handlers.set(TokenType.NewLine, handleAtom);
   handlers.set(TokenType.Comment, handleAtom);
-  handlers.set(TokenType.Bracket, handleAtom);
   handlers.set(TokenType.ConditionDeclaration, handleAtom);
   handlers.set(TokenType.Input, handleAtom);
 
@@ -361,11 +434,15 @@ export function sanityCheck(input: string, lexerOptions: LexerOptions = {}): San
       openedUnclosedGroupings.push({ ctx: c, pos: (n as any).start, line: (n as any).line ?? 1 });
   }
   // restore (not strictly necessary at end)
-  for (let i = tmpFinal.length - 1; i >= 0; i--) stack.push(tmpFinal[i]);
+  for (let i = tmpFinal.length - 1; i >= 0; i--) stack.push(tmpFinal[i]!);
 
   return {
-    lexerOptions: { enabledTokens: enabled, sectionMaxLevel },
+    lexerOptions: {
+      enabledTokens: enabled,
+      ...(sectionMaxLevel === undefined ? {} : { sectionMaxLevel }),
+    },
     notes,
+    notices,
     intersectingPairs,
     openedUnclosedGroupings,
     unopenedClosings,
