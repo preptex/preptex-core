@@ -1,17 +1,17 @@
 # PrepTeX Core: project model, analyses, and transformations
 
-Status: **C1–C5 implemented in the local 0.3.0 preparation; C6–C10 pending.**
+Status: **C1–C8 implemented in the local 0.3.0 preparation; C9/C10 pending.**
 Prepared against the installed `@preptex/core@0.2.1`. Complete this plan before migrating the website using the
 [website implementation plan](website-project-workspace-implementation-plan.md).
 
 Prepared: 2026-09-07.
 
 Implementation update (2026-09-08): finalized public names and supported profile
-are in [the C1–C5 integration guide](../project-model.md). C1's future analysis,
-preview and application flows are contracts only; their executors remain C6/C7.
-Atomic source upserts/removals are implemented now to establish C1 revision
-preconditions; C8's reuse/performance work remains pending. No website changes
-or package publication are part of this increment.
+are in [the C1–C8 integration guide](../project-model.md). Independent analyses,
+checked source edits, configured exports, scan reuse and bounded output now have
+public executors. See [performance measurements](../project-model-performance.md)
+and the public-operation regressions for C5–C8 acceptance evidence. No website
+changes or package publication are part of this increment.
 
 Baseline: clean 0.2.1 checkout; 167 core tests, one CLI regression, workspace
 type checks, public type contracts and TSDoc checks passed. The baseline format
@@ -417,12 +417,12 @@ stream in the correct encounter order.
 
 **Acceptance**
 
-- [ ] Both values in fixture F02 produce the intended single list environment.
-- [ ] Section/math nodes in the selected path are not globally downgraded merely
+- [x] Both values in fixture F02 produce the intended single list environment.
+- [x] Section/math nodes in the selected path are not globally downgraded merely
       because the original source contained conditional boundaries.
-- [ ] A node spanning an input or omitted branch returns every contributing
+- [x] A node spanning an input or omitted branch returns every contributing
       origin without falsely covering inactive gaps.
-- [ ] A partial view never presents an invented complete AST.
+- [x] A partial view never presents an invented complete AST.
 
 ### C6. Implement independent analyses and explain their coverage
 
@@ -456,13 +456,13 @@ stream in the correct encounter order.
 
 **Acceptance**
 
-- [ ] Mutually exclusive labels do not become duplicate labels in one selected
+- [x] Mutually exclusive labels do not become duplicate labels in one selected
       configuration; a source inventory still shows both occurrences.
-- [ ] Forward references through inputs use the correct encounter order.
-- [ ] Uncalled macro-body labels are not mistaken for reached targets.
-- [ ] Directly used, body-referenced, recursively self-referenced, redefined, and
+- [x] Forward references through inputs use the correct encounter order.
+- [x] Uncalled macro-body labels are not mistaken for reached targets.
+- [x] Directly used, body-referenced, recursively self-referenced, redefined, and
       dynamically constructed command examples receive their documented classifications.
-- [ ] Each analysis runs without generating or changing a LaTeX file.
+- [x] Each analysis runs without generating or changing a LaTeX file.
 
 ### C7. Implement edit plans and independent transformation/emission policies
 
@@ -507,14 +507,14 @@ stream in the correct encounter order.
 
 **Acceptance**
 
-- [ ] No-op output is exactly equal to each input string.
-- [ ] Preserve-source transforms leave every protected inactive slice and every
+- [x] No-op output is exactly equal to each input string.
+- [x] Preserve-source transforms leave every protected inactive slice and every
       source slice outside accepted edits exactly unchanged.
-- [ ] Stale, overlapping, invalid, and conflicting multi-occurrence edits fail
+- [x] Stale, overlapping, invalid, and conflicting multi-occurrence edits fail
       atomically with structured reasons.
-- [ ] Materialized crossing-environment output reparses with the expected structure.
-- [ ] Output dependency metadata accurately identifies every preserved input.
-- [ ] Analyses and transformations leave the originating snapshot untouched.
+- [x] Materialized crossing-environment output reparses with the expected structure.
+- [x] Output dependency metadata accurately identifies every preserved input.
+- [x] Analyses and transformations leave the originating snapshot untouched.
 
 ### C8. Complete updates, invalidation, and operational bounds
 
@@ -541,12 +541,12 @@ stream in the correct encounter order.
 
 **Acceptance**
 
-- [ ] Incremental and clean-rebuild results agree after edits and deletions.
-- [ ] A changed setter invalidates observations in later caller files.
-- [ ] Two configurations of the same source can coexist without state leakage.
-- [ ] Reordering options with equivalent semantics does not create inconsistent
+- [x] Incremental and clean-rebuild results agree after edits and deletions.
+- [x] A changed setter invalidates observations in later caller files.
+- [x] Two configurations of the same source can coexist without state leakage.
+- [x] Reordering options with equivalent semantics does not create inconsistent
       results; changing meaningful options never reuses stale results.
-- [ ] Repeated inclusion and nesting limits have bounded, tested failure paths.
+- [x] Repeated inclusion and nesting limits have bounded, tested failure paths.
 
 ### C9. Preserve compatibility and keep pipeline convenience
 
@@ -601,8 +601,8 @@ stream in the correct encounter order.
 5. Create and inspect the package tarball. Install it in an isolated consumer and
    run the example inventory/view/analysis/transform flows using public imports.
    Verify bundled docs, declarations, export maps, and runtime files agree.
-6. Select the next appropriate exact release version. `0.3.0` is a candidate for
-   this API expansion; do not assume that version is free or already published.
+6. Prepare the shared `0.3.0` release for all stages of this API expansion.
+   Verify registry availability before publishing; do not assume it is already published.
    Prepare release notes and follow the repository's normal release authorization.
 7. After the chosen version is published and verified, hand off its exact version,
    migration instructions, support matrix, fixture outputs, and result contracts

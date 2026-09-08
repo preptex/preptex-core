@@ -649,7 +649,7 @@ describe('C5: configured structure and original provenance', () => {
 });
 
 describe('C1: operation requirements and checked proposal contracts', () => {
-  it('allows independent inventory, enforces missing scope, and marks future operations unavailable', () => {
+  it('allows independent inventory and analysis and enforces model and scope requirements', () => {
     const model = snapshot('');
     expect(checkOperationCapability(model, { operation: 'source-inventory' }).eligible).toBe(true);
     const request = {
@@ -666,7 +666,7 @@ describe('C1: operation requirements and checked proposal contracts', () => {
     ).toEqual(['wrong-model']);
     expect(
       checkOperationCapability(view, { operation: 'references' }).reasons.map((r) => r.code)
-    ).toEqual(['not-implemented']);
+    ).toEqual([]);
     allFrozen(projectOperations);
   });
 

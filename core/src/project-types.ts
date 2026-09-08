@@ -469,6 +469,8 @@ export type ConfiguredNode =
     });
 /** Fields shared by ready, incomplete, and blocked configured results. */
 export interface ProjectViewBase {
+  /** Original immutable source authority; transported views can be reconstructed from it. */
+  readonly snapshot: ProjectSnapshot;
   /** Representation discriminant. */
   readonly kind: 'view';
 
@@ -560,7 +562,7 @@ export interface InventoryResult {
   /** Coverage of the requested files. */
   readonly coverage: Coverage;
 }
-/** Public operation requests; later-stage requests are explicitly unavailable in C1–C5. */
+/** Public requests for independent inventory, interpretation, analysis, and transformation. */
 export type OperationRequest =
   | {
       /** Inventory operation. */
@@ -575,31 +577,120 @@ export type OperationRequest =
       readonly options: ViewConfiguration;
     }
   | {
-      /** Planned C6 analysis. */
+      /** Independent analysis; unused-command analysis also accepts source snapshots. */
       readonly operation: 'references' | 'unused-commands';
-      /** No options in the initial analysis contract. */
-      readonly options?: Readonly<Record<string, never>>;
+      /** Partial view observations require explicit opt-in; source scope is for source models only. */
+      readonly options?: AnalysisOptions;
     }
   | {
-      /** Planned C7 edit preview. */
-      readonly operation: 'suppress-comments';
+      /** Exact source edit preview. */
+      readonly operation: 'suppress-comments' | 'identity';
       /** Explicit source or selected-path target. */
       readonly options: {
         /** Inspect all requested source or only the configured selected path. */
         readonly target: 'source' | 'selected';
         /** Source-only scope; forbidden with a selected-path target. */
         readonly scope?: SourceScope;
+        /** Maximum total preview size in UTF-16 code units; default 10,000,000, maximum 100,000,000. */
+        readonly maxOutputCodeUnits?: number;
       };
     }
   | {
-      /** Planned C7 export. */
+      /** Configured conditional materialization. */
       readonly operation: 'materialize';
       /** Output topology independent of traversal. */
       readonly options: {
         /** Preserve input commands or expand active inclusion occurrences. */
         readonly inputs: 'preserve' | 'inline';
+        /** Suppress eligible comments during export; default false. */
+        readonly suppressComments?: boolean;
+        /** Maximum total output UTF-16 units; default 10000000. */
+        readonly maxOutputCodeUnits?: number;
       };
+    }
+  | {
+      /** Export with explicit conditional retention and input arrangement. */
+      readonly operation: 'export-project';
+      /** Export semantics independent of the configured traversal. */
+      readonly options: ExportOptions;
     };
+
+/** Options shared by independently runnable analyses. */
+export interface AnalysisOptions {
+  /** Accept observations up to the view's failure boundary; default false. */
+  readonly allowIncomplete?: boolean;
+  /** Snapshot-only source scope; default all-files. */
+  readonly scope?: SourceScope;
+}
+
+/** Output policies for a configured project. No filename rewriting is performed. */
+export interface ExportOptions {
+  /** Keep wrappers/inactive slices exactly, or export only resolved source. */
+  readonly conditions: 'preserve' | 'materialize';
+  /** Preserve input commands and relative files, or expand active occurrences. */
+  readonly inputs: 'preserve' | 'inline';
+  /** Remove eligible active comments; default false. */
+  readonly suppressComments?: boolean;
+  /** Total UTF-16 output limit across artifacts, default 10000000; maximum 100000000. */
+  readonly maxOutputCodeUnits?: number;
+}
+
+/** Location for a source-only fact or configured occurrence. */
+export interface AnalysisLocation extends SourceLocation {
+  /** Exact source identity. */
+  readonly snapshotId: SnapshotId;
+  /** Inclusion ID, or null for independent source inspection. */
+  readonly occurrenceId: OccurrenceId | null;
+}
+
+/** Reusable configured fact index in execution order. */
+export interface ConfiguredIndex {
+  /** Exact source identity. */
+  readonly snapshotId: SnapshotId;
+  /** Exact view identity. */
+  readonly viewId: ViewId;
+  /** Deterministic index identity including its implementation version. */
+  readonly resultId: string;
+  /** Reached labels, references, definitions, and command uses. */
+  readonly entries: readonly ReachedFact[];
+  /** Coverage includes the view's stop boundary and possible macro-generated syntax. */
+  readonly coverage: Coverage;
+}
+
+/** One reference resolution observation; missing means no recognized target in covered source. */
+export interface ReferenceResolution {
+  /** Original reference occurrence. */
+  readonly reference: SourceOrigin;
+  /** Literal key, null for a generated/unresolved argument. */
+  readonly key: string | null;
+  /** Distinguishes matched, ambiguous, missing, and insufficient coverage. */
+  readonly status: 'matched' | 'duplicate' | 'missing' | 'unresolved' | 'unknown-coverage';
+  /** All recognized target occurrences in execution order. */
+  readonly targets: readonly SourceOrigin[];
+  /** Whether the sole matched target occurs later; null if not uniquely matched. */
+  readonly forward: boolean | null;
+}
+
+/** Conservative per-definition command evidence; never permission to delete a definition. */
+export interface CommandUsage {
+  /** Defined name without the backslash. */
+  readonly name: string;
+  /** Source or configured definition occurrence. */
+  readonly definition: AnalysisLocation;
+  /** Direct document uses; ambiguous source bindings can appear in several candidates. */
+  readonly directUses: readonly AnalysisLocation[];
+  /** Uses inside other stored definitions/defaults. */
+  readonly bodyReferences: readonly AnalysisLocation[];
+  /** Self references are listed separately and are not root uses. */
+  readonly selfReferences: readonly AnalysisLocation[];
+  /** Qualified classification within the requested coverage. */
+  readonly classification:
+    | 'directly-used'
+    | 'body-referenced'
+    | 'self-recursive-only'
+    | 'no-recognized-use'
+    | 'ambiguous-binding';
+}
 /** Machine-readable operation requirements; descriptors contain no executable callbacks. */
 export interface OperationDescriptor {
   /** Stable operation name. */
@@ -645,7 +736,7 @@ export type OperationCapability =
       /** Ordered reasons. */
       readonly reasons: readonly CapabilityReason[];
     };
-/** A future analysis finding contract; C6 implements the analyses. */
+/** A located analysis finding with explicit coverage qualifications. */
 export interface AnalysisFinding {
   /** Stable finding code. */
   readonly code:
@@ -662,12 +753,12 @@ export interface AnalysisFinding {
   readonly message: string;
 
   /** Primary occurrence. */
-  readonly primary: SourceOrigin;
+  readonly primary: AnalysisLocation;
 
   /** Related occurrences, in execution order. */
-  readonly related: readonly SourceOrigin[];
+  readonly related: readonly AnalysisLocation[];
 }
-/** Exact dependencies shared by future findings/edit/artifact results. */
+/** Exact dependencies shared by findings/edit/artifact results. */
 export interface OperationProvenance {
   /** Exact source identity. */
   readonly snapshotId: SnapshotId;
@@ -682,16 +773,22 @@ export interface OperationProvenance {
   readonly operationVersion: 1;
 }
 
-/** Future C6 analysis output with qualified findings and exact operation dependencies. */
+/** Analysis output with qualified findings and exact operation dependencies. */
 export interface AnalysisResult {
+  /** Exact source/view/operation/options result key. */
+  readonly resultId: string;
   /** Analysis-result discriminant. */
   readonly kind: 'findings';
   /** Exact source, view, operation version, and options. */
   readonly provenance: OperationProvenance;
-  /** Findings in execution order, then stable code order at one location. */
+  /** Findings in reference encounter order or definition source/encounter order for command evidence. */
   readonly findings: readonly AnalysisFinding[];
   /** Explicit recognized coverage; an empty partial list does not establish absence. */
   readonly coverage: Coverage;
+  /** Reference observations, empty for unused-command analysis. */
+  readonly references: readonly ReferenceResolution[];
+  /** Command evidence, empty for reference analysis. */
+  readonly commands: readonly CommandUsage[];
 }
 /** Proposed source edit. Ordered by path and offset; touching replacements are allowed, overlaps are not. */
 export type ProjectEdit =
@@ -728,7 +825,7 @@ export interface ProjectEditPlan {
   /** Edits in ascending path/offset order; boundaries may not split a UTF-16 surrogate pair. */
   readonly edits: readonly ProjectEdit[];
 }
-/** Output mapping for a later generated artifact; synthetic text has no original offset. */
+/** Output mapping for a generated artifact; synthetic text has no original offset. */
 export type ArtifactOrigin =
   | {
       /** Copied/rewritten source mapping. */
@@ -736,7 +833,7 @@ export type ArtifactOrigin =
       /** Inclusive output range. */
       readonly outputRange: SourceRange;
       /** Contributing original ranges. */
-      readonly origins: readonly SourceOrigin[];
+      readonly origins: readonly AnalysisLocation[];
     }
   | {
       /** Inserted lexical delimiter or generated text. */
@@ -746,7 +843,7 @@ export type ArtifactOrigin =
       /** Why this text exists. */
       readonly reason: string;
     };
-/** Future C7 artifact contract, separate from source inputs. */
+/** Generated artifact, separate from source inputs. */
 export interface GeneratedArtifact {
   /** Artifact virtual path in an independent namespace. */
   readonly path: string;
@@ -757,14 +854,80 @@ export interface GeneratedArtifact {
   /** Exact operation preconditions. */
   readonly provenance: OperationProvenance;
 
-  /** Ordered output mappings. */
+  /** Mappings ordered by output offset. They may overlap when identical output retains several inclusion origins. */
   readonly origins: readonly ArtifactOrigin[];
 
   /** Preserved literal dependencies; empty alone does not certify TeX portability. */
   readonly remainingInputs: readonly string[];
 
   /** Explicit export completeness claim. */
-  readonly topology: 'preserved-project' | 'active-inputs-expanded' | 'self-contained-profile';
+  readonly topology:
+    | 'preserved-project'
+    | 'active-inputs-expanded'
+    | 'self-contained-profile'
+    | 'independent-sources';
+}
+
+/** A retained input relationship in emitted source. */
+export interface ArtifactDependency {
+  /** Artifact containing the reference. */
+  readonly fromPath: string;
+  /** Exact literal spelling, or null for dynamic source. */
+  readonly reference: string | null;
+  /** Resolved artifact path, null when unresolved/missing/ambiguous. */
+  readonly targetPath: string | null;
+  /** Whether the output artifact set satisfies this literal relationship. */
+  readonly status: 'present' | 'missing' | 'ambiguous' | 'dynamic' | 'invalid-path';
+  /** Inclusive location in the emitted artifact, not an original offset. */
+  readonly range: SourceRange;
+}
+
+/** Successful transformation preview/export, with sources unchanged. */
+export interface TransformationResult {
+  /** Result discriminant. */
+  readonly kind: 'transformation';
+  /** Exact operation/source/configuration result identity. */
+  readonly resultId: string;
+  /** Exact operation dependencies. */
+  readonly provenance: OperationProvenance;
+  /** Editable proposal for identity/comment operations; null for configured exports. */
+  readonly editPlan: ProjectEditPlan | null;
+  /** Preview/export files, in deterministic path order. */
+  readonly artifacts: readonly GeneratedArtifact[];
+  /** Entry artifact, null for independent source previews. */
+  readonly entryPath: string | null;
+  /** Remaining input relationships with emitted locations. */
+  readonly dependencies: readonly ArtifactDependency[];
+  /** Explicit source/view coverage and limited simplification. */
+  readonly coverage: Coverage;
+}
+
+/** Executable analysis subset of the public operation union. */
+export type AnalysisRequest = Extract<
+  OperationRequest,
+  {
+    /** Select the executable analysis discriminants. */
+    readonly operation: 'references' | 'unused-commands';
+  }
+>;
+/** Executable transformation subset of the public operation union. */
+export type TransformationRequest = Exclude<
+  OperationRequest,
+  | AnalysisRequest
+  | {
+      /** Exclude prerequisite-building operations from transformations. */
+      readonly operation: 'source-inventory' | 'resolve-view';
+    }
+>;
+
+/** Located structured rejection of an analysis, edit, or export operation. */
+export interface OperationFailure {
+  /** Stable category, independent of explanatory prose. */
+  readonly code: 'unavailable' | 'stale-result' | 'invalid-edit' | 'edit-conflict' | 'output-limit';
+  /** Human-readable explanation. */
+  readonly message: string;
+  /** Relevant original locations; empty when no source range applies. */
+  readonly locations: readonly AnalysisLocation[];
 }
 
 /** Narrow a configured node to the exhaustive container union. */

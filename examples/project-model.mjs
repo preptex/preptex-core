@@ -4,7 +4,12 @@ import {
   inspectProject,
   resolveProjectView,
   walkConfiguredNodes,
+  runAnalysis,
+  indexProjectView,
+  planTransformation,
+  applyProjectEdits,
 } from '@preptex/core';
+import assert from 'node:assert/strict';
 
 // Run from the repository root after npm run build: node examples/project-model.mjs
 const snapshot = createProjectSnapshot([
@@ -12,6 +17,7 @@ const snapshot = createProjectSnapshot([
     path: 'main.tex',
     version: 1,
     source: String.raw`\newif\ifdraft
+\ref{shared}% Remove this comment.
 \input{setup}
 \ifdraft\begin{itemize}\else\begin{enumerate}\fi
 \item Shared content.\label{shared}
@@ -36,6 +42,38 @@ function summarize(view) {
     inclusions: view.occurrences.map((o) => ({ id: o.id, path: o.path })),
   };
 }
+const references = runAnalysis(sourceView, { operation: 'references' });
+assert.equal(references.references[0].status, 'matched');
+assert.equal(references.references[0].forward, true);
+assert.ok(indexProjectView(sourceView).entries.length > 0);
+const preview = planTransformation(snapshot, {
+  operation: 'suppress-comments',
+  options: { target: 'source' },
+});
+const edited = applyProjectEdits(snapshot, preview.editPlan);
+assert.notEqual(edited.id, snapshot.id);
+assert.ok(!edited.files[0].source.includes('% Remove'));
+const materialized = planTransformation(sourceView, {
+  operation: 'materialize',
+  options: { inputs: 'inline', suppressComments: true },
+});
+const reparsed = resolveProjectView(
+  createProjectSnapshot(
+    materialized.artifacts.map((artifact) => ({
+      path: artifact.path,
+      source: artifact.source,
+      version: 1,
+    }))
+  ),
+  { entryPath: materialized.entryPath }
+);
+assert.deepEqual(summarize(reparsed).environments, ['itemize']);
+assert.equal(materialized.dependencies.length, 0);
+const preserved = planTransformation(sourceView, {
+  operation: 'export-project',
+  options: { inputs: 'preserve', conditions: 'preserve' },
+});
+assert.ok(preserved.dependencies.every((dependency) => dependency.status === 'present'));
 console.log(
   JSON.stringify(
     {
@@ -44,6 +82,16 @@ console.log(
       source: summarize(sourceView),
       forcedFalse: summarize(forcedView),
       referenceAnalysis: checkOperationCapability(sourceView, { operation: 'references' }),
+      findings: references.findings.map((finding) => ({
+        code: finding.code,
+        severity: finding.severity,
+      })),
+      editsApplied: preview.editPlan.edits.length,
+      export: {
+        entryPath: materialized.entryPath,
+        topology: materialized.artifacts[0].topology,
+        source: materialized.artifacts[0].source,
+      },
     },
     null,
     2

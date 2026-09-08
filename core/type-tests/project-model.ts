@@ -7,6 +7,11 @@ import {
   validateProjectEditPlan,
   walkConfiguredNodes,
   isConfiguredContainerNode,
+  indexProjectView,
+  runAnalysis,
+  planTransformation,
+  applyProjectEdits,
+  ProjectOperationError,
   type ConfiguredNode,
   type SyntaxFact,
   type ProjectSnapshot,
@@ -104,8 +109,8 @@ if (view.status === 'ready') {
   void reason;
 }
 
-// Typed preview consumers for the reserved C6/C7 results. No unavailable executor is invoked.
-function reviewFutureResults(
+// Typed preview consumers use only the public entry point.
+function reviewResults(
   plan: ProjectEditPlan,
   artifact: GeneratedArtifact,
   findings: readonly AnalysisFinding[]
@@ -118,4 +123,38 @@ function reviewFutureResults(
   void key;
   void explanations;
 }
-void [newSnapshot, available, factName, reviewFutureResults];
+const index = indexProjectView(view);
+const references = runAnalysis(view, { operation: 'references' });
+const usage = runAnalysis(snapshot, { operation: 'unused-commands' });
+const preview = planTransformation(snapshot, {
+  operation: 'suppress-comments',
+  options: { target: 'source', maxOutputCodeUnits: 1000 },
+});
+if (preview.editPlan) applyProjectEdits(snapshot, preview.editPlan);
+const generated = planTransformation(view, {
+  operation: 'export-project',
+  options: { inputs: 'inline', conditions: 'materialize' },
+});
+// @ts-expect-error Analysis cannot accidentally generate a source artifact.
+runAnalysis(view, { operation: 'materialize', options: { inputs: 'inline' } });
+// @ts-expect-error Transformation APIs cannot invoke analyses.
+planTransformation(view, { operation: 'references' });
+// @ts-expect-error View source authority is immutable.
+view.snapshot.files.pop();
+// @ts-expect-error Index observations are immutable.
+index.entries.pop();
+// @ts-expect-error Target origins are immutable.
+references.references[0]!.targets[0]!.range.start = 1;
+// @ts-expect-error Counts are represented by readonly located evidence.
+usage.commands[0]!.directUses.push(usage.commands[0]!.definition);
+// @ts-expect-error Output mappings are readonly.
+generated.artifacts[0]!.origins.pop();
+try {
+  applyProjectEdits(snapshot, preview.editPlan!);
+} catch (error: unknown) {
+  if (error instanceof ProjectOperationError) {
+    const locations: readonly string[] = error.failure.locations.map((location) => location.path);
+    void locations;
+  }
+}
+void [newSnapshot, available, factName, reviewResults];

@@ -20,9 +20,13 @@ import {
   rangeAt,
   record,
   string,
+  bounded,
 } from './shared.js';
+import { validateView } from './view.js';
+import { reject } from './fail.js';
+import { validateOccurrenceEdits } from './safety.js';
 
-/** Frozen operation requirements. C6 analyses and C7 transformations remain explicitly unavailable. */
+/** Frozen operation requirements shared by capability checks and execution. */
 export const projectOperations: readonly OperationDescriptor[] = freeze([
   {
     id: 'source-inventory',
@@ -45,7 +49,7 @@ export const projectOperations: readonly OperationDescriptor[] = freeze([
   {
     id: 'references',
     version: 1,
-    implemented: false,
+    implemented: true,
     representation: 'view',
     scopes: ['configured'],
     coverage: 'ready-view',
@@ -54,16 +58,16 @@ export const projectOperations: readonly OperationDescriptor[] = freeze([
   {
     id: 'unused-commands',
     version: 1,
-    implemented: false,
-    representation: 'view',
-    scopes: ['configured'],
+    implemented: true,
+    representation: 'either',
+    scopes: ['all-files', 'files', 'configured'],
     coverage: 'ready-view',
     resultKind: 'findings',
   },
   {
     id: 'suppress-comments',
     version: 1,
-    implemented: false,
+    implemented: true,
     representation: 'either',
     scopes: ['all-files', 'files', 'configured'],
     coverage: 'recognized',
@@ -72,7 +76,25 @@ export const projectOperations: readonly OperationDescriptor[] = freeze([
   {
     id: 'materialize',
     version: 1,
-    implemented: false,
+    implemented: true,
+    representation: 'view',
+    scopes: ['configured'],
+    coverage: 'ready-view',
+    resultKind: 'artifacts',
+  },
+  {
+    id: 'identity',
+    version: 1,
+    implemented: true,
+    representation: 'either',
+    scopes: ['all-files', 'files', 'configured'],
+    coverage: 'recognized',
+    resultKind: 'edits',
+  },
+  {
+    id: 'export-project',
+    version: 1,
+    implemented: true,
     representation: 'view',
     scopes: ['configured'],
     coverage: 'ready-view',
@@ -95,27 +117,68 @@ export function validateOperation(value: unknown): OperationRequest {
     'operation options'
   );
   if (operation === 'references' || operation === 'unused-commands') {
-    fields(options, [], 'analysis options');
-    return { operation };
+    fields(options, ['allowIncomplete', 'scope'], 'analysis options');
+    if (options['allowIncomplete'] !== undefined && typeof options['allowIncomplete'] !== 'boolean')
+      invalid('allowIncomplete must be a boolean.');
+    return {
+      operation,
+      options: {
+        allowIncomplete: options['allowIncomplete'] === true,
+        ...(options['scope'] === undefined ? {} : { scope: normalizeScope(options['scope']) }),
+      },
+    };
   }
-  if (operation === 'suppress-comments') {
-    fields(options, ['target', 'scope'], 'comment options');
+  if (operation === 'suppress-comments' || operation === 'identity') {
+    fields(options, ['target', 'scope', 'maxOutputCodeUnits'], 'source edit options');
     const target = options['target'];
     if (target !== 'source' && target !== 'selected')
       invalid('Invalid comment transformation target.');
     if (target === 'selected' && options['scope'] !== undefined)
       invalid('Selected-path transformations cannot take a source file scope.');
+    const maxOutputCodeUnits = bounded(
+      options['maxOutputCodeUnits'],
+      10000000,
+      100000000,
+      'maxOutputCodeUnits'
+    );
     return {
       operation,
       options:
-        target === 'source' ? { target, scope: normalizeScope(options['scope']) } : { target },
+        target === 'source'
+          ? { target, scope: normalizeScope(options['scope']), maxOutputCodeUnits }
+          : { target, maxOutputCodeUnits },
     };
   }
-  if (operation === 'materialize') {
-    fields(options, ['inputs'], 'materialization options');
+  if (operation === 'materialize' || operation === 'export-project') {
+    fields(
+      options,
+      operation === 'materialize'
+        ? ['inputs', 'suppressComments', 'maxOutputCodeUnits']
+        : ['inputs', 'conditions', 'suppressComments', 'maxOutputCodeUnits'],
+      'export options'
+    );
     const inputs = options['inputs'];
     if (inputs !== 'preserve' && inputs !== 'inline') invalid('Invalid artifact input topology.');
-    return { operation, options: { inputs } };
+    if (
+      options['suppressComments'] !== undefined &&
+      typeof options['suppressComments'] !== 'boolean'
+    )
+      invalid('suppressComments must be a boolean.');
+    const common = {
+      inputs,
+      suppressComments: options['suppressComments'] === true,
+      maxOutputCodeUnits: bounded(
+        options['maxOutputCodeUnits'],
+        10000000,
+        100000000,
+        'maxOutputCodeUnits'
+      ),
+    } as const;
+    if (operation === 'materialize') return { operation, options: common };
+    const conditions = options['conditions'];
+    if (conditions !== 'preserve' && conditions !== 'materialize')
+      invalid('Invalid conditional output policy.');
+    return { operation, options: { ...common, conditions } };
   }
   return invalid('Unknown operation.');
 }
@@ -136,6 +199,7 @@ export function checkOperationCapability(
   const data = record(model, 'operation model');
   if (data['kind'] !== 'snapshot' && data['kind'] !== 'view') invalid('Invalid operation model.');
   const snapshot = model.kind === 'snapshot' ? validateSnapshot(model) : null;
+  if (model.kind === 'view') model = validateView(model);
   if (model.kind === 'view' && !['ready', 'incomplete', 'blocked'].includes(model.status))
     invalid('Invalid view status.');
   if (
@@ -150,17 +214,23 @@ export function checkOperationCapability(
       message: `${descriptor.id} is reserved for a later implementation phase.`,
     });
   const representation =
-    operation.operation === 'suppress-comments'
+    operation.operation === 'suppress-comments' || operation.operation === 'identity'
       ? operation.options.target === 'source'
         ? 'snapshot'
         : 'view'
       : descriptor.representation;
-  if (representation !== model.kind)
+  if (representation !== 'either' && representation !== model.kind)
     reasons.push({ code: 'wrong-model', message: `This operation requires a ${representation}.` });
   if (
     model.kind === 'view' &&
     model.status !== 'ready' &&
-    (descriptor.coverage === 'ready-view' || operation.operation === 'suppress-comments')
+    !(
+      (operation.operation === 'references' || operation.operation === 'unused-commands') &&
+      operation.options?.allowIncomplete
+    ) &&
+    (descriptor.coverage === 'ready-view' ||
+      operation.operation === 'suppress-comments' ||
+      operation.operation === 'identity')
   )
     reasons.push({ code: 'view-not-ready', message: 'A complete configured view is required.' });
   if (snapshot && operation.operation === 'source-inventory') {
@@ -174,18 +244,40 @@ export function checkOperationCapability(
         message: 'The requested source scope contains an absent file.',
       });
   }
+  if (
+    model.kind === 'view' &&
+    (operation.operation === 'references' || operation.operation === 'unused-commands') &&
+    operation.options?.scope !== undefined
+  )
+    reasons.push({
+      code: 'wrong-model',
+      message: 'A configured analysis uses its complete occurrence scope, not a source-file scope.',
+    });
+  const scope =
+    operation.operation === 'unused-commands' ||
+    operation.operation === 'suppress-comments' ||
+    operation.operation === 'identity'
+      ? operation.options?.scope
+      : undefined;
+  if (
+    snapshot &&
+    scope?.kind === 'files' &&
+    scope.paths.some((p) => !snapshot.files.some((f) => f.path === p))
+  )
+    reasons.push({ code: 'missing-file', message: 'An operation scope requests an absent file.' });
   return reasons.length
     ? freeze({ eligible: false, reasons })
     : freeze({ eligible: true, reasons: [] });
 }
 
 /**
- * Validate a future edit proposal without applying it. C7 supplies planning and application.
+ * Validate an edit proposal without applying it.
  * @param snapshot - Exact source precondition.
  * @param plan - Ordered edits with exact expected substrings and source/operation identity.
  * @param view - Required for a view-dependent proposal; must match its snapshot and view IDs.
  * @returns Nothing on success. All validation completes before a caller can apply any edit.
  * @throws {@link PrepTexError} with InvalidArgument for stale identity, malformed operations, ranges, overlaps, or surrogate-pair splits.
+ * @throws {@link ProjectOperationError} for incompatible occurrence edits, invalid identity edits, or output limits.
  */
 export function validateProjectEditPlan(
   snapshot: ProjectSnapshot,
@@ -201,9 +293,10 @@ export function validateProjectEditPlan(
   if (provenance['snapshotId'] !== source.id || provenance['operationVersion'] !== 1)
     invalid('Stale edit snapshot or unsupported operation version.');
   const request = validateOperation(provenance['request']);
-  if (request.operation !== 'suppress-comments')
+  if (request.operation !== 'suppress-comments' && request.operation !== 'identity')
     invalid('This operation does not produce source edits.');
   const viewId = provenance['viewId'];
+  if (view) view = validateView(view);
   if (request.options.target === 'selected') {
     if (
       typeof viewId !== 'string' ||
@@ -225,6 +318,8 @@ export function validateProjectEditPlan(
     if (path !== edit['path']) invalid('Edit paths must already be normalized.');
     const file = source.files.find((f) => f.path === path);
     if (!file) invalid('An edit targets an absent file.');
+    if (request.options.scope?.kind === 'files' && !request.options.scope.paths.includes(path))
+      reject('invalid-edit', 'An edit targets a file outside its declared source scope.');
     let start: number;
     let end: number;
     if (edit['kind'] === 'insert') {
@@ -272,4 +367,26 @@ export function validateProjectEditPlan(
     previousEnd = end;
     previousInsertion = edit['kind'] === 'insert';
   }
+  if (request.operation === 'identity' && plan.edits.length)
+    reject('invalid-edit', 'Identity transformations cannot modify source.');
+  let outputSize = source.files
+    .filter(
+      (file) =>
+        request.options.scope?.kind !== 'files' || request.options.scope.paths.includes(file.path)
+    )
+    .reduce((total, file) => total + file.source.length, 0);
+  for (const edit of plan.edits)
+    outputSize +=
+      edit.kind === 'insert' ? edit.text.length : edit.replacement.length - edit.expected.length;
+  if (outputSize > (request.options.maxOutputCodeUnits ?? 10000000))
+    reject('output-limit', 'The planned source output exceeds its configured size limit.');
+  if (request.options.target === 'selected' && view) validateOccurrenceEdits(view, plan.edits);
+}
+
+export function requireCapability(
+  model: ProjectSnapshot | ProjectView,
+  request: OperationRequest
+): void {
+  const result = checkOperationCapability(model, request);
+  if (!result.eligible) reject('unavailable', result.reasons.map((r) => r.message).join(' '));
 }

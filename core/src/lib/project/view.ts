@@ -36,7 +36,10 @@ import {
   ORDINARY_IF_COMMANDS,
   rangeAt,
   testKind,
+  invalid,
+  record,
 } from './shared.js';
+import { knownView, rememberView } from './canonical.js';
 import { validateSnapshot } from './snapshot.js';
 import { normalizeConfiguration } from './configuration.js';
 import { parseConfiguredStructure } from './structure.js';
@@ -635,6 +638,7 @@ export function resolveProjectView(
   }
   const base = {
     kind: 'view' as const,
+    snapshot: source,
     id,
     snapshotId: source.id,
     configuration: config,
@@ -644,7 +648,9 @@ export function resolveProjectView(
     selectedTokens,
   };
   if (failure)
-    return freeze({ ...base, ...failure, root: null, coverage: coverage([failure.reason]) });
+    return rememberView(
+      freeze({ ...base, ...failure, root: null, coverage: coverage([failure.reason]) })
+    );
   const parsed = parseConfiguredStructure(selectedTokens, id, config.limits.maxNesting);
   if (parsed.kind === 'error') {
     const inputChain: string[] = [];
@@ -655,13 +661,29 @@ export function resolveProjectView(
       occurrence = parentId === null ? undefined : occurrences.find((o) => o.id === parentId);
     }
     const reason = { ...parsed.issue, inputChain };
-    return freeze({
-      ...base,
-      status: 'blocked',
-      root: null,
-      reason,
-      coverage: coverage([reason]),
-    });
+    return rememberView(
+      freeze({
+        ...base,
+        status: 'blocked',
+        root: null,
+        reason,
+        coverage: coverage([reason]),
+      })
+    );
   }
-  return freeze({ ...base, status: 'ready', root: parsed.root, coverage: coverage([]) });
+  return rememberView(
+    freeze({ ...base, status: 'ready', root: parsed.root, coverage: coverage([]) })
+  );
+}
+
+export function validateView(value: unknown): ProjectView {
+  if (knownView(value)) return value;
+  const input = record(value, 'view');
+  if (input['kind'] !== 'view') invalid('Expected a configured view.');
+  const snapshot = validateSnapshot(input['snapshot']);
+  const config = normalizeConfiguration(input['configuration']);
+  const view = resolveProjectView(snapshot, config);
+  if (input['id'] !== view.id || input['snapshotId'] !== snapshot.id)
+    invalid('Stale or inconsistent view identity.');
+  return view;
 }

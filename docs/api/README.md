@@ -231,11 +231,23 @@ Stable machine-readable categories for exceptions thrown by PrepTeX.
 
 Flattening would revisit a file that is already active.
 
+##### EditConflict
+
+> **EditConflict**: `"edit-conflict"`
+
+Occurrence-specific edits cannot be represented by one physical file.
+
 ##### InvalidArgument
 
 > **InvalidArgument**: `"invalid-argument"`
 
 A runtime value does not satisfy the documented public input type.
+
+##### InvalidEdit
+
+> **InvalidEdit**: `"invalid-edit"`
+
+Source edit ranges or preconditions are invalid.
 
 ##### MissingEntry
 
@@ -248,6 +260,24 @@ The requested project entry path is absent.
 > **MissingInput**: `"missing-input"`
 
 A flattened `\input` target cannot be resolved.
+
+##### OperationUnavailable
+
+> **OperationUnavailable**: `"operation-unavailable"`
+
+The requested operation cannot run against this representation or coverage.
+
+##### OutputLimit
+
+> **OutputLimit**: `"output-limit"`
+
+Emission exceeded the caller's configured output bound.
+
+##### StaleResult
+
+> **StaleResult**: `"stale-result"`
+
+Source or configured identity no longer matches the proposal.
 
 ##### SyntaxError
 
@@ -342,6 +372,7 @@ Base class for expected PrepTeX failures.
 #### Extended by
 
 - [`PrepTexSyntaxError`](#preptexsyntaxerror)
+- [`ProjectOperationError`](#projectoperationerror)
 
 #### Constructors
 
@@ -487,17 +518,93 @@ Structured error diagnostic containing the source and location.
 
 [`PrepTexError`](#preptexerror).[`stack`](#stack)
 
-## Interfaces
+***
 
-### AnalysisFinding
+### ProjectOperationError
 
-A future analysis finding contract; C6 implements the analyses.
+Expected analysis/edit/export rejection with transport-safe located reasons.
+
+#### Extends
+
+- [`PrepTexError`](#preptexerror)
+
+#### Constructors
+
+##### Constructor
+
+> **new ProjectOperationError**(`failure`): [`ProjectOperationError`](#projectoperationerror)
+
+Create a located operation failure.
+
+###### Parameters
+
+###### failure
+
+[`OperationFailure`](#operationfailure)
+
+Stable code, message, and original locations.
+
+###### Returns
+
+[`ProjectOperationError`](#projectoperationerror)
+
+###### Overrides
+
+[`PrepTexError`](#preptexerror).[`constructor`](#constructor)
 
 #### Properties
 
 ##### code
 
-> `readonly` **code**: `"missing-reference"` \| `"duplicate-label"` \| `"forward-reference"` \| `"unresolved-key"` \| `"no-recognized-use"`
+> `readonly` **code**: [`PrepTexErrorCode`](#preptexerrorcode)
+
+Stable category suitable for programmatic error handling.
+
+###### Inherited from
+
+[`PrepTexError`](#preptexerror).[`code`](#code)
+
+##### failure
+
+> `readonly` **failure**: [`OperationFailure`](#operationfailure)
+
+Structured failure; serialize this instead of stack traces.
+
+##### message
+
+> **message**: `string`
+
+###### Inherited from
+
+[`PrepTexError`](#preptexerror).[`message`](#message)
+
+##### name
+
+> **name**: `string`
+
+###### Inherited from
+
+[`PrepTexError`](#preptexerror).[`name`](#name)
+
+##### stack?
+
+> `optional` **stack?**: `string`
+
+###### Inherited from
+
+[`PrepTexError`](#preptexerror).[`stack`](#stack)
+
+## Interfaces
+
+### AnalysisFinding
+
+A located analysis finding with explicit coverage qualifications.
+
+#### Properties
+
+##### code
+
+> `readonly` **code**: `"no-recognized-use"` \| `"missing-reference"` \| `"duplicate-label"` \| `"forward-reference"` \| `"unresolved-key"`
 
 Stable finding code.
 
@@ -509,13 +616,13 @@ Qualified explanation within the supported grammar.
 
 ##### primary
 
-> `readonly` **primary**: [`SourceOrigin`](#sourceorigin)
+> `readonly` **primary**: [`AnalysisLocation`](#analysislocation)
 
 Primary occurrence.
 
 ##### related
 
-> `readonly` **related**: readonly [`SourceOrigin`](#sourceorigin)[]
+> `readonly` **related**: readonly [`AnalysisLocation`](#analysislocation)[]
 
 Related occurrences, in execution order.
 
@@ -527,15 +634,85 @@ Forward references and unused candidates are information, not TeX errors.
 
 ***
 
-### AnalysisResult
+### AnalysisLocation
 
-Future C6 analysis output with qualified findings and exact operation dependencies.
+Location for a source-only fact or configured occurrence.
+
+#### Extends
+
+- [`SourceLocation`](#sourcelocation)
 
 #### Properties
 
+##### occurrenceId
+
+> `readonly` **occurrenceId**: `string` \| `null`
+
+Inclusion ID, or null for independent source inspection.
+
+##### path
+
+> `readonly` **path**: `string`
+
+Normalized project-relative source path.
+
+###### Inherited from
+
+[`SourceLocation`](#sourcelocation).[`path`](#path-8)
+
+##### range
+
+> `readonly` **range**: [`SourceRange`](#sourcerange)
+
+Original source range, never a projected offset.
+
+###### Inherited from
+
+[`SourceLocation`](#sourcelocation).[`range`](#range-2)
+
+##### snapshotId
+
+> `readonly` **snapshotId**: `string`
+
+Exact source identity.
+
+***
+
+### AnalysisOptions
+
+Options shared by independently runnable analyses.
+
+#### Properties
+
+##### allowIncomplete?
+
+> `readonly` `optional` **allowIncomplete?**: `boolean`
+
+Accept observations up to the view's failure boundary; default false.
+
+##### scope?
+
+> `readonly` `optional` **scope?**: [`SourceScope`](#sourcescope)
+
+Snapshot-only source scope; default all-files.
+
+***
+
+### AnalysisResult
+
+Analysis output with qualified findings and exact operation dependencies.
+
+#### Properties
+
+##### commands
+
+> `readonly` **commands**: readonly [`CommandUsage`](#commandusage)[]
+
+Command evidence, empty for reference analysis.
+
 ##### coverage
 
-> `readonly` **coverage**: [`Coverage`](#coverage-1)
+> `readonly` **coverage**: [`Coverage`](#coverage-2)
 
 Explicit recognized coverage; an empty partial list does not establish absence.
 
@@ -543,7 +720,7 @@ Explicit recognized coverage; an empty partial list does not establish absence.
 
 > `readonly` **findings**: readonly [`AnalysisFinding`](#analysisfinding)[]
 
-Findings in execution order, then stable code order at one location.
+Findings in reference encounter order or definition source/encounter order for command evidence.
 
 ##### kind
 
@@ -556,6 +733,56 @@ Analysis-result discriminant.
 > `readonly` **provenance**: [`OperationProvenance`](#operationprovenance)
 
 Exact source, view, operation version, and options.
+
+##### references
+
+> `readonly` **references**: readonly [`ReferenceResolution`](#referenceresolution)[]
+
+Reference observations, empty for unused-command analysis.
+
+##### resultId
+
+> `readonly` **resultId**: `string`
+
+Exact source/view/operation/options result key.
+
+***
+
+### ArtifactDependency
+
+A retained input relationship in emitted source.
+
+#### Properties
+
+##### fromPath
+
+> `readonly` **fromPath**: `string`
+
+Artifact containing the reference.
+
+##### range
+
+> `readonly` **range**: [`SourceRange`](#sourcerange)
+
+Inclusive location in the emitted artifact, not an original offset.
+
+##### reference
+
+> `readonly` **reference**: `string` \| `null`
+
+Exact literal spelling, or null for dynamic source.
+
+##### status
+
+> `readonly` **status**: `"missing"` \| `"present"` \| `"ambiguous"` \| `"dynamic"` \| `"invalid-path"`
+
+Whether the output artifact set satisfies this literal relationship.
+
+##### targetPath
+
+> `readonly` **targetPath**: `string` \| `null`
+
+Resolved artifact path, null when unresolved/missing/ambiguous.
 
 ***
 
@@ -659,7 +886,7 @@ Syntactic branch membership does not establish execution.
 
 ##### arm
 
-> `readonly` **arm**: `"else"` \| `"then"`
+> `readonly` **arm**: `"then"` \| `"else"`
 
 Syntactic arm containing the fact.
 
@@ -768,6 +995,50 @@ Discriminant used to narrow the [AstNode](#astnode) union.
 > `readonly` **value**: `string`
 
 Exact source spelling, including consumed delimiter whitespace.
+
+***
+
+### CommandUsage
+
+Conservative per-definition command evidence; never permission to delete a definition.
+
+#### Properties
+
+##### bodyReferences
+
+> `readonly` **bodyReferences**: readonly [`AnalysisLocation`](#analysislocation)[]
+
+Uses inside other stored definitions/defaults.
+
+##### classification
+
+> `readonly` **classification**: `"directly-used"` \| `"body-referenced"` \| `"self-recursive-only"` \| `"no-recognized-use"` \| `"ambiguous-binding"`
+
+Qualified classification within the requested coverage.
+
+##### definition
+
+> `readonly` **definition**: [`AnalysisLocation`](#analysislocation)
+
+Source or configured definition occurrence.
+
+##### directUses
+
+> `readonly` **directUses**: readonly [`AnalysisLocation`](#analysislocation)[]
+
+Direct document uses; ambiguous source bindings can appear in several candidates.
+
+##### name
+
+> `readonly` **name**: `string`
+
+Defined name without the backslash.
+
+##### selfReferences
+
+> `readonly` **selfReferences**: readonly [`AnalysisLocation`](#analysislocation)[]
+
+Self references are listed separately and are not root uses.
 
 ***
 
@@ -1159,6 +1430,44 @@ Discriminant used to narrow the [AstNode](#astnode) union.
 
 ***
 
+### ConfiguredIndex
+
+Reusable configured fact index in execution order.
+
+#### Properties
+
+##### coverage
+
+> `readonly` **coverage**: [`Coverage`](#coverage-2)
+
+Coverage includes the view's stop boundary and possible macro-generated syntax.
+
+##### entries
+
+> `readonly` **entries**: readonly [`ReachedFact`](#reachedfact)[]
+
+Reached labels, references, definitions, and command uses.
+
+##### resultId
+
+> `readonly` **resultId**: `string`
+
+Deterministic index identity including its implementation version.
+
+##### snapshotId
+
+> `readonly` **snapshotId**: `string`
+
+Exact source identity.
+
+##### viewId
+
+> `readonly` **viewId**: `string`
+
+Exact view identity.
+
+***
+
 ### ConfiguredNodeBase
 
 Common fields on configured structural nodes; these are not legacy AstNodes.
@@ -1417,6 +1726,38 @@ Discriminant used to narrow the [AstNode](#astnode) union.
 
 ***
 
+### ExportOptions
+
+Output policies for a configured project. No filename rewriting is performed.
+
+#### Properties
+
+##### conditions
+
+> `readonly` **conditions**: `"materialize"` \| `"preserve"`
+
+Keep wrappers/inactive slices exactly, or export only resolved source.
+
+##### inputs
+
+> `readonly` **inputs**: `"preserve"` \| `"inline"`
+
+Preserve input commands and relative files, or expand active occurrences.
+
+##### maxOutputCodeUnits?
+
+> `readonly` `optional` **maxOutputCodeUnits?**: `number`
+
+Total UTF-16 output limit across artifacts, default 10000000; maximum 100000000.
+
+##### suppressComments?
+
+> `readonly` `optional` **suppressComments?**: `boolean`
+
+Remove eligible active comments; default false.
+
+***
+
 ### FactContext
 
 Context shared by every source inventory fact.
@@ -1445,7 +1786,7 @@ Stored/opaque command arguments, outermost first; these are not executed.
 
 ### GeneratedArtifact
 
-Future C7 artifact contract, separate from source inputs.
+Generated artifact, separate from source inputs.
 
 #### Properties
 
@@ -1453,7 +1794,7 @@ Future C7 artifact contract, separate from source inputs.
 
 > `readonly` **origins**: readonly [`ArtifactOrigin`](#artifactorigin)[]
 
-Ordered output mappings.
+Mappings ordered by output offset. They may overlap when identical output retains several inclusion origins.
 
 ##### path
 
@@ -1481,7 +1822,7 @@ Generated source string.
 
 ##### topology
 
-> `readonly` **topology**: `"preserved-project"` \| `"active-inputs-expanded"` \| `"self-contained-profile"`
+> `readonly` **topology**: `"preserved-project"` \| `"active-inputs-expanded"` \| `"self-contained-profile"` \| `"independent-sources"`
 
 Explicit export completeness claim.
 
@@ -1713,7 +2054,7 @@ Located source inventory with exact operation/source provenance.
 
 ##### coverage
 
-> `readonly` **coverage**: [`Coverage`](#coverage-1)
+> `readonly` **coverage**: [`Coverage`](#coverage-2)
 
 Coverage of the requested files.
 
@@ -2069,7 +2410,7 @@ Required completeness.
 
 ##### id
 
-> `readonly` **id**: `"source-inventory"` \| `"resolve-view"` \| `"references"` \| `"unused-commands"` \| `"suppress-comments"` \| `"materialize"`
+> `readonly` **id**: `"source-inventory"` \| `"resolve-view"` \| `"references"` \| `"unused-commands"` \| `"suppress-comments"` \| `"identity"` \| `"materialize"` \| `"export-project"`
 
 Stable operation name.
 
@@ -2093,7 +2434,7 @@ Output category.
 
 ##### scopes
 
-> `readonly` **scopes**: readonly (`"files"` \| `"all-files"` \| `"configured"`)[]
+> `readonly` **scopes**: readonly (`"all-files"` \| `"files"` \| `"configured"`)[]
 
 Valid source/execution scopes.
 
@@ -2105,9 +2446,35 @@ Contract version.
 
 ***
 
+### OperationFailure
+
+Located structured rejection of an analysis, edit, or export operation.
+
+#### Properties
+
+##### code
+
+> `readonly` **code**: `"unavailable"` \| `"stale-result"` \| `"invalid-edit"` \| `"edit-conflict"` \| `"output-limit"`
+
+Stable category, independent of explanatory prose.
+
+##### locations
+
+> `readonly` **locations**: readonly [`AnalysisLocation`](#analysislocation)[]
+
+Relevant original locations; empty when no source range applies.
+
+##### message
+
+> `readonly` **message**: `string`
+
+Human-readable explanation.
+
+***
+
 ### OperationProvenance
 
-Exact dependencies shared by future findings/edit/artifact results.
+Exact dependencies shared by findings/edit/artifact results.
 
 #### Properties
 
@@ -2175,7 +2542,7 @@ Normalized virtual source path associated with this parse.
 
 ###### Inherited from
 
-[`ParseResult`](#parseresult).[`path`](#path-4)
+[`ParseResult`](#parseresult).[`path`](#path-5)
 
 ##### referencedFiles
 
@@ -2453,7 +2820,7 @@ Canonical semantic settings.
 
 ##### coverage
 
-> `readonly` **coverage**: [`Coverage`](#coverage-1)
+> `readonly` **coverage**: [`Coverage`](#coverage-2)
 
 Supported grammar, assumptions, and limitations.
 
@@ -2493,6 +2860,12 @@ Reached facts only, in execution order.
 
 Selected token tape, partial on failure; not a generated artifact.
 
+##### snapshot
+
+> `readonly` **snapshot**: [`ProjectSnapshot`](#projectsnapshot)
+
+Original immutable source authority; transported views can be reconstructed from it.
+
 ##### snapshotId
 
 > `readonly` **snapshotId**: `string`
@@ -2521,6 +2894,44 @@ This visit's source origin.
 
 ***
 
+### ReferenceResolution
+
+One reference resolution observation; missing means no recognized target in covered source.
+
+#### Properties
+
+##### forward
+
+> `readonly` **forward**: `boolean` \| `null`
+
+Whether the sole matched target occurs later; null if not uniquely matched.
+
+##### key
+
+> `readonly` **key**: `string` \| `null`
+
+Literal key, null for a generated/unresolved argument.
+
+##### reference
+
+> `readonly` **reference**: [`SourceOrigin`](#sourceorigin)
+
+Original reference occurrence.
+
+##### status
+
+> `readonly` **status**: `"unresolved"` \| `"matched"` \| `"duplicate"` \| `"missing"` \| `"unknown-coverage"`
+
+Distinguishes matched, ambiguous, missing, and insufficient coverage.
+
+##### targets
+
+> `readonly` **targets**: readonly [`SourceOrigin`](#sourceorigin)[]
+
+All recognized target occurrences in execution order.
+
+***
+
 ### ScannedFile
 
 One independently scanned source file; even malformed source remains available.
@@ -2533,7 +2944,7 @@ One independently scanned source file; even malformed source remains available.
 
 ##### coverage
 
-> `readonly` **coverage**: [`Coverage`](#coverage-1)
+> `readonly` **coverage**: [`Coverage`](#coverage-2)
 
 Recognized syntax coverage and localized diagnostics.
 
@@ -2551,7 +2962,7 @@ Stable virtual path used by entry selection and `\input` resolution.
 
 ###### Inherited from
 
-[`SourceFile`](#sourcefile).[`path`](#path-6)
+[`SourceFile`](#sourcefile).[`path`](#path-7)
 
 ##### source
 
@@ -2810,6 +3221,7 @@ A location in an original source string; ranges are inclusive UTF-16.
 
 - [`SourceOrigin`](#sourceorigin)
 - [`SyntaxFactBase`](#syntaxfactbase)
+- [`AnalysisLocation`](#analysislocation)
 
 #### Properties
 
@@ -2851,7 +3263,7 @@ Normalized project-relative source path.
 
 ###### Inherited from
 
-[`SourceLocation`](#sourcelocation).[`path`](#path-7)
+[`SourceLocation`](#sourcelocation).[`path`](#path-8)
 
 ##### range
 
@@ -2861,7 +3273,7 @@ Original source range, never a projected offset.
 
 ###### Inherited from
 
-[`SourceLocation`](#sourcelocation).[`range`](#range)
+[`SourceLocation`](#sourcelocation).[`range`](#range-2)
 
 ##### snapshotId
 
@@ -2912,7 +3324,7 @@ A lossless lexical segment. Concatenating values reproduces the source exactly.
 
 ##### kind
 
-> `readonly` **kind**: `"comment"` \| `"text"` \| `"space"` \| `"command"` \| `"verbatim"` \| `"open"` \| `"close"` \| `"math"`
+> `readonly` **kind**: `"text"` \| `"space"` \| `"command"` \| `"comment"` \| `"verbatim"` \| `"open"` \| `"close"` \| `"math"`
 
 Lexical category; commands in protected text are not separate tokens.
 
@@ -2998,7 +3410,7 @@ Normalized project-relative source path.
 
 ###### Inherited from
 
-[`SourceLocation`](#sourcelocation).[`path`](#path-7)
+[`SourceLocation`](#sourcelocation).[`path`](#path-8)
 
 ##### range
 
@@ -3008,7 +3420,7 @@ Original source range, never a projected offset.
 
 ###### Inherited from
 
-[`SourceLocation`](#sourcelocation).[`range`](#range)
+[`SourceLocation`](#sourcelocation).[`range`](#range-2)
 
 ##### recognition
 
@@ -3086,6 +3498,62 @@ The exact source text covered by this node.
 
 ***
 
+### TransformationResult
+
+Successful transformation preview/export, with sources unchanged.
+
+#### Properties
+
+##### artifacts
+
+> `readonly` **artifacts**: readonly [`GeneratedArtifact`](#generatedartifact)[]
+
+Preview/export files, in deterministic path order.
+
+##### coverage
+
+> `readonly` **coverage**: [`Coverage`](#coverage-2)
+
+Explicit source/view coverage and limited simplification.
+
+##### dependencies
+
+> `readonly` **dependencies**: readonly [`ArtifactDependency`](#artifactdependency)[]
+
+Remaining input relationships with emitted locations.
+
+##### editPlan
+
+> `readonly` **editPlan**: [`ProjectEditPlan`](#projecteditplan) \| `null`
+
+Editable proposal for identity/comment operations; null for configured exports.
+
+##### entryPath
+
+> `readonly` **entryPath**: `string` \| `null`
+
+Entry artifact, null for independent source previews.
+
+##### kind
+
+> `readonly` **kind**: `"transformation"`
+
+Result discriminant.
+
+##### provenance
+
+> `readonly` **provenance**: [`OperationProvenance`](#operationprovenance)
+
+Exact operation dependencies.
+
+##### resultId
+
+> `readonly` **resultId**: `string`
+
+Exact operation/source/configuration result identity.
+
+***
+
 ### TransformedFile
 
 One transformed LaTeX output file.
@@ -3145,7 +3613,7 @@ Replace recognized comments and newly empty comment lines; defaults to `false`.
 
 ###### Inherited from
 
-[`SerializeOptions`](#serializeoptions).[`suppressComments`](#suppresscomments)
+[`SerializeOptions`](#serializeoptions).[`suppressComments`](#suppresscomments-1)
 
 ***
 
@@ -3274,17 +3742,25 @@ Literal severity used to discriminate warning diagnostics.
 
 ## Type Aliases
 
+### AnalysisRequest
+
+> **AnalysisRequest** = `Extract`\<[`OperationRequest`](#operationrequest), \{ `operation`: `"references"` \| `"unused-commands"`; \}\>
+
+Executable analysis subset of the public operation union.
+
+***
+
 ### ArtifactOrigin
 
-> **ArtifactOrigin** = \{ `kind`: `"source"`; `origins`: readonly [`SourceOrigin`](#sourceorigin)[]; `outputRange`: [`SourceRange`](#sourcerange); \} \| \{ `kind`: `"synthetic"`; `outputRange`: [`SourceRange`](#sourcerange); `reason`: `string`; \}
+> **ArtifactOrigin** = \{ `kind`: `"source"`; `origins`: readonly [`AnalysisLocation`](#analysislocation)[]; `outputRange`: [`SourceRange`](#sourcerange); \} \| \{ `kind`: `"synthetic"`; `outputRange`: [`SourceRange`](#sourcerange); `reason`: `string`; \}
 
-Output mapping for a later generated artifact; synthetic text has no original offset.
+Output mapping for a generated artifact; synthetic text has no original offset.
 
 #### Union Members
 
 ##### Type Literal
 
-\{ `kind`: `"source"`; `origins`: readonly [`SourceOrigin`](#sourceorigin)[]; `outputRange`: [`SourceRange`](#sourcerange); \}
+\{ `kind`: `"source"`; `origins`: readonly [`AnalysisLocation`](#analysislocation)[]; `outputRange`: [`SourceRange`](#sourcerange); \}
 
 ###### kind
 
@@ -3294,7 +3770,7 @@ Copied/rewritten source mapping.
 
 ###### origins
 
-> `readonly` **origins**: readonly [`SourceOrigin`](#sourceorigin)[]
+> `readonly` **origins**: readonly [`AnalysisLocation`](#analysislocation)[]
 
 Contributing original ranges.
 
@@ -3615,9 +4091,9 @@ Ordered reasons.
 
 ### OperationRequest
 
-> **OperationRequest** = \{ `operation`: `"source-inventory"`; `options?`: [`InventoryRequest`](#inventoryrequest); \} \| \{ `operation`: `"resolve-view"`; `options`: [`ViewConfiguration`](#viewconfiguration); \} \| \{ `operation`: `"references"` \| `"unused-commands"`; `options?`: `Readonly`\<`Record`\<`string`, `never`\>\>; \} \| \{ `operation`: `"suppress-comments"`; `options`: \{ `scope?`: [`SourceScope`](#sourcescope); `target`: `"source"` \| `"selected"`; \}; \} \| \{ `operation`: `"materialize"`; `options`: \{ `inputs`: `"preserve"` \| `"inline"`; \}; \}
+> **OperationRequest** = \{ `operation`: `"source-inventory"`; `options?`: [`InventoryRequest`](#inventoryrequest); \} \| \{ `operation`: `"resolve-view"`; `options`: [`ViewConfiguration`](#viewconfiguration); \} \| \{ `operation`: `"references"` \| `"unused-commands"`; `options?`: [`AnalysisOptions`](#analysisoptions); \} \| \{ `operation`: `"suppress-comments"` \| `"identity"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `scope?`: [`SourceScope`](#sourcescope); `target`: `"source"` \| `"selected"`; \}; \} \| \{ `operation`: `"materialize"`; `options`: \{ `inputs`: `"preserve"` \| `"inline"`; `maxOutputCodeUnits?`: `number`; `suppressComments?`: `boolean`; \}; \} \| \{ `operation`: `"export-project"`; `options`: [`ExportOptions`](#exportoptions); \}
 
-Public operation requests; later-stage requests are explicitly unavailable in C1–C5.
+Public requests for independent inventory, interpretation, analysis, and transformation.
 
 #### Union Members
 
@@ -3659,37 +4135,43 @@ Interpretation settings.
 
 ##### Type Literal
 
-\{ `operation`: `"references"` \| `"unused-commands"`; `options?`: `Readonly`\<`Record`\<`string`, `never`\>\>; \}
+\{ `operation`: `"references"` \| `"unused-commands"`; `options?`: [`AnalysisOptions`](#analysisoptions); \}
 
 ###### operation
 
 > `readonly` **operation**: `"references"` \| `"unused-commands"`
 
-Planned C6 analysis.
+Independent analysis; unused-command analysis also accepts source snapshots.
 
 ###### options?
 
-> `readonly` `optional` **options?**: `Readonly`\<`Record`\<`string`, `never`\>\>
+> `readonly` `optional` **options?**: [`AnalysisOptions`](#analysisoptions)
 
-No options in the initial analysis contract.
+Partial view observations require explicit opt-in; source scope is for source models only.
 
 ***
 
 ##### Type Literal
 
-\{ `operation`: `"suppress-comments"`; `options`: \{ `scope?`: [`SourceScope`](#sourcescope); `target`: `"source"` \| `"selected"`; \}; \}
+\{ `operation`: `"suppress-comments"` \| `"identity"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `scope?`: [`SourceScope`](#sourcescope); `target`: `"source"` \| `"selected"`; \}; \}
 
 ###### operation
 
-> `readonly` **operation**: `"suppress-comments"`
+> `readonly` **operation**: `"suppress-comments"` \| `"identity"`
 
-Planned C7 edit preview.
+Exact source edit preview.
 
 ###### options
 
 > `readonly` **options**: `object`
 
 Explicit source or selected-path target.
+
+###### options.maxOutputCodeUnits?
+
+> `readonly` `optional` **maxOutputCodeUnits?**: `number`
+
+Maximum total preview size in UTF-16 code units; default 10,000,000, maximum 100,000,000.
 
 ###### options.scope?
 
@@ -3707,13 +4189,13 @@ Inspect all requested source or only the configured selected path.
 
 ##### Type Literal
 
-\{ `operation`: `"materialize"`; `options`: \{ `inputs`: `"preserve"` \| `"inline"`; \}; \}
+\{ `operation`: `"materialize"`; `options`: \{ `inputs`: `"preserve"` \| `"inline"`; `maxOutputCodeUnits?`: `number`; `suppressComments?`: `boolean`; \}; \}
 
 ###### operation
 
 > `readonly` **operation**: `"materialize"`
 
-Planned C7 export.
+Configured conditional materialization.
 
 ###### options
 
@@ -3726,6 +4208,36 @@ Output topology independent of traversal.
 > `readonly` **inputs**: `"preserve"` \| `"inline"`
 
 Preserve input commands or expand active inclusion occurrences.
+
+###### options.maxOutputCodeUnits?
+
+> `readonly` `optional` **maxOutputCodeUnits?**: `number`
+
+Maximum total output UTF-16 units; default 10000000.
+
+###### options.suppressComments?
+
+> `readonly` `optional` **suppressComments?**: `boolean`
+
+Suppress eligible comments during export; default false.
+
+***
+
+##### Type Literal
+
+\{ `operation`: `"export-project"`; `options`: [`ExportOptions`](#exportoptions); \}
+
+###### operation
+
+> `readonly` **operation**: `"export-project"`
+
+Export with explicit conditional retention and input arrangement.
+
+###### options
+
+> `readonly` **options**: [`ExportOptions`](#exportoptions)
+
+Export semantics independent of the configured traversal.
 
 ***
 
@@ -3935,6 +4447,14 @@ Exhaustive inventory facts; definition targets are excluded from command uses.
 
 ***
 
+### TransformationRequest
+
+> **TransformationRequest** = `Exclude`\<[`OperationRequest`](#operationrequest), [`AnalysisRequest`](#analysisrequest) \| \{ `operation`: `"source-inventory"` \| `"resolve-view"`; \}\>
+
+Executable transformation subset of the public operation union.
+
+***
+
 ### ViewId
 
 > **ViewId** = `string`
@@ -3955,9 +4475,47 @@ A diagnostic code that can be returned after a successful parse.
 
 > `const` **projectOperations**: readonly [`OperationDescriptor`](#operationdescriptor)[]
 
-Frozen operation requirements. C6 analyses and C7 transformations remain explicitly unavailable.
+Frozen operation requirements shared by capability checks and execution.
 
 ## Functions
+
+### applyProjectEdits()
+
+> **applyProjectEdits**(`snapshot`, `plan`, `view?`): [`ProjectSnapshot`](#projectsnapshot)
+
+Atomically apply a checked edit proposal and return a new source snapshot.
+
+#### Parameters
+
+##### snapshot
+
+[`ProjectSnapshot`](#projectsnapshot)
+
+Exact original source authority; never changed in place.
+
+##### plan
+
+[`ProjectEditPlan`](#projecteditplan)
+
+Ordered original ranges, expected contents, and operation preconditions.
+
+##### view?
+
+[`ProjectView`](#projectview)
+
+Required for selected-path edits; every inclusion must permit each edit.
+
+#### Returns
+
+[`ProjectSnapshot`](#projectsnapshot)
+
+A frozen new snapshot. Changed file revisions advance by one; non-advancing/overflowing revisions fail.
+
+#### Throws
+
+[ProjectOperationError](#projectoperationerror) for stale results, invalid edits, or occurrence conflicts; nothing is applied on failure.
+
+***
 
 ### checkOperationCapability()
 
@@ -4020,6 +4578,32 @@ A deterministic, deeply frozen, transport-safe snapshot in path order.
 #### Throws
 
 [PrepTexError](#preptexerror) with InvalidArgument for invalid inputs. Source errors are localized coverage issues.
+
+***
+
+### indexProjectView()
+
+> **indexProjectView**(`view`): [`ConfiguredIndex`](#configuredindex)
+
+Build a reusable index of recognized reached facts, without emitting source.
+
+#### Parameters
+
+##### view
+
+[`ProjectView`](#projectview)
+
+Configured trace, including an explicitly marked incomplete trace.
+
+#### Returns
+
+[`ConfiguredIndex`](#configuredindex)
+
+Frozen entries in execution order, with exact view identity and coverage.
+
+#### Throws
+
+[PrepTexError](#preptexerror) with InvalidArgument for an invalid transported view.
 
 ***
 
@@ -4233,6 +4817,42 @@ A transport-safe project containing plain objects and arrays.
 
 ***
 
+### planTransformation()
+
+> **planTransformation**(`model`, `request`): [`TransformationResult`](#transformationresult)
+
+Plan identity/comment edits or generate a configured export without changing sources.
+
+#### Parameters
+
+##### model
+
+[`ProjectSnapshot`](#projectsnapshot) \| [`ProjectView`](#projectview)
+
+Source snapshot for source-local work, configured view for selected work/exports.
+
+##### request
+
+[`TransformationRequest`](#transformationrequest)
+
+Operation, independent retention/topology policies, and resource limits.
+
+#### Returns
+
+[`TransformationResult`](#transformationresult)
+
+Frozen edits, exact preview artifacts and mappings, dependency metadata and coverage.
+
+#### Throws
+
+[ProjectOperationError](#projectoperationerror) for unavailable models, incompatible shared-file contexts or output limits.
+
+#### Throws
+
+[PrepTexError](#preptexerror) with InvalidArgument for malformed options or stale transports.
+
+***
+
 ### resolveProjectView()
 
 > **resolveProjectView**(`snapshot`, `configuration`): [`ProjectView`](#projectview)
@@ -4262,6 +4882,52 @@ A deeply frozen ready view or explicit incomplete/blocked trace with no complete
 #### Throws
 
 [PrepTexError](#preptexerror) with InvalidArgument for malformed options or stale source identity.
+
+***
+
+### runAnalysis()
+
+> **runAnalysis**(`model`, `request`): [`AnalysisResult`](#analysisresult)
+
+Analyze recognized references or conservative command-use evidence independently.
+
+#### Parameters
+
+##### model
+
+[`ProjectSnapshot`](#projectsnapshot) \| [`ProjectView`](#projectview)
+
+A view for references; source snapshot or view for command-use candidates.
+
+##### request
+
+Analysis and options; incomplete views require allowIncomplete explicitly.
+
+###### operation
+
+`"references"` \| `"unused-commands"`
+
+Independent analysis; unused-command analysis also accepts source snapshots.
+
+###### options?
+
+[`AnalysisOptions`](#analysisoptions)
+
+Partial view observations require explicit opt-in; source scope is for source models only.
+
+#### Returns
+
+[`AnalysisResult`](#analysisresult)
+
+Frozen qualified findings, detailed observations and exact operation identity; no artifacts.
+
+#### Throws
+
+[ProjectOperationError](#projectoperationerror) when the model does not meet operation requirements.
+
+#### Throws
+
+[PrepTexError](#preptexerror) with InvalidArgument for malformed requests or stale transports.
 
 ***
 
@@ -4346,9 +5012,9 @@ an input target is unresolved or circular.
 
 ### updateProjectSnapshot()
 
-> **updateProjectSnapshot**(`snapshot`, `changes`): [`ProjectSnapshot`](#projectsnapshot)
+> **updateProjectSnapshot**(`snapshot`, `changes`, `scanOptions?`): [`ProjectSnapshot`](#projectsnapshot)
 
-Apply source additions/replacements/removals atomically and rescan the resulting source set.
+Apply source additions/replacements/removals atomically, reusing unchanged scans.
 Equal revision with different contents, older revisions, duplicate changes, and absent removals fail.
 
 #### Parameters
@@ -4365,11 +5031,17 @@ readonly [`ProjectSourceChange`](#projectsourcechange)[]
 
 Caller-owned changes; ordering does not affect the resulting identity.
 
+##### scanOptions?
+
+[`ScanOptions`](#scanoptions-1)
+
+Optional replacement scan settings; omission retains the current settings.
+
 #### Returns
 
 [`ProjectSnapshot`](#projectsnapshot)
 
-A new deeply frozen snapshot with unchanged scan settings; no source is modified.
+A deeply frozen snapshot; identical inputs retain snapshot identity. Unchanged contents/settings retain token and fact arrays, including revision-only updates. No caller source is modified.
 
 #### Throws
 
@@ -4381,7 +5053,7 @@ A new deeply frozen snapshot with unchanged scan settings; no source is modified
 
 > **validateProjectEditPlan**(`snapshot`, `plan`, `view?`): `void`
 
-Validate a future edit proposal without applying it. C7 supplies planning and application.
+Validate an edit proposal without applying it.
 
 #### Parameters
 
@@ -4412,6 +5084,10 @@ Nothing on success. All validation completes before a caller can apply any edit.
 #### Throws
 
 [PrepTexError](#preptexerror) with InvalidArgument for stale identity, malformed operations, ranges, overlaps, or surrogate-pair splits.
+
+#### Throws
+
+[ProjectOperationError](#projectoperationerror) for incompatible occurrence edits, invalid identity edits, or output limits.
 
 ***
 

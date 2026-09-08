@@ -1,12 +1,12 @@
 # PrepTeX Core architecture
 
-## Source/configured model foundation (C1–C5)
+## Source/configured model and operations (C1–C8)
 
 The new model runs alongside the legacy path described below. Public readonly
 contracts are in `core/src/project-types.ts`, explicitly exported by `index.ts`.
 `core/src/lib/project/` contains transport validation, the lossless scanner,
 inventory handlers, normalized policies, an iterative input/condition resolver,
-and a separate configured structural parser. See
+and a separate configured structural parser, analysis index and artifact emitter. See
 [the project model support matrix](./project-model.md) for exact semantics.
 
 The flow is source files → immutable snapshot → independent source inventory or
@@ -23,13 +23,23 @@ failures return `incomplete`/`blocked` with trace and original locations; only
 `ready` owns an AST. Public operations remain synchronous, pure, deeply frozen,
 and free of host dependencies. Transported source snapshots are rebuilt from
 validated strings/options and checked against their content identity. Source
-updates are atomic but currently rescan rather than promising incremental reuse.
+updates atomically reuse unchanged scans. Revision-only changes retain token/fact
+arrays; scan-setting changes rescan. Views retain their immutable source authority,
+and transported views rebuild from validated source/configuration. Canonical
+immutable data is recognized through weak identity attestations; mutable transports
+never bypass validation. Condition state is local to each resolver call.
 
-Operation descriptors distinguish implemented inventory/view operations from
-reserved C6/C7 requests. The preliminary edit validator checks identity and range
-contracts; full occurrence conflict checks and edit application belong to C7.
-No new analysis/transform executor, plugin runtime, backend, website change or
-published release is implied by C1–C5.
+Operation descriptors drive both eligibility and execution. Analyses consume
+source facts or reached facts independently and report their assumptions. Edit
+plans validate exact source/view identity, ranges and all affected occurrences
+before atomic application. Exports consume selected token occurrences or original
+slices, repair lexical joins and return separate artifacts with exact mappings.
+Condition retention and input topology are independent. Output is bounded during
+collection/emission. Source/view/options/version identity invalidates every result;
+configured views and indexes are initially rebuilt in full.
+
+There is no plugin runtime or backend. C9/C10, website changes and a verified
+registry release remain outside this increment.
 
 ## Purpose and scope
 

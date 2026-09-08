@@ -23,6 +23,7 @@ import {
   string,
 } from './shared.js';
 import { scanFile } from './scan.js';
+import { knownSnapshot, rememberSnapshot } from './canonical.js';
 
 export function normalizeScanOptions(value: unknown = {}): NormalizedScanOptions {
   const opts = record(value, 'scanOptions');
@@ -71,18 +72,21 @@ export function createProjectSnapshot(
   for (let i = 1; i < sources.length; i++)
     if (sources[i]!.path === sources[i - 1]!.path) invalid('Duplicate normalized source path.');
   const id = identity('snapshot', [CORE_VERSION, 1, options, sources]);
-  return freeze({
-    kind: 'snapshot',
-    id,
-    coreVersion: CORE_VERSION,
-    schemaVersion: 1,
-    scanOptions: options,
-    files: sources.map((file) => scanFile(file, options)),
-  });
+  return rememberSnapshot(
+    freeze({
+      kind: 'snapshot',
+      id,
+      coreVersion: CORE_VERSION,
+      schemaVersion: 1,
+      scanOptions: options,
+      files: sources.map((file) => scanFile(file, options)),
+    })
+  );
 }
 
 // Rebuild derived fields at the public transport boundary; never trust transported facts.
 export function validateSnapshot(value: unknown): ProjectSnapshot {
+  if (knownSnapshot(value)) return value;
   const snapshot = record(value, 'snapshot');
   fields(
     snapshot,
@@ -107,16 +111,18 @@ export function validateSnapshot(value: unknown): ProjectSnapshot {
 }
 
 /**
- * Apply source additions/replacements/removals atomically and rescan the resulting source set.
+ * Apply source additions/replacements/removals atomically, reusing unchanged scans.
  * Equal revision with different contents, older revisions, duplicate changes, and absent removals fail.
  * @param snapshot - Exact source snapshot; mutable transported copies are validated and rebuilt.
  * @param changes - Caller-owned changes; ordering does not affect the resulting identity.
- * @returns A new deeply frozen snapshot with unchanged scan settings; no source is modified.
+ * @param scanOptions - Optional replacement scan settings; omission retains the current settings.
+ * @returns A deeply frozen snapshot; identical inputs retain snapshot identity. Unchanged contents/settings retain token and fact arrays, including revision-only updates. No caller source is modified.
  * @throws {@link PrepTexError} with InvalidArgument on an invalid/conflicting change or stale snapshot.
  */
 export function updateProjectSnapshot(
   snapshot: ProjectSnapshot,
-  changes: readonly ProjectSourceChange[]
+  changes: readonly ProjectSourceChange[],
+  scanOptions?: ScanOptions
 ): ProjectSnapshot {
   const base = validateSnapshot(snapshot);
   const files = new Map(
@@ -145,7 +151,30 @@ export function updateProjectSnapshot(
     if (changed.has(path)) invalid('Only one change per normalized file path is allowed.');
     changed.add(path);
   }
-  return createProjectSnapshot([...files.values()], base.scanOptions);
+  const options = normalizeScanOptions(scanOptions === undefined ? base.scanOptions : scanOptions);
+  const sameOptions = JSON.stringify(options) === JSON.stringify(base.scanOptions);
+  const ordered = [...files.values()].sort((a, b) =>
+    a.path < b.path ? -1 : a.path > b.path ? 1 : 0
+  );
+  const previous = new Map(base.files.map((f) => [f.path, f]));
+  const scanned = ordered.map((file) => {
+    const old = previous.get(file.path);
+    if (sameOptions && old && old.source === file.source)
+      return old.version === file.version ? old : freeze({ ...old, version: file.version });
+    return freeze(scanFile(file, options));
+  });
+  const id = identity('snapshot', [CORE_VERSION, 1, options, ordered]);
+  if (id === base.id) return base;
+  return rememberSnapshot(
+    freeze({
+      kind: 'snapshot',
+      id,
+      coreVersion: CORE_VERSION,
+      schemaVersion: 1,
+      scanOptions: options,
+      files: scanned,
+    })
+  );
 }
 
 export function normalizeScope(value: unknown = { kind: 'all-files' }): SourceScope {

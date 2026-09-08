@@ -7,22 +7,35 @@ All notable changes to this project will be documented here.
 ### Added
 
 - C1–C5 source snapshots, atomic source changes, lossless syntax inventories,
-  normalized boolean policies, operation requirements and preliminary edit
-  precondition/range validation.
+  normalized boolean policies, operation requirements and edit precondition/range
+  validation.
 - Bounded condition/input interpretation with local/global boolean state,
   repeated inclusion identities, explicit incomplete/blocked results, and
   configured structures with disjoint original-source provenance.
 - Public declaration tests, source/view regression fixtures, CLI compatibility
   verification and a runnable public-import project-model example.
-- Reserved typed C6/C7 findings/edit/artifact contracts. Analysis, new
-  transformation/emission and edit-application executors are not implemented yet.
+- C6 independent reference analysis and configured indexes with reached targets,
+  duplicates, informational forward references, unresolved keys and partial coverage.
+- Conservative command-use evidence for direct, body, self-recursive and ambiguous
+  definitions. Candidates do not establish non-use or authorize deletion.
+- C7 exact identity/comment previews, atomic checked edit application, configured
+  materialization and independent condition/input export policies. Results include
+  source mappings, entry identity, remaining dependencies and structured failures.
+- C8 reuse of unchanged scans, scan-setting updates, transport reconstruction,
+  complete view/index invalidation and deterministic output limits. Added a fixed
+  performance corpus, regression budgets and public operation/type tests.
 
 ### Compatibility
 
+- Views now retain their immutable source snapshot. Analysis locations may have
+  no inclusion ID for source-only evidence; operation requests/results and public
+  error codes expand the contracts within this same unreleased 0.3.0 version.
+  Recreate snapshots/views from earlier development stages using source strings.
 - Keep the legacy parser, `AstNode`, static condition whitelist and all-supplied
   Separate output behavior unchanged. The new model uses separate entry points.
 - Prepare both package manifests and the CLI's exact core dependency as 0.3.0;
-  no registry publication or downstream migration is performed.
+  all plan stages belong to this release. C9/C10 and publication remain pending;
+  no downstream dependency is changed.
 
 ## [0.2.1] - Unreleased
 

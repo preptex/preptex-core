@@ -1,11 +1,12 @@
 # PrepTeX integration guide
 
-The new C1–C5 API is documented in [Project model](./project-model.md), including
+The new C1–C8 API is documented in [Project model](./project-model.md), including
 source inventories without an entry, condition/input resolution, original-origin
-navigation, operation eligibility, and an executable public-import example.
+navigation, independent analyses, checked edits, export mappings/dependencies,
+operation eligibility, and an executable public-import example.
 This checkout prepares 0.3.0 without publishing it. The legacy integration below
 remains supported; do not substitute new source-driven policies for its static
-whitelist semantics. Analysis and new transformation executors are later work.
+whitelist semantics. Expanded CLI support and the release handoff remain C9/C10.
 
 This guide describes how to consume `@preptex/core` in applications, frontend
 websites, Node.js services, and worker threads. Treat the published package and

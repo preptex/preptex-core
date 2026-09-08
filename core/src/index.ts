@@ -52,7 +52,12 @@ export type {
   WarningDiagnostic,
   WarningDiagnosticCode,
 } from './api-types.js';
-export { PrepTexError, PrepTexErrorCode, PrepTexSyntaxError } from './errors.js';
+export {
+  PrepTexError,
+  PrepTexErrorCode,
+  PrepTexSyntaxError,
+  ProjectOperationError,
+} from './errors.js';
 export { InputHandlingMode, isInputHandlingMode } from './lib/options.js';
 export type {
   ParseOptions,
@@ -125,6 +130,21 @@ export {
   inspectProject,
 } from './lib/project/snapshot.js';
 export { resolveProjectView } from './lib/project/view.js';
+export { indexProjectView, runAnalysis } from './lib/project/analysis.js';
+export { applyProjectEdits, planTransformation } from './lib/project/transformation.js';
+export type {
+  AnalysisLocation,
+  AnalysisOptions,
+  AnalysisRequest,
+  ArtifactDependency,
+  CommandUsage,
+  ConfiguredIndex,
+  ExportOptions,
+  OperationFailure,
+  ReferenceResolution,
+  TransformationRequest,
+  TransformationResult,
+} from './project-types.js';
 export {
   projectOperations,
   checkOperationCapability,
