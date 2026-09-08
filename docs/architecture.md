@@ -1,5 +1,36 @@
 # PrepTeX Core architecture
 
+## Source/configured model foundation (C1–C5)
+
+The new model runs alongside the legacy path described below. Public readonly
+contracts are in `core/src/project-types.ts`, explicitly exported by `index.ts`.
+`core/src/lib/project/` contains transport validation, the lossless scanner,
+inventory handlers, normalized policies, an iterative input/condition resolver,
+and a separate configured structural parser. See
+[the project model support matrix](./project-model.md) for exact semantics.
+
+The flow is source files → immutable snapshot → independent source inventory or
+configured token occurrences → complete configured structure. A source snapshot
+does not require balanced file-local structure. Interpretation uses live boolean
+bindings, saved local scopes, active input chains, distinct repeated inclusions,
+and a separate skipped-conditional token mode. Selected tokens retain boundaries
+at branch/input joins; the configured parser never reconstructs a raw string and
+re-lexes those joins. Origins are ordered original spans, never bounding ranges
+over inactive text.
+
+Expected source issues are per-file coverage data. Required interpretation
+failures return `incomplete`/`blocked` with trace and original locations; only
+`ready` owns an AST. Public operations remain synchronous, pure, deeply frozen,
+and free of host dependencies. Transported source snapshots are rebuilt from
+validated strings/options and checked against their content identity. Source
+updates are atomic but currently rescan rather than promising incremental reuse.
+
+Operation descriptors distinguish implemented inventory/view operations from
+reserved C6/C7 requests. The preliminary edit validator checks identity and range
+contracts; full occurrence conflict checks and edit application belong to C7.
+No new analysis/transform executor, plugin runtime, backend, website change or
+published release is implied by C1–C5.
+
 ## Purpose and scope
 
 PrepTeX Core is a source-preserving structural parser and transformer for a

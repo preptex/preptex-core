@@ -1,10 +1,29 @@
 # PrepTeX Core: project model, analyses, and transformations
 
-Status: implementation plan, not an implemented API. Prepared against the installed
-`@preptex/core@0.2.1`. Complete this plan before migrating the website using the
+Status: **C1–C5 implemented in the local 0.3.0 preparation; C6–C10 pending.**
+Prepared against the installed `@preptex/core@0.2.1`. Complete this plan before migrating the website using the
 [website implementation plan](website-project-workspace-implementation-plan.md).
 
 Prepared: 2026-09-07.
+
+Implementation update (2026-09-08): finalized public names and supported profile
+are in [the C1–C5 integration guide](../project-model.md). C1's future analysis,
+preview and application flows are contracts only; their executors remain C6/C7.
+Atomic source upserts/removals are implemented now to establish C1 revision
+preconditions; C8's reuse/performance work remains pending. No website changes
+or package publication are part of this increment.
+
+Baseline: clean 0.2.1 checkout; 167 core tests, one CLI regression, workspace
+type checks, public type contracts and TSDoc checks passed. The baseline format
+check failed only on the two supplied plan files. Windows sandbox access denied
+the first Vitest startup; the approved rerun established the passing test baseline.
+
+Verification (2026-09-08): `npm run check` passes with 266 core tests (99 new
+project-model regressions), both CLI tests, workspace/type-contract checks,
+TSDoc validation and formatting. `npm run docs` regenerated the API reference.
+`node examples/project-model.mjs` verifies source-driven `itemize` and forced-false
+`enumerate` views through public package imports. CLI tests execute preserve,
+flatten, Separate and AST commands and check their actual output.
 
 ## 1. Goal and intended result
 
@@ -49,17 +68,17 @@ The baseline contracts are documented in the installed package's
 `dist/docs/integration.md`, `dist/docs/architecture.md`, `dist/docs/api/README.md`,
 and `dist/index.d.ts` with its public declaration re-exports.
 
-| Current behavior | Required new behavior |
-| --- | --- |
-| `parseProject` structurally parses every supplied file atomically. | A new source snapshot remains inspectable when one file or one interpretation cannot be structurally parsed. |
-| Conditions, groups, environments, and sections must fit one structural tree. | Preserve source independently; construct a structural tree for a selected interpretation. |
-| `enabledConditions` applies after parsing. | Resolve supported conditions and active inputs before or while constructing the structural view. |
-| One static whitelist selects the same branch at every occurrence. | Source tracking records decisions per occurrence; explicit overrides are separate from tracked state. |
-| Condition evaluation also removes syntax, declarations, setters, and inactive branches. | Separate interpretation, transformation scope, and output retention. |
-| `declaredConditions` contains names discovered from declarations. | Expose located declarations, tests, assignments, unresolved candidates, and recognition support. |
-| `InputHandlingMode` combines traversal with output arrangement. | Separate semantic traversal from whether inputs are preserved or inlined in output. |
-| Results have original file-local ranges and ephemeral IDs; transformed output has no map. | Retain that legacy contract and add explicit origins for configured occurrences and new artifacts. |
-| Public operations mainly parse, merge, serialize, and transform. | Add source inspection and analysis APIs plus a common requirements/result contract. |
+| Current behavior                                                                          | Required new behavior                                                                                        |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `parseProject` structurally parses every supplied file atomically.                        | A new source snapshot remains inspectable when one file or one interpretation cannot be structurally parsed. |
+| Conditions, groups, environments, and sections must fit one structural tree.              | Preserve source independently; construct a structural tree for a selected interpretation.                    |
+| `enabledConditions` applies after parsing.                                                | Resolve supported conditions and active inputs before or while constructing the structural view.             |
+| One static whitelist selects the same branch at every occurrence.                         | Source tracking records decisions per occurrence; explicit overrides are separate from tracked state.        |
+| Condition evaluation also removes syntax, declarations, setters, and inactive branches.   | Separate interpretation, transformation scope, and output retention.                                         |
+| `declaredConditions` contains names discovered from declarations.                         | Expose located declarations, tests, assignments, unresolved candidates, and recognition support.             |
+| `InputHandlingMode` combines traversal with output arrangement.                           | Separate semantic traversal from whether inputs are preserved or inlined in output.                          |
+| Results have original file-local ranges and ephemeral IDs; transformed output has no map. | Retain that legacy contract and add explicit origins for configured occurrences and new artifacts.           |
+| Public operations mainly parse, merge, serialize, and transform.                          | Add source inspection and analysis APIs plus a common requirements/result contract.                          |
 
 Do not silently change legacy `parseProject` to return partial results or make
 legacy `Separate` omit files. Introduce new types and entry points first.
@@ -103,13 +122,13 @@ fragment of a larger document.
 
 ### 3.2 Conditions and uncertainty
 
-| Choice | Exact intended meaning |
-| --- | --- |
-| Source inventory / all branches | Inspect recognized syntax in every requested source region. This is not a single executable document or a merged structural AST. |
-| Follow source | Track supported direct boolean declarations and assignments in encounter order. Evaluate only the reached tests. |
-| Manual values | Force an explicitly configured value at every reached test of that named boolean. Omitted names remain unresolved. |
-| Follow source with overrides | Track source normally, but an override controls the effective value at each test of that name. Record both tracked and effective values. |
-| Initial state, advanced | Seed state before the entry begins. A reached `\newif` initializes its flag to false; later reached assignments overwrite the seed. This never means a permanent override. |
+| Choice                          | Exact intended meaning                                                                                                                                                     |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source inventory / all branches | Inspect recognized syntax in every requested source region. This is not a single executable document or a merged structural AST.                                           |
+| Follow source                   | Track supported direct boolean declarations and assignments in encounter order. Evaluate only the reached tests.                                                           |
+| Manual values                   | Force an explicitly configured value at every reached test of that named boolean. Omitted names remain unresolved.                                                         |
+| Follow source with overrides    | Track source normally, but an override controls the effective value at each test of that name. Record both tracked and effective values.                                   |
+| Initial state, advanced         | Seed state before the entry begins. A reached `\newif` initializes its flag to false; later reached assignments overwrite the seed. This never means a permanent override. |
 
 Automatic decisions have three states: true, false, and unknown. Inactive tests
 are recorded as not reached, not as false. Names remain case-sensitive.
@@ -213,9 +232,9 @@ acceptance criteria before treating dependent work as ready.
 
 - [ ] The baseline package version, commands, and results are recorded.
 - [ ] Legacy preservation and all-false selection produce different expected
-  strings, and legacy Separate still emits every supplied file.
+      strings, and legacy Separate still emits every supplied file.
 - [ ] Every target fixture has expected observations or exact output, not only
-  “does not throw.”
+      “does not throw.”
 
 ### C1. Define public contracts and operation requirements
 
@@ -247,21 +266,21 @@ acceptance criteria before treating dependent work as ready.
 
 **Proposed API responsibilities**
 
-| Responsibility | Illustrative entry point |
-| --- | --- |
-| Create an inspectable source snapshot | `createProjectSnapshot(files, scanOptions)` |
-| Atomically upsert/remove source files | `updateProjectSnapshot(snapshot, changes)` |
-| Obtain located source inventories | `inspectProject(snapshot, request)` |
-| Resolve one configured interpretation | `resolveProjectView(snapshot, configuration)` |
-| Run a typed analysis against its required model | `runAnalysis(model, request)` |
-| Plan a source-local or configured transformation | `planTransformation(model, request)` |
-| Validate and apply edits, returning a new snapshot | `applyProjectEdits(snapshot, editPlan)` |
+| Responsibility                                     | Illustrative entry point                      |
+| -------------------------------------------------- | --------------------------------------------- |
+| Create an inspectable source snapshot              | `createProjectSnapshot(files, scanOptions)`   |
+| Atomically upsert/remove source files              | `updateProjectSnapshot(snapshot, changes)`    |
+| Obtain located source inventories                  | `inspectProject(snapshot, request)`           |
+| Resolve one configured interpretation              | `resolveProjectView(snapshot, configuration)` |
+| Run a typed analysis against its required model    | `runAnalysis(model, request)`                 |
+| Plan a source-local or configured transformation   | `planTransformation(model, request)`          |
+| Validate and apply edits, returning a new snapshot | `applyProjectEdits(snapshot, editPlan)`       |
 
 **Acceptance**
 
 - [ ] Public TypeScript examples compile without private imports or casts.
 - [ ] Runtime validation rejects invalid modes, malformed maps, stale identity,
-  invalid ranges, and incompatible operation/model combinations.
+      invalid ranges, and incompatible operation/model combinations.
 - [ ] Results remain deterministic, deeply frozen, and structured-cloneable.
 - [ ] Manual force, source state, initial state, and unknown have separate tests.
 
@@ -293,7 +312,7 @@ acceptance criteria before treating dependent work as ready.
 **Acceptance**
 
 - [ ] Reassembling each scan produces the original string exactly for empty
-  files, LF/CRLF/CR, Unicode, escaped percent signs, and trailing whitespace.
+      files, LF/CRLF/CR, Unicode, escaped percent signs, and trailing whitespace.
 - [ ] Inventory in a healthy file remains usable when another file is malformed.
 - [ ] Crossing-environment source imports without a full structural parse.
 - [ ] Comment/verbatim examples do not create active condition or input events.
@@ -323,12 +342,12 @@ execution view is needed.
 **Acceptance**
 
 - [ ] An inventory lists definitions and labels in both source branches with
-  their exact locations and contexts.
+      their exact locations and contexts.
 - [ ] A `\label` or setter written inside an uncalled definition is a source
-  occurrence and is not reported as executed.
+      occurrence and is not reported as executed.
 - [ ] Comments and protected verbatim regions do not create false definitions.
 - [ ] Inventory results are deterministic and do not alter source or require
-  serialization/transformation.
+      serialization/transformation.
 
 ### C4. Resolve supported conditions and inputs together
 
@@ -371,7 +390,7 @@ stream in the correct encounter order.
 - [ ] Inactive setters and uncalled definition bodies do not affect later tests.
 - [ ] Local changes restore; supported global changes persist after group exit.
 - [ ] An input's setter affects the next caller test even when output will keep
-  the input command literal.
+      the input command literal.
 - [ ] Repeated inputs produce distinct traces; active recursion is diagnosed.
 - [ ] An unknown test returns incomplete, never an implicit else decision.
 
@@ -400,9 +419,9 @@ stream in the correct encounter order.
 
 - [ ] Both values in fixture F02 produce the intended single list environment.
 - [ ] Section/math nodes in the selected path are not globally downgraded merely
-  because the original source contained conditional boundaries.
+      because the original source contained conditional boundaries.
 - [ ] A node spanning an input or omitted branch returns every contributing
-  origin without falsely covering inactive gaps.
+      origin without falsely covering inactive gaps.
 - [ ] A partial view never presents an invented complete AST.
 
 ### C6. Implement independent analyses and explain their coverage
@@ -438,11 +457,11 @@ stream in the correct encounter order.
 **Acceptance**
 
 - [ ] Mutually exclusive labels do not become duplicate labels in one selected
-  configuration; a source inventory still shows both occurrences.
+      configuration; a source inventory still shows both occurrences.
 - [ ] Forward references through inputs use the correct encounter order.
 - [ ] Uncalled macro-body labels are not mistaken for reached targets.
 - [ ] Directly used, body-referenced, recursively self-referenced, redefined, and
-  dynamically constructed command examples receive their documented classifications.
+      dynamically constructed command examples receive their documented classifications.
 - [ ] Each analysis runs without generating or changing a LaTeX file.
 
 ### C7. Implement edit plans and independent transformation/emission policies
@@ -490,9 +509,9 @@ stream in the correct encounter order.
 
 - [ ] No-op output is exactly equal to each input string.
 - [ ] Preserve-source transforms leave every protected inactive slice and every
-  source slice outside accepted edits exactly unchanged.
+      source slice outside accepted edits exactly unchanged.
 - [ ] Stale, overlapping, invalid, and conflicting multi-occurrence edits fail
-  atomically with structured reasons.
+      atomically with structured reasons.
 - [ ] Materialized crossing-environment output reparses with the expected structure.
 - [ ] Output dependency metadata accurately identifies every preserved input.
 - [ ] Analyses and transformations leave the originating snapshot untouched.
@@ -526,7 +545,7 @@ stream in the correct encounter order.
 - [ ] A changed setter invalidates observations in later caller files.
 - [ ] Two configurations of the same source can coexist without state leakage.
 - [ ] Reordering options with equivalent semantics does not create inconsistent
-  results; changing meaningful options never reuses stale results.
+      results; changing meaningful options never reuses stale results.
 - [ ] Repeated inclusion and nesting limits have bounded, tested failure paths.
 
 ### C9. Preserve compatibility and keep pipeline convenience
@@ -555,7 +574,7 @@ stream in the correct encounter order.
 **Acceptance**
 
 - [ ] C0's public compatibility suite passes or every intentional break is
-  explicitly versioned and accompanied by a tested migration.
+      explicitly versioned and accompanied by a tested migration.
 - [ ] No website/CLI consumer requires internal parser imports.
 - [ ] A source inventory works with no output destination or transform settings.
 - [ ] A composed pipeline and the equivalent individual calls give equal results.
@@ -596,7 +615,7 @@ stream in the correct encounter order.
 - [ ] Packed and published contents match the documented API.
 - [ ] The actual exact release installs and typechecks in a clean consumer.
 - [ ] No full-compiler, all-configurations, or complete-byte-preservation claim
-  exceeds what the implementation and its input types support.
+      exceeds what the implementation and its input types support.
 - [ ] Every capability in section 6 is available through the public entry point.
 
 ## 5. Minimum acceptance fixtures
@@ -604,38 +623,38 @@ stream in the correct encounter order.
 Use small checked-in `.tex` fixtures plus exact expected strings, structured
 observations, and diagnostic codes. Add table-driven variants where appropriate.
 
-| ID | Fixture | Required result |
-| --- | --- | --- |
-| F01 | Empty source, emoji, escaped `%`, LF/CRLF/CR, trailing spaces | Exact source-string round trip; correct UTF-16 locations and insertion boundaries. |
-| F02 | Alternative list openings and corresponding conditional closings below | Each resolved configuration has one correctly matched environment; source inventory needs no configuration. |
-| F03 | Unbalanced environment only in the skipped arm | Selected active view succeeds; inactive source remains exact. |
-| F04 | A flag set true, tested, set false, tested | Source mode chooses different arms at the two occurrences. |
-| F05 | A setter inside an inactive arm | Later active state is unaffected. |
-| F06 | Setter/input/label inside comments, verbatim, and an uncalled definition | Protected tokens do not execute; definition-body syntax facts retain that context. |
-| F07 | Local toggle in a supported execution group, then a global variant | Local value restores; supported global assignment persists. |
-| F08 | Included file changes a flag before a caller test | Caller observes the included assignment even with preserved input output. |
-| F09 | Missing input only in an inactive arm | No active input failure; retained-source output lists the remaining dependency. |
-| F10 | Missing, ambiguous, and circular active inputs | Stable structured errors with original locations and input chain. |
-| F11 | Same file included twice under different flags | Distinct occurrence traces; flattened specialization works; incompatible shared-source edits are rejected. |
-| F12 | Undecidable/externally defined test and an unsupported primitive test | No implicit false; incomplete view and usable inventory. Named overrides do not reinterpret primitive operands. |
-| F13 | `\ifthenelse`, `\iff`, or another ordinary `if`-prefixed command | No invented primitive-style conditional nesting. |
-| F14 | Conditional delimiter crosses an input boundary | Source remains inspectable; configured view reports the documented unsupported case. |
-| F15 | Same `\label{x}` in mutually exclusive arms | Source has two occurrences; each selected path has no duplicate. |
-| F16 | Reference before a label, including across input boundaries | Informational forward-reference result with both locations, correct execution order. |
-| F17 | Label exists only inside an uncalled macro definition | Potential source occurrence; no falsely reached target. Coverage explains macro limits. |
-| F18 | Used, unused-candidate, self-recursive, indirectly referenced, and redefined commands | Exact documented counts/classifications; no automatic deletion suggestion presented as proof. |
-| F19 | Selected structural node spans inactive source and multiple files | Multi-span provenance; no bounding-range rewrite of inactive content. |
-| F20 | Source changes after an edit plan is generated | Atomic stale-plan rejection. |
-| F21 | Condition configuration changes after a view-dependent result | Result is not accepted for the new view; source-only result remains tied to its own source identity. |
-| F22 | Add/delete files, change scan settings, change earlier setter | Correct scan/view/index invalidation and full-rebuild equivalence. |
-| F23 | Legacy omission, empty whitelist, and explicit whitelist | Existing three-way behavior is preserved by legacy entry points. |
-| F24 | Legacy Separate with an unreachable supplied file | Every supplied file is still emitted. |
-| F25 | Local comment removal at text/control-word boundaries | Expected lexical output, no accidental command merging or introduced word space. |
-| F26 | One physical slice is active in one inclusion and inactive in another | Preserve-source edit reports a context conflict; neither occurrence silently wins. |
-| F27 | Initial true seed followed by `\newif`, then setter; forced true variant | Seed resets on declaration, source setter applies, and forcing has distinct documented results. |
-| F28 | Preserve conditions while inlining only active inputs | Remaining literal inputs/dependencies are reported; artifact is not labeled fully flattened/self-contained. |
-| F29 | Materialize `\iftrue\relax\fi abc`; inline a file ending in `\relax` immediately before caller text `abc` | Emit the command token followed by the letters, for example `\relax abc`, never the different command `\relaxabc`. Test both conditional and input boundaries independently. |
-| F30 | Declare a flag inside a group and use it outside; redefine a tracked test or generated setter | Local bindings restore/disappear according to the supported scope rules. Redefined names do not keep their stale boolean behavior; an unsupported new meaning yields an incomplete view. |
+| ID  | Fixture                                                                                                   | Required result                                                                                                                                                                          |
+| --- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F01 | Empty source, emoji, escaped `%`, LF/CRLF/CR, trailing spaces                                             | Exact source-string round trip; correct UTF-16 locations and insertion boundaries.                                                                                                       |
+| F02 | Alternative list openings and corresponding conditional closings below                                    | Each resolved configuration has one correctly matched environment; source inventory needs no configuration.                                                                              |
+| F03 | Unbalanced environment only in the skipped arm                                                            | Selected active view succeeds; inactive source remains exact.                                                                                                                            |
+| F04 | A flag set true, tested, set false, tested                                                                | Source mode chooses different arms at the two occurrences.                                                                                                                               |
+| F05 | A setter inside an inactive arm                                                                           | Later active state is unaffected.                                                                                                                                                        |
+| F06 | Setter/input/label inside comments, verbatim, and an uncalled definition                                  | Protected tokens do not execute; definition-body syntax facts retain that context.                                                                                                       |
+| F07 | Local toggle in a supported execution group, then a global variant                                        | Local value restores; supported global assignment persists.                                                                                                                              |
+| F08 | Included file changes a flag before a caller test                                                         | Caller observes the included assignment even with preserved input output.                                                                                                                |
+| F09 | Missing input only in an inactive arm                                                                     | No active input failure; retained-source output lists the remaining dependency.                                                                                                          |
+| F10 | Missing, ambiguous, and circular active inputs                                                            | Stable structured errors with original locations and input chain.                                                                                                                        |
+| F11 | Same file included twice under different flags                                                            | Distinct occurrence traces; flattened specialization works; incompatible shared-source edits are rejected.                                                                               |
+| F12 | Undecidable/externally defined test and an unsupported primitive test                                     | No implicit false; incomplete view and usable inventory. Named overrides do not reinterpret primitive operands.                                                                          |
+| F13 | `\ifthenelse`, `\iff`, or another ordinary `if`-prefixed command                                          | No invented primitive-style conditional nesting.                                                                                                                                         |
+| F14 | Conditional delimiter crosses an input boundary                                                           | Source remains inspectable; configured view reports the documented unsupported case.                                                                                                     |
+| F15 | Same `\label{x}` in mutually exclusive arms                                                               | Source has two occurrences; each selected path has no duplicate.                                                                                                                         |
+| F16 | Reference before a label, including across input boundaries                                               | Informational forward-reference result with both locations, correct execution order.                                                                                                     |
+| F17 | Label exists only inside an uncalled macro definition                                                     | Potential source occurrence; no falsely reached target. Coverage explains macro limits.                                                                                                  |
+| F18 | Used, unused-candidate, self-recursive, indirectly referenced, and redefined commands                     | Exact documented counts/classifications; no automatic deletion suggestion presented as proof.                                                                                            |
+| F19 | Selected structural node spans inactive source and multiple files                                         | Multi-span provenance; no bounding-range rewrite of inactive content.                                                                                                                    |
+| F20 | Source changes after an edit plan is generated                                                            | Atomic stale-plan rejection.                                                                                                                                                             |
+| F21 | Condition configuration changes after a view-dependent result                                             | Result is not accepted for the new view; source-only result remains tied to its own source identity.                                                                                     |
+| F22 | Add/delete files, change scan settings, change earlier setter                                             | Correct scan/view/index invalidation and full-rebuild equivalence.                                                                                                                       |
+| F23 | Legacy omission, empty whitelist, and explicit whitelist                                                  | Existing three-way behavior is preserved by legacy entry points.                                                                                                                         |
+| F24 | Legacy Separate with an unreachable supplied file                                                         | Every supplied file is still emitted.                                                                                                                                                    |
+| F25 | Local comment removal at text/control-word boundaries                                                     | Expected lexical output, no accidental command merging or introduced word space.                                                                                                         |
+| F26 | One physical slice is active in one inclusion and inactive in another                                     | Preserve-source edit reports a context conflict; neither occurrence silently wins.                                                                                                       |
+| F27 | Initial true seed followed by `\newif`, then setter; forced true variant                                  | Seed resets on declaration, source setter applies, and forcing has distinct documented results.                                                                                          |
+| F28 | Preserve conditions while inlining only active inputs                                                     | Remaining literal inputs/dependencies are reported; artifact is not labeled fully flattened/self-contained.                                                                              |
+| F29 | Materialize `\iftrue\relax\fi abc`; inline a file ending in `\relax` immediately before caller text `abc` | Emit the command token followed by the letters, for example `\relax abc`, never the different command `\relaxabc`. Test both conditional and input boundaries independently.             |
+| F30 | Declare a flag inside a group and use it outside; redefine a tracked test or generated setter             | Local bindings restore/disappear according to the supported scope rules. Redefined names do not keep their stale boolean behavior; an unsupported new meaning yields an incomplete view. |
 
 ### F02: required crossing-environment example
 
@@ -667,18 +686,18 @@ Deliver these capabilities under the finalized public names. The website must
 not recreate them with private imports, regex parsing, or locally invented core
 types.
 
-| Capability | Required handoff evidence |
-| --- | --- |
-| Inspectable source snapshots and atomic updates/deletions | Public examples; F01, F03, F20, F22. |
-| Located condition/input/definition/label/reference inventories | Typed facts with context and coverage; F06, F13, F17. |
-| Independent entry/traversal/condition configuration | Public validated configuration type; F04-F12 and F27. |
-| Ready/incomplete/blocked views and operation eligibility | Stable structured reasons and partial coverage; F10/F12/F14. |
-| Configured structure and original origins | Public node union/traversal; F02/F19 plus inclusion IDs. |
-| Independent analyses | Public requests/results; F15-F18 and informational forward references. |
-| Independent transformations and previewable results | Typed edit/artifact outputs; F19-F21/F25/F26. |
-| Export dependency and path semantics | Entry identity, remaining dependencies, no hidden rename; F09/F28. |
-| Legacy compatibility | C0 characterization suite and migration examples. |
-| Consumer compatibility | Clean install, TypeScript 4.9 consumer check, exact version, bundled docs. |
+| Capability                                                     | Required handoff evidence                                                  |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Inspectable source snapshots and atomic updates/deletions      | Public examples; F01, F03, F20, F22.                                       |
+| Located condition/input/definition/label/reference inventories | Typed facts with context and coverage; F06, F13, F17.                      |
+| Independent entry/traversal/condition configuration            | Public validated configuration type; F04-F12 and F27.                      |
+| Ready/incomplete/blocked views and operation eligibility       | Stable structured reasons and partial coverage; F10/F12/F14.               |
+| Configured structure and original origins                      | Public node union/traversal; F02/F19 plus inclusion IDs.                   |
+| Independent analyses                                           | Public requests/results; F15-F18 and informational forward references.     |
+| Independent transformations and previewable results            | Typed edit/artifact outputs; F19-F21/F25/F26.                              |
+| Export dependency and path semantics                           | Entry identity, remaining dependencies, no hidden rename; F09/F28.         |
+| Legacy compatibility                                           | C0 characterization suite and migration examples.                          |
+| Consumer compatibility                                         | Clean install, TypeScript 4.9 consumer check, exact version, bundled docs. |
 
 The core work is complete when these capabilities ship in the verified release
 and all required acceptance fixtures pass. A working parser alone, a successful

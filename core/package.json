@@ -1,6 +1,6 @@
 {
   "name": "@preptex/core",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Environment-neutral TypeScript library for parsing and transforming virtual LaTeX projects.",
   "license": "MIT",
   "repository": {

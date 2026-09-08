@@ -1,6 +1,6 @@
 {
   "name": "@preptex/cli",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "CLI utilities for PrepTeX core parser and transformer.",
   "license": "MIT",
   "repository": {
@@ -13,7 +13,7 @@
   },
   "homepage": "https://github.com/preptex/preptex-core/tree/main/cli#readme",
   "dependencies": {
-    "@preptex/core": "0.2.1"
+    "@preptex/core": "0.3.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",

@@ -8,8 +8,10 @@ readonly syntax trees, structured diagnostics, and typed errors.
 npm install --save-exact @preptex/core@0.2.1
 ```
 
-Version 0.2.0 was published on 2026-09-03. This source tree contains the
-compatible 0.2.1 release, including the documentation bundle listed below.
+This source tree prepares **0.3.0 (unreleased)**. It adds C1–C5 source snapshots,
+inventories and configured views alongside the unchanged legacy API. The install
+command above describes the existing consumer baseline; use 0.3.0 only after a
+verified registry release. New analyses and transformations remain later phases.
 
 See the
 [integration guide](https://github.com/preptex/preptex-core/blob/main/docs/integration.md)
@@ -23,6 +25,7 @@ This package includes the complete specification files for developers and AI age
 
 - `dist/docs/integration.md`: Compact consumer guide, browser Web Worker model, complete frontend example, and error handling.
 - `dist/docs/architecture.md`: Architectural invariants, AST structures, condition models, and limitations.
+- `dist/docs/project-model.md`: C1–C5 public contracts, support matrix, examples and remaining website prerequisites.
 - `dist/docs/api/README.md`: Complete TypeDoc Markdown API reference.
 - `dist/index.d.ts`: Authoritative TypeScript declarations.
 

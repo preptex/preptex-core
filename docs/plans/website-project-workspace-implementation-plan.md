@@ -23,17 +23,17 @@ Keep the client-only React/CRA/CodeMirror stack and the code pane read-only. Pre
 
 The manifest, lockfile, and installed package currently agree on `@preptex/core@0.2.1`. There is no supplied `packages/preptex-core` directory in this checkout. The authoritative current integration sources are `docs/architecture.md`, the installed `dist/docs/integration.md`, `dist/docs/architecture.md`, `dist/docs/api/README.md`, and `dist/index.d.ts`.
 
-| Current location | Current behavior | Required change |
-| --- | --- | --- |
-| `src/App.tsx` | `selectedFile` is both the viewed file and the entry passed to `useCoreProcess`. | Separate source/artifact viewing from project entry and configuration. |
-| `src/model/useFiles.ts` | A pure reducer owns source buffers, selection, and upload errors; uploads complete atomically. | Retain atomic source ownership and introduce explicit source revision/import events. Keep generated artifacts elsewhere. |
-| `src/model/useCoreProcess.ts` | One parsed project and `canTransform`; any project parse failure removes the usable project. | Expose source availability, configured-view readiness, and independent operation results. |
-| `src/services/core.ts` | Incremental `parseProject`/`mergeProjects`; deletions and recovery rebuild; options adapt to one transform call. | Adapt the released source-update, view-resolution, analysis, and transformation APIs. |
-| `src/model/useControl.ts` | One `CoreOptionsUI` combines comments, input mode, boolean whitelist, and output name. | Retain one authoritative definition of each UI options group, with configuration and operation/output preferences separated. |
-| `src/components/ControlPanel.tsx` | One Pipeline/Run form; enabled conditions are an on/off list. | Present independent operations and separate interpretation from export choices. |
-| `src/App.tsx` output handling | Generated text is renamed and upserted into source buffers, selected as the next entry, and reparsed with inputs. | Store artifacts separately; promotion to sources is explicit. |
-| `src/components/astview/treebuilder.tsx` and `src/types/LayoutNode.ts` | One file-local structural tree with a line and numeric node ID. | Support source syntax and configured structure with snapshot, origin, and inclusion identity. |
-| `src/components/LogPanel.tsx` | Structured warnings and one processing failure. | Show source/view diagnostics and independent operation findings with provenance and navigation. |
+| Current location                                                       | Current behavior                                                                                                  | Required change                                                                                                              |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `src/App.tsx`                                                          | `selectedFile` is both the viewed file and the entry passed to `useCoreProcess`.                                  | Separate source/artifact viewing from project entry and configuration.                                                       |
+| `src/model/useFiles.ts`                                                | A pure reducer owns source buffers, selection, and upload errors; uploads complete atomically.                    | Retain atomic source ownership and introduce explicit source revision/import events. Keep generated artifacts elsewhere.     |
+| `src/model/useCoreProcess.ts`                                          | One parsed project and `canTransform`; any project parse failure removes the usable project.                      | Expose source availability, configured-view readiness, and independent operation results.                                    |
+| `src/services/core.ts`                                                 | Incremental `parseProject`/`mergeProjects`; deletions and recovery rebuild; options adapt to one transform call.  | Adapt the released source-update, view-resolution, analysis, and transformation APIs.                                        |
+| `src/model/useControl.ts`                                              | One `CoreOptionsUI` combines comments, input mode, boolean whitelist, and output name.                            | Retain one authoritative definition of each UI options group, with configuration and operation/output preferences separated. |
+| `src/components/ControlPanel.tsx`                                      | One Pipeline/Run form; enabled conditions are an on/off list.                                                     | Present independent operations and separate interpretation from export choices.                                              |
+| `src/App.tsx` output handling                                          | Generated text is renamed and upserted into source buffers, selected as the next entry, and reparsed with inputs. | Store artifacts separately; promotion to sources is explicit.                                                                |
+| `src/components/astview/treebuilder.tsx` and `src/types/LayoutNode.ts` | One file-local structural tree with a line and numeric node ID.                                                   | Support source syntax and configured structure with snapshot, origin, and inclusion identity.                                |
+| `src/components/LogPanel.tsx`                                          | Structured warnings and one processing failure.                                                                   | Show source/view diagnostics and independent operation findings with provenance and navigation.                              |
 
 Existing tests in `src/services/core.test.ts`, `src/model/project.test.tsx`, and `src/App.test.tsx` protect useful invariants, but some intentionally encode behavior being replaced. For example, the upload-to-output test expects the generated file to become the entry, and parse-error tests expect every operation to be disabled. Replace those expectations explicitly; do not preserve them through compatibility hacks or remove all coverage.
 
@@ -41,16 +41,16 @@ Existing tests in `src/services/core.test.ts`, `src/model/project.test.tsx`, and
 
 Do not implement condition evaluation, command interpretation, label resolution, or source edit mapping in the website. The core release must provide these capabilities through the public `@preptex/core` entry point:
 
-| Core capability required | Website use | Gate |
-| --- | --- | --- |
-| Immutable lossless source snapshots, version identity, diagnostics, and atomic updates including removal | Uploads, source inspection, incremental refresh | Required before Phase W2 |
-| Source-level condition/input inventories without requiring one valid structural AST | Setup and browsing intertwined constructs | Required before Phase W3 |
-| Configured interpretation: stable entry, traversal policy, supported source state, forced booleans, explicit unknowns | Condition setup and active operations | Required before Phase W3 |
-| Discriminated view status such as ready/incomplete/blocked, reason codes, completeness/support metadata | Accurate availability and status UI | Required before Phase W3 |
-| Ordered inclusion occurrences and origins identifying source revision, file, original range(s), and inclusion context | Cross-file navigation and repeated inputs | Required before Phase W4 |
-| Structured source inventories and configured analyses, with operation requirements and provenance | Analysis results | Required before Phase W5 |
-| Transform results as checked edits or artifacts, preservation/materialization policies, output compatibility diagnostics | Transformation preview and output | Required before Phase W6 |
-| Public enums/guards, runtime validation, stable diagnostic/error codes, readonly types | Safe strict TypeScript integration | Required throughout |
+| Core capability required                                                                                                 | Website use                                     | Gate                     |
+| ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- | ------------------------ |
+| Immutable lossless source snapshots, version identity, diagnostics, and atomic updates including removal                 | Uploads, source inspection, incremental refresh | Required before Phase W2 |
+| Source-level condition/input inventories without requiring one valid structural AST                                      | Setup and browsing intertwined constructs       | Required before Phase W3 |
+| Configured interpretation: stable entry, traversal policy, supported source state, forced booleans, explicit unknowns    | Condition setup and active operations           | Required before Phase W3 |
+| Discriminated view status such as ready/incomplete/blocked, reason codes, completeness/support metadata                  | Accurate availability and status UI             | Required before Phase W3 |
+| Ordered inclusion occurrences and origins identifying source revision, file, original range(s), and inclusion context    | Cross-file navigation and repeated inputs       | Required before Phase W4 |
+| Structured source inventories and configured analyses, with operation requirements and provenance                        | Analysis results                                | Required before Phase W5 |
+| Transform results as checked edits or artifacts, preservation/materialization policies, output compatibility diagnostics | Transformation preview and output               | Required before Phase W6 |
+| Public enums/guards, runtime validation, stable diagnostic/error codes, readonly types                                   | Safe strict TypeScript integration              | Required throughout      |
 
 Candidate release numbering is a new `0.x` minor, for example `0.3.0`, for the expanded public contracts and planned deprecations. The core plan initially retains legacy entry points and their behavior; any actual breaking change must be explicitly documented. The website must install the exact version actually published and verified, not assume that candidate exists. Read that version's shipped docs and declarations again before migrating.
 
@@ -97,17 +97,17 @@ Honor the first core release's boundary support explicitly. An enclosing conditi
 
 Use one dismissible **Project Setup** dialog with entry/input interpretation and conditions in the same form. Include an output section only when entered from a transformation, or leave output preferences in the transform panel.
 
-| Event | UI response |
-| --- | --- |
-| First successful external import into an empty workspace | Scan sources, then open setup once for that import; allow “Continue inspecting sources.” |
-| Explicit Project Settings action | Open the same dialog with saved choices. |
-| User requests an operation missing required configuration | Explain the missing requirement and open setup for that operation. |
-| Another source is selected or an artifact is previewed | Change the viewed item only. |
-| Sources are replaced or dependencies are added | Refresh inventories and readiness; show a badge for new unresolved conditions; keep saved choices where still applicable. |
-| Entry changes | Re-resolve the configured view and update status; do not open a second automatic modal. |
-| Artifacts are generated | Update the results area only. |
-| Entry is removed | Clear the entry and show “Select an entry”; do not silently use the next viewed source. |
-| Last source is removed / project is explicitly reset | Reset entry, configuration association, import/setup lifecycle, and current source results. |
+| Event                                                     | UI response                                                                                                               |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| First successful external import into an empty workspace  | Scan sources, then open setup once for that import; allow “Continue inspecting sources.”                                  |
+| Explicit Project Settings action                          | Open the same dialog with saved choices.                                                                                  |
+| User requests an operation missing required configuration | Explain the missing requirement and open setup for that operation.                                                        |
+| Another source is selected or an artifact is previewed    | Change the viewed item only.                                                                                              |
+| Sources are replaced or dependencies are added            | Refresh inventories and readiness; show a badge for new unresolved conditions; keep saved choices where still applicable. |
+| Entry changes                                             | Re-resolve the configured view and update status; do not open a second automatic modal.                                   |
+| Artifacts are generated                                   | Update the results area only.                                                                                             |
+| Entry is removed                                          | Clear the entry and show “Select an entry”; do not silently use the next viewed source.                                   |
+| Last source is removed / project is explicitly reset      | Reset entry, configuration association, import/setup lifecycle, and current source results.                               |
 
 Opening the dialog has no semantic effect. Editing uses a local draft; Apply commits the configuration atomically, while Cancel/Escape restores the saved configuration. Closing the first-import dialog does not discard sources or hide source analysis tools.
 
@@ -115,16 +115,16 @@ Opening the dialog has no semantic effect. Editing uses a local draft; Apply com
 
 Names of new files/hooks are recommendations, not mandatory APIs. Keep ownership clear even if implementation combines adjacent hooks.
 
-| Owner | State |
-| --- | --- |
-| `useFiles` | Authoritative source buffers, per-file versions, atomic upsert/remove/import events, read failures |
-| `useProjectConfiguration` or equivalent | Committed stable entry, interpretation settings, and revision/key |
-| `ProjectSetupDialog` or equivalent | Uncommitted local form draft, validation messages, and Apply/Cancel behavior |
-| `useProjectModel` replacing the transform-centric part of `useCoreProcess` | Current core source snapshot, source diagnostics, derived configured view and readiness |
-| `useOperations` or equivalent | Requested operation, keyed running/completed/failed/stale results and selected result |
-| Artifact store | Generated files, provenance, selected artifact; excluded from source snapshots |
-| `App` / presentation state | Viewed item, panes/tabs, navigation request, resizing, dialog visibility, and acknowledged-import/setup lifecycle |
-| Pure adapters in `src/services/` | Public core calls, option mapping, readiness mapping, typed error conversion |
+| Owner                                                                      | State                                                                                                             |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `useFiles`                                                                 | Authoritative source buffers, per-file versions, atomic upsert/remove/import events, read failures                |
+| `useProjectConfiguration` or equivalent                                    | Committed stable entry, interpretation settings, and revision/key                                                 |
+| `ProjectSetupDialog` or equivalent                                         | Uncommitted local form draft, validation messages, and Apply/Cancel behavior                                      |
+| `useProjectModel` replacing the transform-centric part of `useCoreProcess` | Current core source snapshot, source diagnostics, derived configured view and readiness                           |
+| `useOperations` or equivalent                                              | Requested operation, keyed running/completed/failed/stale results and selected result                             |
+| Artifact store                                                             | Generated files, provenance, selected artifact; excluded from source snapshots                                    |
+| `App` / presentation state                                                 | Viewed item, panes/tabs, navigation request, resizing, dialog visibility, and acknowledged-import/setup lifecycle |
+| Pure adapters in `src/services/`                                           | Public core calls, option mapping, readiness mapping, typed error conversion                                      |
 
 Each domain options type has one authoritative definition. Import core domain types directly; website types may add presentation fields but must not restate core unions. Update `docs/architecture.md` and the relevant state-ownership instructions in `AGENTS.md` when replacing the existing `CoreOptionsUI` arrangement.
 
@@ -295,32 +295,32 @@ Each domain options type has one authoritative definition. Import core domain ty
 
 Use small shared fixtures from the library plan where possible; assert meaningful outcomes, not private implementation details.
 
-| ID | Fixture/action | Expected result |
-| --- | --- | --- |
-| UI-01 | Upload a file declaring a command and a label; dismiss setup. | Source text and recognized inventory are usable; no artifact is created. |
-| UI-02 | Set `main.tex` as entry, inspect `part.tex`, then inspect an artifact. | Entry and interpretation remain `main.tex`; only viewing changes. |
-| UI-03 | Upload conditionally intertwined environment openers/closers. | Source inspection remains available; either forced configuration shows its own valid active structure. |
-| UI-04 | `\newif\ifdraft`, then false and true tests separated by an executed setter. | Follow source reports the different test results; Force true/false produces its stated override behavior. |
-| UI-05 | Setter occurs in an inactive branch. | Later source-driven decisions reflect that the setter was skipped. |
-| UI-06 | Active input changes a boolean later tested by the entry. | Source-driven outcome follows input order even when export retains input commands. |
-| UI-07 | Unknown test or unsupported syntax affects the requested active structure. | Exact unresolved reason shown; complete active operations unavailable; source inventories remain available with coverage status. |
-| UI-08 | Missing input occurs only in an inactive branch, then configuration activates it. | Readiness follows core semantics; no active missing-input failure before activation, then the required reason appears. |
-| UI-09 | Same file is included twice with different condition state, including one physical slice active in one occurrence and inactive in another. | Occurrences remain distinct; findings navigate correctly; an edit affecting an inactive occurrence or conflicting edits are rejected rather than combined silently. |
-| UI-10 | Duplicate label spelling in mutually exclusive branches. | Source inventory lists both declarations with context; configured duplicate check counts only the active occurrences. |
-| UI-11 | Reference precedes a recognized label in input order. | Forward-reference finding is informational and distinct from a missing-label error. |
-| UI-12 | Command definition has no recognized uses, or an opaque construct may contain uses. | Results use qualified “possibly unused/no recognized uses” wording and core coverage evidence. |
-| UI-13 | Unrelated malformed file is uploaded alongside a healthy entry. | Healthy source information remains available; configured operation availability uses its actual dependencies, not one global error flag. |
-| UI-14 | Active-only comment removal with preserved conditional output. | Active comments change; inactive source and wrappers are exact; original source unchanged until explicit Apply. |
-| UI-15 | Materialize and flatten a known complete configuration. | Artifact matches the core fixture; its AST/source navigation uses artifact locations or a valid map. |
-| UI-16 | Run a files-independent transform twice. | Source file count and inventory remain unchanged; first-run artifacts are not transformed as inputs. |
-| UI-17 | Edit setup draft, then Cancel; replace sources while another draft is open. | Cancel preserves committed configuration; Apply revalidates against current sources. |
-| UI-18 | Remove entry, remove last source, or upload a missing dependency. | Entry clearing/reset/recovery follows the explicit lifecycle; no accidental fallback entry or stale successful result. |
-| UI-19 | Result with an emoji before a target, CRLF/lone-CR text, repeated includes, or several origins. | Navigation reaches the exact intended source occurrence and range. |
-| UI-20 | Generate and download a multi-file project with preserved inputs. | ZIP entries preserve relative paths and exact decoded artifact strings; references resolve within the extracted artifact set for the advertised export policy, and naming does not silently break them. |
-| UI-21 | A stale analysis/transform completes after a newer source/configuration request. | It cannot replace current findings or apply edits to newer source. |
-| UI-22 | Keyboard-only upload/setup/analysis/navigation/export path. | Controls are operable, focus is visible and restored after dialog dismissal, statuses are announced, and actions remain reachable at a narrow viewport. |
-| UI-23 | A conditional opens in one file and closes in another, compared with an environment spanning the same input boundary. | Source remains inspectable; the first-release conditional-boundary limitation is explicit, while supported projected environment structure is rendered correctly. |
-| UI-24 | Preserve inactive branches while expanding active inputs; an inactive branch contains an input. | The literal inactive input remains, and the result is labeled partially flattened rather than self-contained. |
+| ID    | Fixture/action                                                                                                                             | Expected result                                                                                                                                                                                         |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UI-01 | Upload a file declaring a command and a label; dismiss setup.                                                                              | Source text and recognized inventory are usable; no artifact is created.                                                                                                                                |
+| UI-02 | Set `main.tex` as entry, inspect `part.tex`, then inspect an artifact.                                                                     | Entry and interpretation remain `main.tex`; only viewing changes.                                                                                                                                       |
+| UI-03 | Upload conditionally intertwined environment openers/closers.                                                                              | Source inspection remains available; either forced configuration shows its own valid active structure.                                                                                                  |
+| UI-04 | `\newif\ifdraft`, then false and true tests separated by an executed setter.                                                               | Follow source reports the different test results; Force true/false produces its stated override behavior.                                                                                               |
+| UI-05 | Setter occurs in an inactive branch.                                                                                                       | Later source-driven decisions reflect that the setter was skipped.                                                                                                                                      |
+| UI-06 | Active input changes a boolean later tested by the entry.                                                                                  | Source-driven outcome follows input order even when export retains input commands.                                                                                                                      |
+| UI-07 | Unknown test or unsupported syntax affects the requested active structure.                                                                 | Exact unresolved reason shown; complete active operations unavailable; source inventories remain available with coverage status.                                                                        |
+| UI-08 | Missing input occurs only in an inactive branch, then configuration activates it.                                                          | Readiness follows core semantics; no active missing-input failure before activation, then the required reason appears.                                                                                  |
+| UI-09 | Same file is included twice with different condition state, including one physical slice active in one occurrence and inactive in another. | Occurrences remain distinct; findings navigate correctly; an edit affecting an inactive occurrence or conflicting edits are rejected rather than combined silently.                                     |
+| UI-10 | Duplicate label spelling in mutually exclusive branches.                                                                                   | Source inventory lists both declarations with context; configured duplicate check counts only the active occurrences.                                                                                   |
+| UI-11 | Reference precedes a recognized label in input order.                                                                                      | Forward-reference finding is informational and distinct from a missing-label error.                                                                                                                     |
+| UI-12 | Command definition has no recognized uses, or an opaque construct may contain uses.                                                        | Results use qualified “possibly unused/no recognized uses” wording and core coverage evidence.                                                                                                          |
+| UI-13 | Unrelated malformed file is uploaded alongside a healthy entry.                                                                            | Healthy source information remains available; configured operation availability uses its actual dependencies, not one global error flag.                                                                |
+| UI-14 | Active-only comment removal with preserved conditional output.                                                                             | Active comments change; inactive source and wrappers are exact; original source unchanged until explicit Apply.                                                                                         |
+| UI-15 | Materialize and flatten a known complete configuration.                                                                                    | Artifact matches the core fixture; its AST/source navigation uses artifact locations or a valid map.                                                                                                    |
+| UI-16 | Run a files-independent transform twice.                                                                                                   | Source file count and inventory remain unchanged; first-run artifacts are not transformed as inputs.                                                                                                    |
+| UI-17 | Edit setup draft, then Cancel; replace sources while another draft is open.                                                                | Cancel preserves committed configuration; Apply revalidates against current sources.                                                                                                                    |
+| UI-18 | Remove entry, remove last source, or upload a missing dependency.                                                                          | Entry clearing/reset/recovery follows the explicit lifecycle; no accidental fallback entry or stale successful result.                                                                                  |
+| UI-19 | Result with an emoji before a target, CRLF/lone-CR text, repeated includes, or several origins.                                            | Navigation reaches the exact intended source occurrence and range.                                                                                                                                      |
+| UI-20 | Generate and download a multi-file project with preserved inputs.                                                                          | ZIP entries preserve relative paths and exact decoded artifact strings; references resolve within the extracted artifact set for the advertised export policy, and naming does not silently break them. |
+| UI-21 | A stale analysis/transform completes after a newer source/configuration request.                                                           | It cannot replace current findings or apply edits to newer source.                                                                                                                                      |
+| UI-22 | Keyboard-only upload/setup/analysis/navigation/export path.                                                                                | Controls are operable, focus is visible and restored after dialog dismissal, statuses are announced, and actions remain reachable at a narrow viewport.                                                 |
+| UI-23 | A conditional opens in one file and closes in another, compared with an environment spanning the same input boundary.                      | Source remains inspectable; the first-release conditional-boundary limitation is explicit, while supported projected environment structure is rendered correctly.                                       |
+| UI-24 | Preserve inactive branches while expanding active inputs; an inactive branch contains an input.                                            | The literal inactive input remains, and the result is labeled partially flattened rather than self-contained.                                                                                           |
 
 ## 7. Objective release go/no-go checklist
 

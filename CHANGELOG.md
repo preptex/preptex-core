@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented here.
 
+## [0.3.0] - Unreleased
+
+### Added
+
+- C1–C5 source snapshots, atomic source changes, lossless syntax inventories,
+  normalized boolean policies, operation requirements and preliminary edit
+  precondition/range validation.
+- Bounded condition/input interpretation with local/global boolean state,
+  repeated inclusion identities, explicit incomplete/blocked results, and
+  configured structures with disjoint original-source provenance.
+- Public declaration tests, source/view regression fixtures, CLI compatibility
+  verification and a runnable public-import project-model example.
+- Reserved typed C6/C7 findings/edit/artifact contracts. Analysis, new
+  transformation/emission and edit-application executors are not implemented yet.
+
+### Compatibility
+
+- Keep the legacy parser, `AstNode`, static condition whitelist and all-supplied
+  Separate output behavior unchanged. The new model uses separate entry points.
+- Prepare both package manifests and the CLI's exact core dependency as 0.3.0;
+  no registry publication or downstream migration is performed.
+
 ## [0.2.1] - Unreleased
 
 ### Fixed

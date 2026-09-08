@@ -1,8 +1,8 @@
-**@preptex/core v0.2.1**
+**@preptex/core v0.3.0**
 
 ***
 
-# @preptex/core v0.2.1
+# @preptex/core v0.3.0
 
 PrepTeX's environment-neutral public API for parsing and transforming virtual
 LaTeX projects.
@@ -489,6 +489,76 @@ Structured error diagnostic containing the source and location.
 
 ## Interfaces
 
+### AnalysisFinding
+
+A future analysis finding contract; C6 implements the analyses.
+
+#### Properties
+
+##### code
+
+> `readonly` **code**: `"missing-reference"` \| `"duplicate-label"` \| `"forward-reference"` \| `"unresolved-key"` \| `"no-recognized-use"`
+
+Stable finding code.
+
+##### message
+
+> `readonly` **message**: `string`
+
+Qualified explanation within the supported grammar.
+
+##### primary
+
+> `readonly` **primary**: [`SourceOrigin`](#sourceorigin)
+
+Primary occurrence.
+
+##### related
+
+> `readonly` **related**: readonly [`SourceOrigin`](#sourceorigin)[]
+
+Related occurrences, in execution order.
+
+##### severity
+
+> `readonly` **severity**: `"warning"` \| `"information"`
+
+Forward references and unused candidates are information, not TeX errors.
+
+***
+
+### AnalysisResult
+
+Future C6 analysis output with qualified findings and exact operation dependencies.
+
+#### Properties
+
+##### coverage
+
+> `readonly` **coverage**: [`Coverage`](#coverage-1)
+
+Explicit recognized coverage; an empty partial list does not establish absence.
+
+##### findings
+
+> `readonly` **findings**: readonly [`AnalysisFinding`](#analysisfinding)[]
+
+Findings in execution order, then stable code order at one location.
+
+##### kind
+
+> `readonly` **kind**: `"findings"`
+
+Analysis-result discriminant.
+
+##### provenance
+
+> `readonly` **provenance**: [`OperationProvenance`](#operationprovenance)
+
+Exact source, view, operation version, and options.
+
+***
+
 ### AstRoot
 
 The synthetic root for one parsed source file.
@@ -581,6 +651,46 @@ Discriminant used to narrow the [AstNode](#astnode) union.
 
 ***
 
+### BranchContext
+
+Syntactic branch membership does not establish execution.
+
+#### Properties
+
+##### arm
+
+> `readonly` **arm**: `"else"` \| `"then"`
+
+Syntactic arm containing the fact.
+
+##### test
+
+> `readonly` **test**: [`SourceRange`](#sourcerange)
+
+Range of the source conditional opener in the same file.
+
+***
+
+### CapabilityReason
+
+Structured operation ineligibility.
+
+#### Properties
+
+##### code
+
+> `readonly` **code**: `"not-implemented"` \| `"wrong-model"` \| `"view-not-ready"` \| `"missing-file"`
+
+Stable reason.
+
+##### message
+
+> `readonly` **message**: `string`
+
+Display explanation.
+
+***
+
 ### CommandNode
 
 A general LaTeX control sequence.
@@ -609,7 +719,7 @@ Identifier unique within the containing parsed file, starting at zero.
 
 ###### Inherited from
 
-[`NodeBase`](#nodebase).[`id`](#id-12)
+[`NodeBase`](#nodebase).[`id`](#id-13)
 
 ##### line
 
@@ -689,7 +799,7 @@ Identifier unique within the containing parsed file, starting at zero.
 
 ###### Inherited from
 
-[`NodeBase`](#nodebase).[`id`](#id-12)
+[`NodeBase`](#nodebase).[`id`](#id-13)
 
 ##### kind
 
@@ -839,6 +949,44 @@ Discriminant used to narrow the [AstNode](#astnode) union.
 
 ***
 
+### ConditionDecision
+
+One evaluated or skipped test. Unknown is distinct from false and not-reached.
+
+#### Properties
+
+##### command
+
+> `readonly` **command**: `string`
+
+Full control sequence name.
+
+##### effectiveValue
+
+> `readonly` **effectiveValue**: `boolean` \| `null`
+
+Effective value after policy; null means unknown or not reached.
+
+##### origin
+
+> `readonly` **origin**: [`SourceOrigin`](#sourceorigin)
+
+Original test occurrence.
+
+##### outcome
+
+> `readonly` **outcome**: `"false"` \| `"true"` \| `"unknown"` \| `"not-reached"`
+
+Reached result or explicit skipped marker.
+
+##### trackedValue
+
+> `readonly` **trackedValue**: `boolean` \| `null`
+
+Source state at this point; null means unknown or not reached.
+
+***
+
 ### ConditionDeclarationNode
 
 A `\newif` condition declaration.
@@ -867,7 +1015,7 @@ Identifier unique within the containing parsed file, starting at zero.
 
 ###### Inherited from
 
-[`NodeBase`](#nodebase).[`id`](#id-12)
+[`NodeBase`](#nodebase).[`id`](#id-13)
 
 ##### line
 
@@ -1011,6 +1159,38 @@ Discriminant used to narrow the [AstNode](#astnode) union.
 
 ***
 
+### ConfiguredNodeBase
+
+Common fields on configured structural nodes; these are not legacy AstNodes.
+
+#### Properties
+
+##### occurrenceKey
+
+> `readonly` **occurrenceKey**: `string`
+
+Deterministic node key unique within the view.
+
+##### origins
+
+> `readonly` **origins**: readonly [`SourceOrigin`](#sourceorigin)[]
+
+Ordered contributing original spans; excludes all omitted gaps.
+
+##### projectedRange
+
+> `readonly` **projectedRange**: [`SourceRange`](#sourcerange)
+
+Inclusive range in the virtual selected token tape; empty root ends at -1.
+
+##### viewId
+
+> `readonly` **viewId**: `string`
+
+Exact configured view identity.
+
+***
+
 ### ContainerNodeBase
 
 Shared fields present on nodes that contain other nodes.
@@ -1061,7 +1241,7 @@ Identifier unique within the containing parsed file, starting at zero.
 
 ###### Inherited from
 
-[`NodeBase`](#nodebase).[`id`](#id-12)
+[`NodeBase`](#nodebase).[`id`](#id-13)
 
 ##### line
 
@@ -1104,6 +1284,38 @@ Discriminant used to narrow the [AstNode](#astnode) union.
 ###### Inherited from
 
 [`NodeBase`](#nodebase).[`type`](#type-12)
+
+***
+
+### Coverage
+
+Completeness is always relative to the documented recognized grammar.
+
+#### Properties
+
+##### assumptions
+
+> `readonly` **assumptions**: readonly `string`[]
+
+Assumptions that apply even to a complete result.
+
+##### issues
+
+> `readonly` **issues**: readonly [`ProjectIssue`](#projectissue)[]
+
+Located limitations, in deterministic encounter order.
+
+##### profile
+
+> `readonly` **profile**: `"direct-latex-v1"`
+
+Grammar under which observations were made.
+
+##### status
+
+> `readonly` **status**: `"complete"` \| `"partial"`
+
+Complete recognized coverage, or explicitly limited observations.
 
 ***
 
@@ -1202,6 +1414,76 @@ Discriminant used to narrow the [AstNode](#astnode) union.
 ###### Inherited from
 
 [`ContainerNodeBase`](#containernodebase).[`type`](#type-6)
+
+***
+
+### FactContext
+
+Context shared by every source inventory fact.
+
+#### Properties
+
+##### branches
+
+> `readonly` **branches**: readonly [`BranchContext`](#branchcontext)[]
+
+Enclosing source branches, outermost first.
+
+##### definitionBodies
+
+> `readonly` **definitionBodies**: readonly [`SourceRange`](#sourcerange)[]
+
+Enclosing definition bodies, outermost first.
+
+##### opaqueArguments
+
+> `readonly` **opaqueArguments**: readonly [`SourceRange`](#sourcerange)[]
+
+Stored/opaque command arguments, outermost first; these are not executed.
+
+***
+
+### GeneratedArtifact
+
+Future C7 artifact contract, separate from source inputs.
+
+#### Properties
+
+##### origins
+
+> `readonly` **origins**: readonly [`ArtifactOrigin`](#artifactorigin)[]
+
+Ordered output mappings.
+
+##### path
+
+> `readonly` **path**: `string`
+
+Artifact virtual path in an independent namespace.
+
+##### provenance
+
+> `readonly` **provenance**: [`OperationProvenance`](#operationprovenance)
+
+Exact operation preconditions.
+
+##### remainingInputs
+
+> `readonly` **remainingInputs**: readonly `string`[]
+
+Preserved literal dependencies; empty alone does not certify TeX portability.
+
+##### source
+
+> `readonly` **source**: `string`
+
+Generated source string.
+
+##### topology
+
+> `readonly` **topology**: `"preserved-project"` \| `"active-inputs-expanded"` \| `"self-contained-profile"`
+
+Explicit export completeness claim.
 
 ***
 
@@ -1325,7 +1607,7 @@ Identifier unique within the containing parsed file, starting at zero.
 
 ###### Inherited from
 
-[`NodeBase`](#nodebase).[`id`](#id-12)
+[`NodeBase`](#nodebase).[`id`](#id-13)
 
 ##### line
 
@@ -1368,6 +1650,108 @@ Discriminant used to narrow the [AstNode](#astnode) union.
 > `readonly` **value**: `string`
 
 Exact source spelling of the command.
+
+***
+
+### InputOccurrence
+
+A repeated visit to a source file has its own inclusion identity.
+
+#### Properties
+
+##### id
+
+> `readonly` **id**: `string`
+
+View-local inclusion ID.
+
+##### parentId
+
+> `readonly` **parentId**: `string` \| `null`
+
+Parent inclusion, null for entry.
+
+##### path
+
+> `readonly` **path**: `string`
+
+Included source path.
+
+##### reference
+
+> `readonly` **reference**: [`SourceOrigin`](#sourceorigin) \| `null`
+
+Original input reference, null for entry.
+
+***
+
+### InventoryRequest
+
+Source inventory request; no entry, conditions, or output destination.
+
+#### Properties
+
+##### kinds?
+
+> `readonly` `optional` **kinds?**: readonly (`"input"` \| `"definition"` \| `"command-use"` \| `"label"` \| `"reference"` \| `"condition-declaration"` \| `"condition-test"` \| `"condition-delimiter"` \| `"condition-assignment"` \| `"opaque"`)[]
+
+Fact categories; omitted means all; empty means none.
+
+##### scope?
+
+> `readonly` `optional` **scope?**: [`SourceScope`](#sourcescope)
+
+Source set; default all files.
+
+***
+
+### InventoryResult
+
+Located source inventory with exact operation/source provenance.
+
+#### Properties
+
+##### coverage
+
+> `readonly` **coverage**: [`Coverage`](#coverage-1)
+
+Coverage of the requested files.
+
+##### facts
+
+> `readonly` **facts**: readonly [`SyntaxFact`](#syntaxfact)[]
+
+Facts sorted by file, offset, and category.
+
+##### kind
+
+> `readonly` **kind**: `"inventory"`
+
+Result discriminant.
+
+##### operationId
+
+> `readonly` **operationId**: `"source-inventory"`
+
+Descriptor ID.
+
+##### operationVersion
+
+> `readonly` **operationVersion**: `1`
+
+Operation implementation version.
+
+##### resultId
+
+> `readonly` **resultId**: `string`
+
+Deterministic source/options/operation identity.
+
+##### snapshotId
+
+> `readonly` **snapshotId**: `string`
+
+Exact snapshot.
 
 ***
 
@@ -1497,7 +1881,7 @@ Identifier unique within the containing parsed file, starting at zero.
 
 ###### Inherited from
 
-[`NodeBase`](#nodebase).[`id`](#id-12)
+[`NodeBase`](#nodebase).[`id`](#id-13)
 
 ##### line
 
@@ -1613,6 +1997,146 @@ Discriminant used to narrow the [AstNode](#astnode) union.
 
 ***
 
+### NormalizedScanOptions
+
+Canonical options stored in each snapshot and included in its identity.
+
+#### Properties
+
+##### maxNesting
+
+> `readonly` **maxNesting**: `number`
+
+Maximum inventory recursion depth.
+
+##### verbatimEnvironments
+
+> `readonly` **verbatimEnvironments**: readonly `string`[]
+
+Sorted unique names, including verbatim, verbatim*, and comment.
+
+***
+
+### NormalizedViewConfiguration
+
+Fully specified canonical view settings.
+
+#### Properties
+
+##### conditions
+
+> `readonly` **conditions**: [`ConditionPolicy`](#conditionpolicy)
+
+Explicit normalized policy with sorted maps.
+
+##### entryPath
+
+> `readonly` **entryPath**: `string`
+
+Normalized entry.
+
+##### limits
+
+> `readonly` **limits**: `Required`\<[`ViewLimits`](#viewlimits)\>
+
+All limits are present.
+
+##### profile
+
+> `readonly` **profile**: `"direct-latex-v1"`
+
+Interpretation grammar.
+
+##### traversal
+
+> `readonly` **traversal**: `"project"` \| `"file-only"`
+
+Semantic input traversal.
+
+***
+
+### OperationDescriptor
+
+Machine-readable operation requirements; descriptors contain no executable callbacks.
+
+#### Properties
+
+##### coverage
+
+> `readonly` **coverage**: `"recognized"` \| `"ready-view"`
+
+Required completeness.
+
+##### id
+
+> `readonly` **id**: `"source-inventory"` \| `"resolve-view"` \| `"references"` \| `"unused-commands"` \| `"suppress-comments"` \| `"materialize"`
+
+Stable operation name.
+
+##### implemented
+
+> `readonly` **implemented**: `boolean`
+
+Whether execution is shipped in this release.
+
+##### representation
+
+> `readonly` **representation**: `"snapshot"` \| `"view"` \| `"either"`
+
+Required model, allowing a source or selected-path comment operation.
+
+##### resultKind
+
+> `readonly` **resultKind**: `"view"` \| `"inventory"` \| `"findings"` \| `"edits"` \| `"artifacts"`
+
+Output category.
+
+##### scopes
+
+> `readonly` **scopes**: readonly (`"files"` \| `"all-files"` \| `"configured"`)[]
+
+Valid source/execution scopes.
+
+##### version
+
+> `readonly` **version**: `1`
+
+Contract version.
+
+***
+
+### OperationProvenance
+
+Exact dependencies shared by future findings/edit/artifact results.
+
+#### Properties
+
+##### operationVersion
+
+> `readonly` **operationVersion**: `1`
+
+Operation contract version.
+
+##### request
+
+> `readonly` **request**: [`OperationRequest`](#operationrequest)
+
+Typed operation and all of its semantic options.
+
+##### snapshotId
+
+> `readonly` **snapshotId**: `string`
+
+Exact source identity.
+
+##### viewId
+
+> `readonly` **viewId**: `string` \| `null`
+
+Exact configured identity, null for source-local work.
+
+***
+
 ### ParsedFile
 
 A parsed project file and the caller-owned version associated with it.
@@ -1651,7 +2175,7 @@ Normalized virtual source path associated with this parse.
 
 ###### Inherited from
 
-[`ParseResult`](#parseresult).[`path`](#path-2)
+[`ParseResult`](#parseresult).[`path`](#path-4)
 
 ##### referencedFiles
 
@@ -1781,6 +2305,70 @@ Immutable syntax-tree root.
 
 ***
 
+### ProjectEditPlan
+
+Immutable proposal, not applied source. Equal-offset insertions and insertion/replacement overlap are rejected.
+
+#### Properties
+
+##### edits
+
+> `readonly` **edits**: readonly [`ProjectEdit`](#projectedit)[]
+
+Edits in ascending path/offset order; boundaries may not split a UTF-16 surrogate pair.
+
+##### kind
+
+> `readonly` **kind**: `"edits"`
+
+Edit result discriminant.
+
+##### provenance
+
+> `readonly` **provenance**: [`OperationProvenance`](#operationprovenance)
+
+Exact preconditions.
+
+***
+
+### ProjectIssue
+
+A located issue with an inclusion chain when produced by interpretation.
+
+#### Properties
+
+##### code
+
+> `readonly` **code**: [`ProjectIssueCode`](#projectissuecode-1)
+
+Stable category for control flow.
+
+##### inputChain
+
+> `readonly` **inputChain**: readonly `string`[]
+
+Entry-to-current inclusion IDs, empty for source-only issues.
+
+##### location
+
+> `readonly` **location**: [`SourceLocation`](#sourcelocation) \| `null`
+
+Original location, or null for an absent entry/empty project.
+
+##### message
+
+> `readonly` **message**: `string`
+
+Human-readable explanation.
+
+##### severity
+
+> `readonly` **severity**: `"error"` \| `"warning"`
+
+Error blocks required syntax; warning denotes unsupported or uncertain behavior.
+
+***
+
 ### ProjectParseOptions
 
 Options applied uniformly while parsing a virtual project.
@@ -1804,6 +2392,212 @@ Deepest section command represented as a section node.
 
 Deeper section commands are represented as ordinary command nodes. Omit this
 field to recognize all supported levels.
+
+***
+
+### ProjectSnapshot
+
+Immutable source authority. No entry or configuration is needed to create it.
+
+#### Properties
+
+##### coreVersion
+
+> `readonly` **coreVersion**: `string`
+
+Core implementation version.
+
+##### files
+
+> `readonly` **files**: readonly [`ScannedFile`](#scannedfile)[]
+
+Files in ascending UTF-16 path order.
+
+##### id
+
+> `readonly` **id**: `string`
+
+Identity derived from contents, paths, revisions, options, core and schema versions.
+
+##### kind
+
+> `readonly` **kind**: `"snapshot"`
+
+Representation discriminant.
+
+##### scanOptions
+
+> `readonly` **scanOptions**: [`NormalizedScanOptions`](#normalizedscanoptions)
+
+Normalized scanner options.
+
+##### schemaVersion
+
+> `readonly` **schemaVersion**: `1`
+
+Source-model schema version.
+
+***
+
+### ProjectViewBase
+
+Fields shared by ready, incomplete, and blocked configured results.
+
+#### Properties
+
+##### configuration
+
+> `readonly` **configuration**: [`NormalizedViewConfiguration`](#normalizedviewconfiguration)
+
+Canonical semantic settings.
+
+##### coverage
+
+> `readonly` **coverage**: [`Coverage`](#coverage-1)
+
+Supported grammar, assumptions, and limitations.
+
+##### decisions
+
+> `readonly` **decisions**: readonly [`ConditionDecision`](#conditiondecision)[]
+
+Decisions up to the first unresolved/invalid required effect.
+
+##### id
+
+> `readonly` **id**: `string`
+
+Identity includes snapshot and every semantic setting.
+
+##### kind
+
+> `readonly` **kind**: `"view"`
+
+Representation discriminant.
+
+##### occurrences
+
+> `readonly` **occurrences**: readonly [`InputOccurrence`](#inputoccurrence)[]
+
+Inclusion occurrences in encounter order.
+
+##### reachedFacts
+
+> `readonly` **reachedFacts**: readonly [`ReachedFact`](#reachedfact)[]
+
+Reached facts only, in execution order.
+
+##### selectedTokens
+
+> `readonly` **selectedTokens**: readonly [`SelectedToken`](#selectedtoken)[]
+
+Selected token tape, partial on failure; not a generated artifact.
+
+##### snapshotId
+
+> `readonly` **snapshotId**: `string`
+
+Source snapshot identity.
+
+***
+
+### ReachedFact
+
+A recognized reached event, in execution order; source-only body facts are absent.
+
+#### Properties
+
+##### fact
+
+> `readonly` **fact**: [`SyntaxFact`](#syntaxfact)
+
+Original immutable syntax fact.
+
+##### origin
+
+> `readonly` **origin**: [`SourceOrigin`](#sourceorigin)
+
+This visit's source origin.
+
+***
+
+### ScannedFile
+
+One independently scanned source file; even malformed source remains available.
+
+#### Extends
+
+- [`SourceFile`](#sourcefile)
+
+#### Properties
+
+##### coverage
+
+> `readonly` **coverage**: [`Coverage`](#coverage-1)
+
+Recognized syntax coverage and localized diagnostics.
+
+##### facts
+
+> `readonly` **facts**: readonly [`SyntaxFact`](#syntaxfact)[]
+
+Located facts in source order, then deterministic fact-kind order.
+
+##### path
+
+> `readonly` **path**: `string`
+
+Stable virtual path used by entry selection and `\input` resolution.
+
+###### Inherited from
+
+[`SourceFile`](#sourcefile).[`path`](#path-6)
+
+##### source
+
+> `readonly` **source**: `string`
+
+LaTeX source text.
+
+###### Inherited from
+
+[`SourceFile`](#sourcefile).[`source`](#source-2)
+
+##### tokens
+
+> `readonly` **tokens**: readonly [`SourceToken`](#sourcetoken)[]
+
+Lossless ordered lexical partition, empty for empty source.
+
+##### version
+
+> `readonly` **version**: `number`
+
+Caller-owned finite number used to resolve incremental merge conflicts.
+
+###### Inherited from
+
+[`SourceFile`](#sourcefile).[`version`](#version-3)
+
+***
+
+### ScanOptions
+
+Optional scanner settings. No setting changes the original source strings.
+
+#### Properties
+
+##### maxNesting?
+
+> `readonly` `optional` **maxNesting?**: `number`
+
+Maximum nested definition/argument inventory depth, 1–256; default 64.
+
+##### verbatimEnvironments?
+
+> `readonly` `optional` **verbatimEnvironments?**: readonly `string`[]
+
+Additional literal verbatim environment names; default is an empty list.
 
 ***
 
@@ -1917,6 +2711,38 @@ Discriminant used to narrow the [AstNode](#astnode) union.
 
 ***
 
+### SelectedToken
+
+A selected lexical token with distinct projected and original coordinates.
+
+#### Properties
+
+##### interpretation
+
+> `readonly` **interpretation**: `"opaque"` \| `"structure"`
+
+Opaque stored syntax is a leaf; structural delimiters there never execute.
+
+##### origin
+
+> `readonly` **origin**: [`SourceOrigin`](#sourceorigin)
+
+Original inclusion origin.
+
+##### projectedRange
+
+> `readonly` **projectedRange**: [`SourceRange`](#sourcerange)
+
+Inclusive offsets in the virtual token tape; not an emitted LaTeX string.
+
+##### token
+
+> `readonly` **token**: [`SourceToken`](#sourcetoken)
+
+Lexical source token, keeping its original offsets.
+
+***
+
 ### SerializeOptions
 
 Options for serializing one parsed syntax tree.
@@ -1950,6 +2776,10 @@ Replace recognized comments and newly empty comment lines; defaults to `false`.
 
 One versioned source file supplied to [parseProject](#parseproject).
 
+#### Extended by
+
+- [`ScannedFile`](#scannedfile)
+
 #### Properties
 
 ##### path
@@ -1969,6 +2799,75 @@ LaTeX source text.
 > `readonly` **version**: `number`
 
 Caller-owned finite number used to resolve incremental merge conflicts.
+
+***
+
+### SourceLocation
+
+A location in an original source string; ranges are inclusive UTF-16.
+
+#### Extended by
+
+- [`SourceOrigin`](#sourceorigin)
+- [`SyntaxFactBase`](#syntaxfactbase)
+
+#### Properties
+
+##### path
+
+> `readonly` **path**: `string`
+
+Normalized project-relative source path.
+
+##### range
+
+> `readonly` **range**: [`SourceRange`](#sourcerange)
+
+Original source range, never a projected offset.
+
+***
+
+### SourceOrigin
+
+A location of one selected source occurrence.
+
+#### Extends
+
+- [`SourceLocation`](#sourcelocation)
+
+#### Properties
+
+##### occurrenceId
+
+> `readonly` **occurrenceId**: `string`
+
+Inclusion occurrence containing this span.
+
+##### path
+
+> `readonly` **path**: `string`
+
+Normalized project-relative source path.
+
+###### Inherited from
+
+[`SourceLocation`](#sourcelocation).[`path`](#path-7)
+
+##### range
+
+> `readonly` **range**: [`SourceRange`](#sourcerange)
+
+Original source range, never a projected offset.
+
+###### Inherited from
+
+[`SourceLocation`](#sourcelocation).[`range`](#range)
+
+##### snapshotId
+
+> `readonly` **snapshotId**: `string`
+
+Exact source snapshot identity.
 
 ***
 
@@ -2002,6 +2901,32 @@ One-based line containing `start`.
 > `readonly` **start**: `number`
 
 Zero-based offset of the first included UTF-16 code unit.
+
+***
+
+### SourceToken
+
+A lossless lexical segment. Concatenating values reproduces the source exactly.
+
+#### Properties
+
+##### kind
+
+> `readonly` **kind**: `"comment"` \| `"text"` \| `"space"` \| `"command"` \| `"verbatim"` \| `"open"` \| `"close"` \| `"math"`
+
+Lexical category; commands in protected text are not separate tokens.
+
+##### range
+
+> `readonly` **range**: [`SourceRange`](#sourcerange)
+
+Inclusive original range.
+
+##### value
+
+> `readonly` **value**: `string`
+
+Exact source substring.
 
 ***
 
@@ -2043,6 +2968,56 @@ Literal severity used to discriminate fatal syntax diagnostics.
 
 ***
 
+### SyntaxFactBase
+
+Common fields for facts; IDs are unique within the source file only.
+
+#### Extends
+
+- [`SourceLocation`](#sourcelocation)
+
+#### Properties
+
+##### context
+
+> `readonly` **context**: [`FactContext`](#factcontext)
+
+Syntactic context; never evidence that a fact was reached.
+
+##### id
+
+> `readonly` **id**: `string`
+
+Deterministic file-local fact identifier.
+
+##### path
+
+> `readonly` **path**: `string`
+
+Normalized project-relative source path.
+
+###### Inherited from
+
+[`SourceLocation`](#sourcelocation).[`path`](#path-7)
+
+##### range
+
+> `readonly` **range**: [`SourceRange`](#sourcerange)
+
+Original source range, never a projected offset.
+
+###### Inherited from
+
+[`SourceLocation`](#sourcelocation).[`range`](#range)
+
+##### recognition
+
+> `readonly` **recognition**: `"recognized"` \| `"candidate"`
+
+Whether this construct is recognized or retained as an unresolved candidate.
+
+***
+
 ### TextNode
 
 Literal source text.
@@ -2071,7 +3046,7 @@ Identifier unique within the containing parsed file, starting at zero.
 
 ###### Inherited from
 
-[`NodeBase`](#nodebase).[`id`](#id-12)
+[`NodeBase`](#nodebase).[`id`](#id-13)
 
 ##### line
 
@@ -2191,6 +3166,76 @@ every project file in deterministic path order.
 
 ***
 
+### ViewConfiguration
+
+Independent semantic configuration; output naming and visual filters are excluded.
+
+#### Properties
+
+##### conditions?
+
+> `readonly` `optional` **conditions?**: [`ConditionPolicy`](#conditionpolicy)
+
+Boolean policy; default source with no seeds.
+
+##### entryPath
+
+> `readonly` **entryPath**: `string`
+
+Entry virtual path.
+
+##### limits?
+
+> `readonly` `optional` **limits?**: [`ViewLimits`](#viewlimits)
+
+Optional resource bounds.
+
+##### profile?
+
+> `readonly` `optional` **profile?**: `"direct-latex-v1"`
+
+Supported grammar; default direct-latex-v1.
+
+##### traversal?
+
+> `readonly` `optional` **traversal?**: `"project"` \| `"file-only"`
+
+Follow active literal inputs or stop at a file-only input; default project.
+
+***
+
+### ViewLimits
+
+Bounds on synchronous interpretation; hosts still own deadlines and scheduling.
+
+#### Properties
+
+##### maxInputDepth?
+
+> `readonly` `optional` **maxInputDepth?**: `number`
+
+Maximum active input depth, including entry, default 64; maximum 256.
+
+##### maxNesting?
+
+> `readonly` `optional` **maxNesting?**: `number`
+
+Conditional, scope, and structural nesting bound, default 256; maximum 512.
+
+##### maxOccurrences?
+
+> `readonly` `optional` **maxOccurrences?**: `number`
+
+Total inclusions including entry, default 10000.
+
+##### maxSelectedCodeUnits?
+
+> `readonly` `optional` **maxSelectedCodeUnits?**: `number`
+
+Selected UTF-16 code units, default 10000000. This is not a wall-clock bound.
+
+***
+
 ### WarningDiagnostic
 
 A non-fatal parser message with a stable code and exact source location.
@@ -2229,6 +3274,62 @@ Literal severity used to discriminate warning diagnostics.
 
 ## Type Aliases
 
+### ArtifactOrigin
+
+> **ArtifactOrigin** = \{ `kind`: `"source"`; `origins`: readonly [`SourceOrigin`](#sourceorigin)[]; `outputRange`: [`SourceRange`](#sourcerange); \} \| \{ `kind`: `"synthetic"`; `outputRange`: [`SourceRange`](#sourcerange); `reason`: `string`; \}
+
+Output mapping for a later generated artifact; synthetic text has no original offset.
+
+#### Union Members
+
+##### Type Literal
+
+\{ `kind`: `"source"`; `origins`: readonly [`SourceOrigin`](#sourceorigin)[]; `outputRange`: [`SourceRange`](#sourcerange); \}
+
+###### kind
+
+> `readonly` **kind**: `"source"`
+
+Copied/rewritten source mapping.
+
+###### origins
+
+> `readonly` **origins**: readonly [`SourceOrigin`](#sourceorigin)[]
+
+Contributing original ranges.
+
+###### outputRange
+
+> `readonly` **outputRange**: [`SourceRange`](#sourcerange)
+
+Inclusive output range.
+
+***
+
+##### Type Literal
+
+\{ `kind`: `"synthetic"`; `outputRange`: [`SourceRange`](#sourcerange); `reason`: `string`; \}
+
+###### kind
+
+> `readonly` **kind**: `"synthetic"`
+
+Inserted lexical delimiter or generated text.
+
+###### outputRange
+
+> `readonly` **outputRange**: [`SourceRange`](#sourcerange)
+
+Inclusive output range.
+
+###### reason
+
+> `readonly` **reason**: `string`
+
+Why this text exists.
+
+***
+
 ### AstNode
 
 > **AstNode** = [`TextNode`](#textnode) \| [`NewLineNode`](#newlinenode) \| [`CommentNode`](#commentnode) \| [`CommandNode`](#commandnode) \| [`ConditionDeclarationNode`](#conditiondeclarationnode) \| [`EnvironmentNode`](#environmentnode) \| [`ConditionNode`](#conditionnode) \| [`ConditionBranchNode`](#conditionbranchnode) \| [`MathNode`](#mathnode) \| [`GroupNode`](#groupnode) \| [`SectionNode`](#sectionnode) \| [`InputNode`](#inputnode) \| [`AstRoot`](#astroot)
@@ -2237,11 +3338,103 @@ The exhaustive discriminated union of public PrepTeX syntax-tree nodes.
 
 ***
 
+### BooleanValues
+
+> **BooleanValues** = `Readonly`\<`Record`\<`string`, `boolean`\>\>
+
+Named values, case-sensitive; names exclude the if prefix and primitives.
+
+***
+
 ### ConditionName
 
 > **ConditionName** = `string`
 
 The name of a boolean condition declared with LaTeX's `\newif`.
+
+***
+
+### ConditionPolicy
+
+> **ConditionPolicy** = \{ `initialValues?`: [`BooleanValues`](#booleanvalues); `mode`: `"source"`; \} \| \{ `mode`: `"manual"`; `values`: [`BooleanValues`](#booleanvalues); \} \| \{ `initialValues?`: [`BooleanValues`](#booleanvalues); `mode`: `"source-with-overrides"`; `overrides`: [`BooleanValues`](#booleanvalues); \}
+
+Source tracking, permanent manual forcing, and initial seeds have distinct semantics.
+
+#### Union Members
+
+##### Type Literal
+
+\{ `initialValues?`: [`BooleanValues`](#booleanvalues); `mode`: `"source"`; \}
+
+###### initialValues?
+
+> `readonly` `optional` **initialValues?**: [`BooleanValues`](#booleanvalues)
+
+Seed values before entry; declarations reset them to false.
+
+###### mode
+
+> `readonly` **mode**: `"source"`
+
+Follow reached declarations and setters.
+
+***
+
+##### Type Literal
+
+\{ `mode`: `"manual"`; `values`: [`BooleanValues`](#booleanvalues); \}
+
+###### mode
+
+> `readonly` **mode**: `"manual"`
+
+Force only named values supplied here; omitted names are unknown.
+
+###### values
+
+> `readonly` **values**: [`BooleanValues`](#booleanvalues)
+
+Permanent per-test named values.
+
+***
+
+##### Type Literal
+
+\{ `initialValues?`: [`BooleanValues`](#booleanvalues); `mode`: `"source-with-overrides"`; `overrides`: [`BooleanValues`](#booleanvalues); \}
+
+###### initialValues?
+
+> `readonly` `optional` **initialValues?**: [`BooleanValues`](#booleanvalues)
+
+Initial source state, reset by declarations.
+
+###### mode
+
+> `readonly` **mode**: `"source-with-overrides"`
+
+Track source and force specified names at each test.
+
+###### overrides
+
+> `readonly` **overrides**: [`BooleanValues`](#booleanvalues)
+
+Permanent per-test overrides.
+
+***
+
+### ConfiguredContainerNode
+
+> **ConfiguredContainerNode** = [`ConfiguredNodeBase`](#configurednodebase) & \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"root"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"environment"`; `name`: `string`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"group"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `delimiter`: [`MathDelimiter`](#mathdelimiter); `kind`: `"math"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"section"`; `level`: `1` \| `2` \| `3` \| `4` \| `5`; `name`: `string`; `starred`: `boolean`; \}
+
+Configured containers, with a complete ordered child list only in ready views.
+
+***
+
+### ConfiguredNode
+
+> **ConfiguredNode** = [`ConfiguredContainerNode`](#configuredcontainernode) \| [`ConfiguredNodeBase`](#configurednodebase) & `object`
+
+Exhaustive configured structure. Leaf tokens are never re-lexed across source joins.
 
 ***
 
@@ -2280,11 +3473,75 @@ file only when a project is flattened.
 
 ***
 
+### InterpretationProfile
+
+> **InterpretationProfile** = `"direct-latex-v1"`
+
+Supported source/interpretation grammar, not a promise of TeX equivalence.
+
+***
+
 ### LineEnding
 
 > **LineEnding** = "\n" \| "\r" \| "\r\n"
 
 An exact source line-ending sequence.
+
+***
+
+### LiteralArgument
+
+> **LiteralArgument** = \{ `kind`: `"literal"`; `range`: [`SourceRange`](#sourcerange); `value`: `string`; \} \| \{ `kind`: `"unresolved"`; `range`: [`SourceRange`](#sourcerange) \| `null`; `source`: `string`; \}
+
+A literal or unresolved key/path.
+
+#### Union Members
+
+##### Type Literal
+
+\{ `kind`: `"literal"`; `range`: [`SourceRange`](#sourcerange); `value`: `string`; \}
+
+###### kind
+
+> `readonly` **kind**: `"literal"`
+
+Literal discriminant.
+
+###### range
+
+> `readonly` **range**: [`SourceRange`](#sourcerange)
+
+Argument interior range; empty uses end=start-1.
+
+###### value
+
+> `readonly` **value**: `string`
+
+Exact interior string.
+
+***
+
+##### Type Literal
+
+\{ `kind`: `"unresolved"`; `range`: [`SourceRange`](#sourcerange) \| `null`; `source`: `string`; \}
+
+###### kind
+
+> `readonly` **kind**: `"unresolved"`
+
+Unresolved discriminant.
+
+###### range
+
+> `readonly` **range**: [`SourceRange`](#sourcerange) \| `null`
+
+Interior range, or null when missing.
+
+###### source
+
+> `readonly` **source**: `string`
+
+Original argument spelling, without guessing expansion.
 
 ***
 
@@ -2304,6 +3561,248 @@ A node identifier that is unique within one parsed file.
 
 ***
 
+### OccurrenceId
+
+> **OccurrenceId** = `string`
+
+Inclusion identity unique within a view, including repeated visits to one file.
+
+***
+
+### OperationCapability
+
+> **OperationCapability** = \{ `eligible`: `true`; `reasons`: readonly \[\]; \} \| \{ `eligible`: `false`; `reasons`: readonly [`CapabilityReason`](#capabilityreason)[]; \}
+
+Eligibility result; execution enforces these same requirements.
+
+#### Union Members
+
+##### Type Literal
+
+\{ `eligible`: `true`; `reasons`: readonly \[\]; \}
+
+###### eligible
+
+> `readonly` **eligible**: `true`
+
+Eligible.
+
+###### reasons
+
+> `readonly` **reasons**: readonly \[\]
+
+No reasons.
+
+***
+
+##### Type Literal
+
+\{ `eligible`: `false`; `reasons`: readonly [`CapabilityReason`](#capabilityreason)[]; \}
+
+###### eligible
+
+> `readonly` **eligible**: `false`
+
+Ineligible.
+
+###### reasons
+
+> `readonly` **reasons**: readonly [`CapabilityReason`](#capabilityreason)[]
+
+Ordered reasons.
+
+***
+
+### OperationRequest
+
+> **OperationRequest** = \{ `operation`: `"source-inventory"`; `options?`: [`InventoryRequest`](#inventoryrequest); \} \| \{ `operation`: `"resolve-view"`; `options`: [`ViewConfiguration`](#viewconfiguration); \} \| \{ `operation`: `"references"` \| `"unused-commands"`; `options?`: `Readonly`\<`Record`\<`string`, `never`\>\>; \} \| \{ `operation`: `"suppress-comments"`; `options`: \{ `scope?`: [`SourceScope`](#sourcescope); `target`: `"source"` \| `"selected"`; \}; \} \| \{ `operation`: `"materialize"`; `options`: \{ `inputs`: `"preserve"` \| `"inline"`; \}; \}
+
+Public operation requests; later-stage requests are explicitly unavailable in C1–C5.
+
+#### Union Members
+
+##### Type Literal
+
+\{ `operation`: `"source-inventory"`; `options?`: [`InventoryRequest`](#inventoryrequest); \}
+
+###### operation
+
+> `readonly` **operation**: `"source-inventory"`
+
+Inventory operation.
+
+###### options?
+
+> `readonly` `optional` **options?**: [`InventoryRequest`](#inventoryrequest)
+
+Source options.
+
+***
+
+##### Type Literal
+
+\{ `operation`: `"resolve-view"`; `options`: [`ViewConfiguration`](#viewconfiguration); \}
+
+###### operation
+
+> `readonly` **operation**: `"resolve-view"`
+
+Configured view operation.
+
+###### options
+
+> `readonly` **options**: [`ViewConfiguration`](#viewconfiguration)
+
+Interpretation settings.
+
+***
+
+##### Type Literal
+
+\{ `operation`: `"references"` \| `"unused-commands"`; `options?`: `Readonly`\<`Record`\<`string`, `never`\>\>; \}
+
+###### operation
+
+> `readonly` **operation**: `"references"` \| `"unused-commands"`
+
+Planned C6 analysis.
+
+###### options?
+
+> `readonly` `optional` **options?**: `Readonly`\<`Record`\<`string`, `never`\>\>
+
+No options in the initial analysis contract.
+
+***
+
+##### Type Literal
+
+\{ `operation`: `"suppress-comments"`; `options`: \{ `scope?`: [`SourceScope`](#sourcescope); `target`: `"source"` \| `"selected"`; \}; \}
+
+###### operation
+
+> `readonly` **operation**: `"suppress-comments"`
+
+Planned C7 edit preview.
+
+###### options
+
+> `readonly` **options**: `object`
+
+Explicit source or selected-path target.
+
+###### options.scope?
+
+> `readonly` `optional` **scope?**: [`SourceScope`](#sourcescope)
+
+Source-only scope; forbidden with a selected-path target.
+
+###### options.target
+
+> `readonly` **target**: `"source"` \| `"selected"`
+
+Inspect all requested source or only the configured selected path.
+
+***
+
+##### Type Literal
+
+\{ `operation`: `"materialize"`; `options`: \{ `inputs`: `"preserve"` \| `"inline"`; \}; \}
+
+###### operation
+
+> `readonly` **operation**: `"materialize"`
+
+Planned C7 export.
+
+###### options
+
+> `readonly` **options**: `object`
+
+Output topology independent of traversal.
+
+###### options.inputs
+
+> `readonly` **inputs**: `"preserve"` \| `"inline"`
+
+Preserve input commands or expand active inclusion occurrences.
+
+***
+
+### ProjectEdit
+
+> **ProjectEdit** = \{ `expected`: `string`; `kind`: `"replace"`; `path`: `string`; `range`: [`SourceRange`](#sourcerange); `replacement`: `string`; \} \| \{ `kind`: `"insert"`; `offset`: `number`; `path`: `string`; `text`: `string`; \}
+
+Proposed source edit. Ordered by path and offset; touching replacements are allowed, overlaps are not.
+
+#### Union Members
+
+##### Type Literal
+
+\{ `expected`: `string`; `kind`: `"replace"`; `path`: `string`; `range`: [`SourceRange`](#sourcerange); `replacement`: `string`; \}
+
+###### expected
+
+> `readonly` **expected**: `string`
+
+Exact old substring precondition.
+
+###### kind
+
+> `readonly` **kind**: `"replace"`
+
+Replace/delete inclusive range; deletion uses empty replacement.
+
+###### path
+
+> `readonly` **path**: `string`
+
+Source path.
+
+###### range
+
+> `readonly` **range**: [`SourceRange`](#sourcerange)
+
+Nonempty inclusive range.
+
+###### replacement
+
+> `readonly` **replacement**: `string`
+
+Replacement source.
+
+***
+
+##### Type Literal
+
+\{ `kind`: `"insert"`; `offset`: `number`; `path`: `string`; `text`: `string`; \}
+
+###### kind
+
+> `readonly` **kind**: `"insert"`
+
+Insert between code units, including empty input/EOF.
+
+###### offset
+
+> `readonly` **offset**: `number`
+
+Offset from zero through source.length; never splits a surrogate pair.
+
+###### path
+
+> `readonly` **path**: `string`
+
+Source path.
+
+###### text
+
+> `readonly` **text**: `string`
+
+Inserted source.
+
+***
+
 ### ProjectFilePath
 
 > **ProjectFilePath** = `string`
@@ -2311,6 +3810,66 @@ A node identifier that is unique within one parsed file.
 A normalized, forward-slash path inside a virtual PrepTeX project.
 
 Public operations reject absolute paths and paths that escape the project root.
+
+***
+
+### ProjectIssueCode
+
+> **ProjectIssueCode** = `"malformed-syntax"` \| `"opaque-region"` \| `"scan-limit"` \| `"unknown-condition"` \| `"unsupported-condition"` \| `"unsupported-effect"` \| `"unsupported-assignment"` \| `"binding-redefined"` \| `"dynamic-input"` \| `"file-only-input"` \| `"missing-entry"` \| `"missing-input"` \| `"ambiguous-input"` \| `"invalid-input-path"` \| `"input-cycle"` \| `"cross-file-conditional"` \| `"interpretation-limit"` \| `"structural-error"`
+
+Stable source/view failure and coverage categories.
+
+***
+
+### ProjectSourceChange
+
+> **ProjectSourceChange** = \{ `file`: [`SourceFile`](#sourcefile); `kind`: `"upsert"`; \} \| \{ `kind`: `"remove"`; `path`: `string`; \}
+
+Atomic source change; conflicting or older revisions are rejected.
+
+#### Union Members
+
+##### Type Literal
+
+\{ `file`: [`SourceFile`](#sourcefile); `kind`: `"upsert"`; \}
+
+###### file
+
+> `readonly` **file**: [`SourceFile`](#sourcefile)
+
+Caller-owned replacement source.
+
+###### kind
+
+> `readonly` **kind**: `"upsert"`
+
+Upsert discriminant.
+
+***
+
+##### Type Literal
+
+\{ `kind`: `"remove"`; `path`: `string`; \}
+
+###### kind
+
+> `readonly` **kind**: `"remove"`
+
+Removal discriminant.
+
+###### path
+
+> `readonly` **path**: `string`
+
+Existing normalized or normalizable path.
+
+***
+
+### ProjectView
+
+> **ProjectView** = [`ProjectViewBase`](#projectviewbase) & \{ `root`: [`ConfiguredContainerNode`](#configuredcontainernode) & `object`; `status`: `"ready"`; \} \| \{ `reason`: [`ProjectIssue`](#projectissue); `root`: `null`; `status`: `"incomplete"` \| `"blocked"`; \}
+
+A complete structural view or explicit failure with no invented partial AST.
 
 ***
 
@@ -2322,13 +3881,197 @@ A supported section depth, where `0` represents the `document` environment.
 
 ***
 
+### SnapshotId
+
+> **SnapshotId** = `string`
+
+Opaque deterministic content identity; compare exactly, never parse or persist as authorization.
+
+***
+
+### SourceScope
+
+> **SourceScope** = \{ `kind`: `"all-files"`; \} \| \{ `kind`: `"files"`; `paths`: readonly `string`[]; \}
+
+Explicit set of independent source files. No execution state is shared between files.
+
+#### Union Members
+
+##### Type Literal
+
+\{ `kind`: `"all-files"`; \}
+
+###### kind
+
+> `readonly` **kind**: `"all-files"`
+
+Every supplied file.
+
+***
+
+##### Type Literal
+
+\{ `kind`: `"files"`; `paths`: readonly `string`[]; \}
+
+###### kind
+
+> `readonly` **kind**: `"files"`
+
+One or more explicitly requested source files.
+
+###### paths
+
+> `readonly` **paths**: readonly `string`[]
+
+Unique file paths; results use canonical path order.
+
+***
+
+### SyntaxFact
+
+> **SyntaxFact** = [`SyntaxFactBase`](#syntaxfactbase) & \{ `arguments`: readonly [`SourceRange`](#sourcerange)[]; `body`: [`SourceRange`](#sourcerange) \| `null`; `form`: `string`; `kind`: `"definition"`; `name`: `string` \| `null`; `starred`: `boolean`; \} \| \{ `kind`: `"command-use"`; `name`: `string`; \} \| \{ `key`: [`LiteralArgument`](#literalargument); `kind`: `"label"`; \} \| \{ `command`: `"ref"` \| `"pageref"` \| `"eqref"`; `key`: [`LiteralArgument`](#literalargument); `kind`: `"reference"`; \} \| \{ `kind`: `"condition-declaration"`; `name`: `string` \| `null`; \} \| \{ `command`: `string`; `kind`: `"condition-test"`; `testKind`: `"literal"` \| `"primitive"` \| `"named-candidate"`; \} \| \{ `delimiter`: `"else"` \| `"fi"`; `kind`: `"condition-delimiter"`; \} \| \{ `kind`: `"condition-assignment"`; `name`: `string`; `value`: `boolean`; \} \| \{ `kind`: `"input"`; `target`: [`LiteralArgument`](#literalargument); \} \| \{ `command`: `string`; `kind`: `"opaque"`; \}
+
+Exhaustive inventory facts; definition targets are excluded from command uses.
+
+***
+
+### ViewId
+
+> **ViewId** = `string`
+
+Identity of one snapshot and normalized semantic configuration.
+
+***
+
 ### WarningDiagnosticCode
 
 > **WarningDiagnosticCode** = `Exclude`\<[`DiagnosticCode`](#diagnosticcode), [`SyntaxError`](#syntaxerror)\>
 
 A diagnostic code that can be returned after a successful parse.
 
+## Variables
+
+### projectOperations
+
+> `const` **projectOperations**: readonly [`OperationDescriptor`](#operationdescriptor)[]
+
+Frozen operation requirements. C6 analyses and C7 transformations remain explicitly unavailable.
+
 ## Functions
+
+### checkOperationCapability()
+
+> **checkOperationCapability**(`model`, `request`): [`OperationCapability`](#operationcapability)
+
+Check operation/model compatibility without generating artifacts or modifying sources.
+
+#### Parameters
+
+##### model
+
+[`ProjectSnapshot`](#projectsnapshot) \| [`ProjectView`](#projectview)
+
+Source snapshot or configured view.
+
+##### request
+
+[`OperationRequest`](#operationrequest)
+
+Typed operation with its semantic options.
+
+#### Returns
+
+[`OperationCapability`](#operationcapability)
+
+Frozen eligibility and machine-readable reasons, including later-stage unavailability.
+
+#### Throws
+
+[PrepTexError](#preptexerror) with InvalidArgument for malformed requests or stale snapshots.
+
+***
+
+### createProjectSnapshot()
+
+> **createProjectSnapshot**(`files`, `scanOptions?`): [`ProjectSnapshot`](#projectsnapshot)
+
+Scan every supplied source independently without requiring structural validity.
+
+#### Parameters
+
+##### files
+
+readonly [`SourceFile`](#sourcefile)[]
+
+Caller-owned source files, never mutated; duplicate normalized paths are rejected.
+
+##### scanOptions?
+
+[`ScanOptions`](#scanoptions-1) = `{}`
+
+Recognized protected regions and inventory nesting bounds.
+
+#### Returns
+
+[`ProjectSnapshot`](#projectsnapshot)
+
+A deterministic, deeply frozen, transport-safe snapshot in path order.
+
+#### Throws
+
+[PrepTexError](#preptexerror) with InvalidArgument for invalid inputs. Source errors are localized coverage issues.
+
+***
+
+### inspectProject()
+
+> **inspectProject**(`snapshot`, `request?`): [`InventoryResult`](#inventoryresult)
+
+Obtain located recognized syntax without interpreting, serializing, or generating output.
+
+#### Parameters
+
+##### snapshot
+
+[`ProjectSnapshot`](#projectsnapshot)
+
+Source authority; returned facts are validated source-derived data.
+
+##### request?
+
+[`InventoryRequest`](#inventoryrequest) = `{}`
+
+Optional explicit file scope and fact kinds; empty kinds returns no facts.
+
+#### Returns
+
+[`InventoryResult`](#inventoryresult)
+
+Frozen inventory, exact result identity, and coverage for only the requested files.
+
+#### Throws
+
+[PrepTexError](#preptexerror) with InvalidArgument for stale snapshots, missing requested files, or malformed options.
+
+***
+
+### isConfiguredContainerNode()
+
+> **isConfiguredContainerNode**(`node`): `node is ConfiguredContainerNode`
+
+Narrow a configured node to the exhaustive container union.
+
+#### Parameters
+
+##### node
+
+[`ConfiguredNode`](#configurednode)
+
+#### Returns
+
+`node is ConfiguredContainerNode`
+
+***
 
 ### isContainerNode()
 
@@ -2490,6 +4233,38 @@ A transport-safe project containing plain objects and arrays.
 
 ***
 
+### resolveProjectView()
+
+> **resolveProjectView**(`snapshot`, `configuration`): [`ProjectView`](#projectview)
+
+Resolve reached boolean tests and active literal inputs, then parse the selected token stream.
+
+#### Parameters
+
+##### snapshot
+
+[`ProjectSnapshot`](#projectsnapshot)
+
+Exact source snapshot; unrelated malformed files do not block a healthy entry.
+
+##### configuration
+
+[`ViewConfiguration`](#viewconfiguration)
+
+Entry, traversal, boolean policy, profile, and bounded interpretation settings.
+
+#### Returns
+
+[`ProjectView`](#projectview)
+
+A deeply frozen ready view or explicit incomplete/blocked trace with no complete AST.
+
+#### Throws
+
+[PrepTexError](#preptexerror) with InvalidArgument for malformed options or stale source identity.
+
+***
+
 ### serializeDocument()
 
 > **serializeDocument**(`root`, `options?`): `string`
@@ -2566,3 +4341,92 @@ Immutable generated files. `Separate` emits every project file; other modes emit
 
 [PrepTexError](#preptexerror) When an argument is invalid, the entry is absent, or
 an input target is unresolved or circular.
+
+***
+
+### updateProjectSnapshot()
+
+> **updateProjectSnapshot**(`snapshot`, `changes`): [`ProjectSnapshot`](#projectsnapshot)
+
+Apply source additions/replacements/removals atomically and rescan the resulting source set.
+Equal revision with different contents, older revisions, duplicate changes, and absent removals fail.
+
+#### Parameters
+
+##### snapshot
+
+[`ProjectSnapshot`](#projectsnapshot)
+
+Exact source snapshot; mutable transported copies are validated and rebuilt.
+
+##### changes
+
+readonly [`ProjectSourceChange`](#projectsourcechange)[]
+
+Caller-owned changes; ordering does not affect the resulting identity.
+
+#### Returns
+
+[`ProjectSnapshot`](#projectsnapshot)
+
+A new deeply frozen snapshot with unchanged scan settings; no source is modified.
+
+#### Throws
+
+[PrepTexError](#preptexerror) with InvalidArgument on an invalid/conflicting change or stale snapshot.
+
+***
+
+### validateProjectEditPlan()
+
+> **validateProjectEditPlan**(`snapshot`, `plan`, `view?`): `void`
+
+Validate a future edit proposal without applying it. C7 supplies planning and application.
+
+#### Parameters
+
+##### snapshot
+
+[`ProjectSnapshot`](#projectsnapshot)
+
+Exact source precondition.
+
+##### plan
+
+[`ProjectEditPlan`](#projecteditplan)
+
+Ordered edits with exact expected substrings and source/operation identity.
+
+##### view?
+
+[`ProjectView`](#projectview)
+
+Required for a view-dependent proposal; must match its snapshot and view IDs.
+
+#### Returns
+
+`void`
+
+Nothing on success. All validation completes before a caller can apply any edit.
+
+#### Throws
+
+[PrepTexError](#preptexerror) with InvalidArgument for stale identity, malformed operations, ranges, overlaps, or surrogate-pair splits.
+
+***
+
+### walkConfiguredNodes()
+
+> **walkConfiguredNodes**(`root`): readonly [`ConfiguredNode`](#configurednode)[]
+
+Return nodes in depth-first source/execution order; the returned array is frozen.
+
+#### Parameters
+
+##### root
+
+[`ConfiguredNode`](#configurednode)
+
+#### Returns
+
+readonly [`ConfiguredNode`](#configurednode)[]

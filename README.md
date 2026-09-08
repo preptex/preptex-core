@@ -7,9 +7,13 @@ consume the core through its published package, not through repository internals
 
 ## Install the core
 
-Version 0.2.0 was published on 2026-09-03. This checkout prepares the compatible
-0.2.1 fixes and bundled documentation. After publishing 0.2.1, pin that real
-registry version in each consumer and commit the consumer's lockfile:
+This checkout prepares **0.3.0 (unreleased)** with the C1–C5 source snapshot and
+configured-view foundation. See the [project model guide](./docs/project-model.md)
+for its public API and supported profile. The full website migration still needs
+C6–C10. The existing 0.2.1 consumer API remains available.
+
+Existing consumers can continue using their verified 0.2.1 dependency. Pin a new
+version only after it has been published and verified:
 
 ```sh
 npm install --save-exact @preptex/core@0.2.1
@@ -65,6 +69,7 @@ contract tests, TSDoc validation, and formatting checks. See
 ## Documentation
 
 - [Integration guide](./docs/integration.md)
+- [Project model and C1–C5 support matrix](./docs/project-model.md)
 - [Architecture](./docs/architecture.md)
 - [Generated API reference](./docs/api/README.md)
 - [Changelog](./CHANGELOG.md)
