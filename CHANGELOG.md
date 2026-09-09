@@ -24,6 +24,12 @@ All notable changes to this project will be documented here.
 - C8 reuse of unchanged scans, scan-setting updates, transport reconstruction,
   complete view/index invalidation and deterministic output limits. Added a fixed
   performance corpus, regression budgets and public operation/type tests.
+- C9 `runProjectPipeline`, composing immutable snapshot/view/ordered analysis/export
+  results, plus independent CLI `inventory` and `analyze` commands with JSON results
+  and structured failures. Added public compatibility and CLI regression tests.
+- C10 isolated tarball installation, TypeScript 4.9.5/ES2020 consumer tests,
+  public acceptance/CLI checks against packed packages, integrity evidence and CI
+  verification. Added migration mappings and the website handoff checklist.
 
 ### Compatibility
 
@@ -34,8 +40,11 @@ All notable changes to this project will be documented here.
 - Keep the legacy parser, `AstNode`, static condition whitelist and all-supplied
   Separate output behavior unchanged. The new model uses separate entry points.
 - Prepare both package manifests and the CLI's exact core dependency as 0.3.0;
-  all plan stages belong to this release. C9/C10 and publication remain pending;
-  no downstream dependency is changed.
+  all plan stages belong to this release. C9 is implemented; C10 publication and
+  registry consumer verification remain pending. No downstream dependency is changed.
+- Deprecate legacy entry points/options with explicit migration guidance.
+  Reject ambiguous calls mixing legacy fields and new policies with
+  `InvalidArgument`; valid legacy calls retain their behavior.
 
 ## [0.2.1] - Unreleased
 

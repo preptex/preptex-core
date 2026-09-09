@@ -1,6 +1,9 @@
 import type { ConditionName, ProjectFilePath, SectionLevel, TokenType } from '../api-types.js';
 
-/** Controls how `\input` nodes are handled while transforming a project. */
+/**
+ * Controls how `\input` nodes are handled while transforming a legacy project.
+ * @deprecated New workflows separate ViewConfiguration.traversal from ExportOptions.inputs; see docs/migration-0.3.md.
+ */
 export enum InputHandlingMode {
   /** Emit the entry file and preserve each `\input` command literally. */
   Preserve = 'preserve',
@@ -10,7 +13,10 @@ export enum InputHandlingMode {
   Separate = 'separate',
 }
 
-/** Options for parsing one LaTeX document. */
+/**
+ * Options for parsing one legacy LaTeX document.
+ * @deprecated New workflows use ScanOptions and ViewConfiguration with different semantics; see docs/migration-0.3.md.
+ */
 export interface ParseOptions {
   /**
    * Token categories recognized by the lexer.
@@ -30,7 +36,10 @@ export interface ParseOptions {
   readonly sourcePath?: ProjectFilePath;
 }
 
-/** Options applied uniformly while parsing a virtual project. */
+/**
+ * Options applied uniformly while parsing a legacy virtual project.
+ * @deprecated New workflows use ScanOptions and ViewConfiguration; see docs/migration-0.3.md.
+ */
 export interface ProjectParseOptions {
   /**
    * Token categories recognized by the lexer.
@@ -48,7 +57,10 @@ export interface ProjectParseOptions {
   readonly maximumSectionLevel?: SectionLevel;
 }
 
-/** Options for serializing one parsed syntax tree. */
+/**
+ * Options for serializing one legacy parsed syntax tree.
+ * @deprecated Use typed OperationRequest/ExportOptions for new workflows; condition omission and whitelists do not map to source evaluation. See docs/migration-0.3.md.
+ */
 export interface SerializeOptions {
   /** Replace recognized comments and newly empty comment lines; defaults to `false`. */
   readonly suppressComments?: boolean;
@@ -59,11 +71,15 @@ export interface SerializeOptions {
    * every recognized condition to its `else` branch. Resolving conditions also
    * removes recognized `\newif` declarations and their generated toggle commands.
    * Names are compared case-sensitively.
+   * @deprecated Retained as a static legacy whitelist. Select an explicit ConditionPolicy for new workflows; see docs/migration-0.3.md.
    */
   readonly enabledConditions?: readonly ConditionName[];
 }
 
-/** Options for transforming a parsed project. */
+/**
+ * Options for transforming a legacy parsed project.
+ * @deprecated Use ViewConfiguration and ExportOptions independently; see docs/migration-0.3.md.
+ */
 export interface TransformOptions extends SerializeOptions {
   /** How `\input` commands affect the generated file set; defaults to `Preserve`. */
   readonly inputHandling?: InputHandlingMode;

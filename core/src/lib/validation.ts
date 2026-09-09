@@ -440,6 +440,27 @@ function normalizeParsedFile(inspection: ParsedFileInspection): ParsedFile {
 /** Ensures an options argument is a regular data object before reading its fields. */
 export function assertOptionsObject(value: unknown, label = 'options'): void {
   requirePlainRecord(value, label);
+  const newFields = [
+    'entryPath',
+    'conditions',
+    'configuration',
+    'traversal',
+    'scanOptions',
+    'exportOptions',
+    'inputs',
+    'maxOutputCodeUnits',
+    'analyses',
+    'operation',
+    'target',
+    'scope',
+    'limits',
+    'profile',
+  ];
+  for (const key of Object.getOwnPropertyNames(value))
+    if (newFields.includes(key))
+      invalidArgument(
+        `Legacy ${label} cannot contain project-model field ${key}; use the new project operations explicitly.`
+      );
 }
 
 /** Normalizes and validates a public virtual project path. */

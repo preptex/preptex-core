@@ -132,6 +132,8 @@ export {
 export { resolveProjectView } from './lib/project/view.js';
 export { indexProjectView, runAnalysis } from './lib/project/analysis.js';
 export { applyProjectEdits, planTransformation } from './lib/project/transformation.js';
+export { runProjectPipeline } from './lib/project/pipeline.js';
+export type { ProjectPipelineOptions, ProjectPipelineResult } from './project-types.js';
 export type {
   AnalysisLocation,
   AnalysisOptions,

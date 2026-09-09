@@ -1,17 +1,20 @@
 # PrepTeX Core: project model, analyses, and transformations
 
-Status: **C1–C8 implemented in the local 0.3.0 preparation; C9/C10 pending.**
+Status: **C1–C9 implemented for 0.3.0; C10 local verification complete, registry publication pending.**
 Prepared against the installed `@preptex/core@0.2.1`. Complete this plan before migrating the website using the
 [website implementation plan](website-project-workspace-implementation-plan.md).
 
 Prepared: 2026-09-07.
 
 Implementation update (2026-09-08): finalized public names and supported profile
-are in [the C1–C8 integration guide](../project-model.md). Independent analyses,
+are in [the project model integration guide](../project-model.md). Independent analyses,
 checked source edits, configured exports, scan reuse and bounded output now have
 public executors. See [performance measurements](../project-model-performance.md)
-and the public-operation regressions for C5–C8 acceptance evidence. No website
-changes or package publication are part of this increment.
+and the public-operation regressions for C5–C8 acceptance evidence. C9 adds the
+composed pipeline, compatibility guidance and CLI inventory/analysis. The
+[migration guide](../migration-0.3.md) and [website handoff](../website-handoff.md)
+record the contract and reproducible C10 package checks. Keep version 0.3.0;
+no website dependency changes precede a verified registry release.
 
 Baseline: clean 0.2.1 checkout; 167 core tests, one CLI regression, workspace
 type checks, public type contracts and TSDoc checks passed. The baseline format
@@ -230,10 +233,10 @@ acceptance criteria before treating dependent work as ready.
 
 **Acceptance**
 
-- [ ] The baseline package version, commands, and results are recorded.
-- [ ] Legacy preservation and all-false selection produce different expected
+- [x] The baseline package version, commands, and results are recorded.
+- [x] Legacy preservation and all-false selection produce different expected
       strings, and legacy Separate still emits every supplied file.
-- [ ] Every target fixture has expected observations or exact output, not only
+- [x] Every target fixture has expected observations or exact output, not only
       “does not throw.”
 
 ### C1. Define public contracts and operation requirements
@@ -278,11 +281,11 @@ acceptance criteria before treating dependent work as ready.
 
 **Acceptance**
 
-- [ ] Public TypeScript examples compile without private imports or casts.
-- [ ] Runtime validation rejects invalid modes, malformed maps, stale identity,
+- [x] Public TypeScript examples compile without private imports or casts.
+- [x] Runtime validation rejects invalid modes, malformed maps, stale identity,
       invalid ranges, and incompatible operation/model combinations.
-- [ ] Results remain deterministic, deeply frozen, and structured-cloneable.
-- [ ] Manual force, source state, initial state, and unknown have separate tests.
+- [x] Results remain deterministic, deeply frozen, and structured-cloneable.
+- [x] Manual force, source state, initial state, and unknown have separate tests.
 
 ### C2. Build the lossless source layer and partial diagnostics
 
@@ -311,12 +314,12 @@ acceptance criteria before treating dependent work as ready.
 
 **Acceptance**
 
-- [ ] Reassembling each scan produces the original string exactly for empty
+- [x] Reassembling each scan produces the original string exactly for empty
       files, LF/CRLF/CR, Unicode, escaped percent signs, and trailing whitespace.
-- [ ] Inventory in a healthy file remains usable when another file is malformed.
-- [ ] Crossing-environment source imports without a full structural parse.
-- [ ] Comment/verbatim examples do not create active condition or input events.
-- [ ] `\ifthenelse` does not demand a primitive-style matching `\fi`.
+- [x] Inventory in a healthy file remains usable when another file is malformed.
+- [x] Crossing-environment source imports without a full structural parse.
+- [x] Comment/verbatim examples do not create active condition or input events.
+- [x] `\ifthenelse` does not demand a primitive-style matching `\fi`.
 
 ### C3. Extract reusable syntax inventories
 
@@ -341,12 +344,12 @@ execution view is needed.
 
 **Acceptance**
 
-- [ ] An inventory lists definitions and labels in both source branches with
+- [x] An inventory lists definitions and labels in both source branches with
       their exact locations and contexts.
-- [ ] A `\label` or setter written inside an uncalled definition is a source
+- [x] A `\label` or setter written inside an uncalled definition is a source
       occurrence and is not reported as executed.
-- [ ] Comments and protected verbatim regions do not create false definitions.
-- [ ] Inventory results are deterministic and do not alter source or require
+- [x] Comments and protected verbatim regions do not create false definitions.
+- [x] Inventory results are deterministic and do not alter source or require
       serialization/transformation.
 
 ### C4. Resolve supported conditions and inputs together
@@ -386,13 +389,13 @@ stream in the correct encounter order.
 
 **Acceptance**
 
-- [ ] Two tests of the same flag separated by a setter choose different branches.
-- [ ] Inactive setters and uncalled definition bodies do not affect later tests.
-- [ ] Local changes restore; supported global changes persist after group exit.
-- [ ] An input's setter affects the next caller test even when output will keep
+- [x] Two tests of the same flag separated by a setter choose different branches.
+- [x] Inactive setters and uncalled definition bodies do not affect later tests.
+- [x] Local changes restore; supported global changes persist after group exit.
+- [x] An input's setter affects the next caller test even when output will keep
       the input command literal.
-- [ ] Repeated inputs produce distinct traces; active recursion is diagnosed.
-- [ ] An unknown test returns incomplete, never an implicit else decision.
+- [x] Repeated inputs produce distinct traces; active recursion is diagnosed.
+- [x] An unknown test returns incomplete, never an implicit else decision.
 
 ### C5. Parse configured structure with original-source provenance
 
@@ -573,11 +576,11 @@ stream in the correct encounter order.
 
 **Acceptance**
 
-- [ ] C0's public compatibility suite passes or every intentional break is
+- [x] C0's public compatibility suite passes or every intentional break is
       explicitly versioned and accompanied by a tested migration.
-- [ ] No website/CLI consumer requires internal parser imports.
-- [ ] A source inventory works with no output destination or transform settings.
-- [ ] A composed pipeline and the equivalent individual calls give equal results.
+- [x] No website/CLI consumer requires internal parser imports.
+- [x] A source inventory works with no output destination or transform settings.
+- [x] A composed pipeline and the equivalent individual calls give equal results.
 
 ### C10. Validate the package, publish its contract, and hand off
 
@@ -611,12 +614,18 @@ stream in the correct encounter order.
 
 **Acceptance**
 
-- [ ] All repository checks and the public acceptance matrix pass.
+- [x] All repository checks and the public acceptance matrix pass.
 - [ ] Packed and published contents match the documented API.
 - [ ] The actual exact release installs and typechecks in a clean consumer.
-- [ ] No full-compiler, all-configurations, or complete-byte-preservation claim
+- [x] No full-compiler, all-configurations, or complete-byte-preservation claim
       exceeds what the implementation and its input types support.
-- [ ] Every capability in section 6 is available through the public entry point.
+- [x] Every capability in section 6 is available through the public entry point.
+
+Publication gate: npm reported 0.3.0 absent and release authentication returned
+401 Unauthorized on 2026-09-08. Local tarball checks do not satisfy the published
+contents or exact registry installation criteria. After an authorized publication,
+run `npm run consumer:check -- --registry` and record its integrity/type/runtime
+evidence before completing C10 or upgrading the website dependency.
 
 ## 5. Minimum acceptance fixtures
 

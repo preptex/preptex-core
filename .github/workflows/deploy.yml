@@ -43,3 +43,6 @@ jobs:
 
       - name: Inspect publishable core package
         run: npm run pack:check
+
+      - name: Verify packed packages with TypeScript 4.9 and public acceptance tests
+        run: npm run consumer:check

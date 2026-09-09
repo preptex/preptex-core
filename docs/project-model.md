@@ -1,9 +1,10 @@
-# Project model: C1–C8 integration contract
+# Project model integration contract
 
-This checkout prepares **0.3.0 (unreleased)**. C1–C8 provide source snapshots,
+This checkout prepares **0.3.0 (unreleased)**. C1–C9 provide source snapshots,
 configured structure, independent analyses, checked edits, exports and scan reuse.
-Expanded CLI/pipeline support (C9) and the published website handoff (C10) remain
-later work. The legacy API remains available unchanged.
+The pipeline and CLI inventory/analysis are available. C10's registry publication
+gate remains open; see [website handoff](./website-handoff.md). Legacy APIs remain
+available with [explicit migration guidance](./migration-0.3.md).
 
 ## Public operations
 
@@ -20,6 +21,7 @@ later work. The legacy API remains available unchanged.
 | `runAnalysis(model, request)`                                    | Independent reference or conservative command-use findings                                   | Yes       |
 | `planTransformation(model, request)`                             | Checked edit previews or generated artifacts with mappings/dependencies                      | Yes       |
 | `applyProjectEdits(snapshot, plan, view?)`                       | Atomic validated source replacement, advancing changed file revisions                        | Yes       |
+| `runProjectPipeline(files, options)`                             | Frozen snapshot, configured view, ordered analyses and export result                         | Yes       |
 
 All listed descriptors are implemented. Capability checks use the same model,
 scope and readiness rules as execution. An eligible operation can still fail on
@@ -348,14 +350,16 @@ node examples/project-model.mjs
 node examples/benchmark-project-model.mjs
 npm run docs
 npm run pack:check
+npm run consumer:check
 ```
 
-`core/tests/project-model.test.ts` and `project-operations.test.ts` contain
-public-import C1–C8 regressions and legacy characterizations;
+`core/tests/project-model.test.ts`, `project-operations.test.ts` and
+`project-pipeline.test.ts` contain public-import regressions and legacy characterizations;
 `core/tests/fixtures/project-model` contains the shared
 crossing/protected/multi-origin LaTeX fixtures. `core/type-tests/project-model.ts`
-checks readonly unions and consumer narrowing. The CLI regression executes its
-existing preserve, flatten, Separate and AST commands. New CLI inventory/analysis
-commands remain C9. The website checkout is not modified by this work, and its
-full migration still requires C9/C10 and a verified registry release. The fixed
+checks readonly unions and consumer narrowing. CLI regressions execute preserve,
+flatten, Separate and AST commands, independent inventory and source/configured
+analyses. `consumer:check` runs the project/type/CLI suites against installed
+tarballs outside the workspace using TypeScript 4.9.5 and ES2020. The website
+checkout is not modified; migration requires C10's verified registry release. The fixed
 benchmark corpus and measurements are described in [Performance](./project-model-performance.md).

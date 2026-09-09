@@ -920,6 +920,32 @@ export type TransformationRequest = Exclude<
     }
 >;
 
+/** Settings for a synchronous configured analysis/export pipeline. */
+export interface ProjectPipelineOptions {
+  /** Optional source scanning settings; omission uses scanner defaults. */
+  readonly scanOptions?: ScanOptions;
+  /** Required configuration with an entryPath; other fields use ViewConfiguration defaults. */
+  readonly configuration: ViewConfiguration;
+  /** Configured analyses in requested order; omission means none. Source file scopes are forbidden here. */
+  readonly analyses?: readonly AnalysisRequest[];
+  /** Required conditional retention and input topology; optional comment/output settings use ExportOptions defaults. */
+  readonly exportOptions: ExportOptions;
+}
+
+/** Results from composing public operations; source and artifacts remain separate. */
+export interface ProjectPipelineResult {
+  /** Pipeline result discriminant. */
+  readonly kind: 'pipeline';
+  /** Frozen source authority created from the supplied files. */
+  readonly snapshot: ProjectSnapshot;
+  /** Configured view sharing this snapshot; non-exportable views throw before results are returned. */
+  readonly view: ProjectView;
+  /** Independent analysis results in request order; empty when none were requested. */
+  readonly analyses: readonly AnalysisResult[];
+  /** Generated export preview with exact mappings and dependency metadata. */
+  readonly transformation: TransformationResult;
+}
+
 /** Located structured rejection of an analysis, edit, or export operation. */
 export interface OperationFailure {
   /** Stable category, independent of explanatory prose. */

@@ -107,25 +107,29 @@ Parsing succeeded after a documented fallback or reclassification.
 
 ***
 
-### InputHandlingMode
+### ~~InputHandlingMode~~
 
-Controls how `\input` nodes are handled while transforming a project.
+Controls how `\input` nodes are handled while transforming a legacy project.
+
+#### Deprecated
+
+New workflows separate ViewConfiguration.traversal from ExportOptions.inputs; see docs/migration-0.3.md.
 
 #### Enumeration Members
 
-##### Flatten
+##### ~~Flatten~~
 
 > **Flatten**: `"flatten"`
 
 Emit the entry file with reachable `\input` targets inlined.
 
-##### Preserve
+##### ~~Preserve~~
 
 > **Preserve**: `"preserve"`
 
 Emit the entry file and preserve each `\input` command literally.
 
-##### Separate
+##### ~~Separate~~
 
 > **Separate**: `"separate"`
 
@@ -2598,13 +2602,17 @@ Parsed files in deterministic path order.
 
 ***
 
-### ParseOptions
+### ~~ParseOptions~~
 
-Options for parsing one LaTeX document.
+Options for parsing one legacy LaTeX document.
+
+#### Deprecated
+
+New workflows use ScanOptions and ViewConfiguration with different semantics; see docs/migration-0.3.md.
 
 #### Properties
 
-##### enabledTokens?
+##### ~~enabledTokens?~~
 
 > `readonly` `optional` **enabledTokens?**: readonly [`TokenType`](#tokentype)[]
 
@@ -2613,7 +2621,7 @@ Token categories recognized by the lexer.
 Omit this field to enable every supported category. Disabled constructs are
 preserved as text where possible.
 
-##### maximumSectionLevel?
+##### ~~maximumSectionLevel?~~
 
 > `readonly` `optional` **maximumSectionLevel?**: [`SectionLevel`](#sectionlevel)
 
@@ -2622,7 +2630,7 @@ Deepest section command represented as a section node.
 Deeper section commands are represented as ordinary command nodes. Omit this
 field to recognize all supported levels.
 
-##### sourcePath?
+##### ~~sourcePath?~~
 
 > `readonly` `optional` **sourcePath?**: `string`
 
@@ -2736,13 +2744,17 @@ Error blocks required syntax; warning denotes unsupported or uncertain behavior.
 
 ***
 
-### ProjectParseOptions
+### ~~ProjectParseOptions~~
 
-Options applied uniformly while parsing a virtual project.
+Options applied uniformly while parsing a legacy virtual project.
+
+#### Deprecated
+
+New workflows use ScanOptions and ViewConfiguration; see docs/migration-0.3.md.
 
 #### Properties
 
-##### enabledTokens?
+##### ~~enabledTokens?~~
 
 > `readonly` `optional` **enabledTokens?**: readonly [`TokenType`](#tokentype)[]
 
@@ -2751,7 +2763,7 @@ Token categories recognized by the lexer.
 Omit this field to enable every supported category. Disabled constructs are
 preserved as text where possible.
 
-##### maximumSectionLevel?
+##### ~~maximumSectionLevel?~~
 
 > `readonly` `optional` **maximumSectionLevel?**: [`SectionLevel`](#sectionlevel)
 
@@ -2759,6 +2771,76 @@ Deepest section command represented as a section node.
 
 Deeper section commands are represented as ordinary command nodes. Omit this
 field to recognize all supported levels.
+
+***
+
+### ProjectPipelineOptions
+
+Settings for a synchronous configured analysis/export pipeline.
+
+#### Properties
+
+##### analyses?
+
+> `readonly` `optional` **analyses?**: readonly `object`[]
+
+Configured analyses in requested order; omission means none. Source file scopes are forbidden here.
+
+##### configuration
+
+> `readonly` **configuration**: [`ViewConfiguration`](#viewconfiguration)
+
+Required configuration with an entryPath; other fields use ViewConfiguration defaults.
+
+##### exportOptions
+
+> `readonly` **exportOptions**: [`ExportOptions`](#exportoptions)
+
+Required conditional retention and input topology; optional comment/output settings use ExportOptions defaults.
+
+##### scanOptions?
+
+> `readonly` `optional` **scanOptions?**: [`ScanOptions`](#scanoptions-2)
+
+Optional source scanning settings; omission uses scanner defaults.
+
+***
+
+### ProjectPipelineResult
+
+Results from composing public operations; source and artifacts remain separate.
+
+#### Properties
+
+##### analyses
+
+> `readonly` **analyses**: readonly [`AnalysisResult`](#analysisresult)[]
+
+Independent analysis results in request order; empty when none were requested.
+
+##### kind
+
+> `readonly` **kind**: `"pipeline"`
+
+Pipeline result discriminant.
+
+##### snapshot
+
+> `readonly` **snapshot**: [`ProjectSnapshot`](#projectsnapshot)
+
+Frozen source authority created from the supplied files.
+
+##### transformation
+
+> `readonly` **transformation**: [`TransformationResult`](#transformationresult)
+
+Generated export preview with exact mappings and dependency metadata.
+
+##### view
+
+> `readonly` **view**: [`ProjectView`](#projectview)
+
+Configured view sharing this snapshot; non-exportable views throw before results are returned.
 
 ***
 
@@ -3154,9 +3236,13 @@ Lexical source token, keeping its original offsets.
 
 ***
 
-### SerializeOptions
+### ~~SerializeOptions~~
 
-Options for serializing one parsed syntax tree.
+Options for serializing one legacy parsed syntax tree.
+
+#### Deprecated
+
+Use typed OperationRequest/ExportOptions for new workflows; condition omission and whitelists do not map to source evaluation. See docs/migration-0.3.md.
 
 #### Extended by
 
@@ -3164,7 +3250,7 @@ Options for serializing one parsed syntax tree.
 
 #### Properties
 
-##### enabledConditions?
+##### ~~enabledConditions?~~
 
 > `readonly` `optional` **enabledConditions?**: readonly `string`[]
 
@@ -3175,7 +3261,11 @@ every recognized condition to its `else` branch. Resolving conditions also
 removes recognized `\newif` declarations and their generated toggle commands.
 Names are compared case-sensitively.
 
-##### suppressComments?
+###### Deprecated
+
+Retained as a static legacy whitelist. Select an explicit ConditionPolicy for new workflows; see docs/migration-0.3.md.
+
+##### ~~suppressComments?~~
 
 > `readonly` `optional` **suppressComments?**: `boolean`
 
@@ -3574,9 +3664,13 @@ Serialized LaTeX source.
 
 ***
 
-### TransformOptions
+### ~~TransformOptions~~
 
-Options for transforming a parsed project.
+Options for transforming a legacy parsed project.
+
+#### Deprecated
+
+Use ViewConfiguration and ExportOptions independently; see docs/migration-0.3.md.
 
 #### Extends
 
@@ -3584,7 +3678,7 @@ Options for transforming a parsed project.
 
 #### Properties
 
-##### enabledConditions?
+##### ~~enabledConditions?~~
 
 > `readonly` `optional` **enabledConditions?**: readonly `string`[]
 
@@ -3595,17 +3689,21 @@ every recognized condition to its `else` branch. Resolving conditions also
 removes recognized `\newif` declarations and their generated toggle commands.
 Names are compared case-sensitively.
 
+###### Deprecated
+
+Retained as a static legacy whitelist. Select an explicit ConditionPolicy for new workflows; see docs/migration-0.3.md.
+
 ###### Inherited from
 
 [`SerializeOptions`](#serializeoptions).[`enabledConditions`](#enabledconditions)
 
-##### inputHandling?
+##### ~~inputHandling?~~
 
 > `readonly` `optional` **inputHandling?**: [`InputHandlingMode`](#inputhandlingmode)
 
 How `\input` commands affect the generated file set; defaults to `Preserve`.
 
-##### suppressComments?
+##### ~~suppressComments?~~
 
 > `readonly` `optional` **suppressComments?**: `boolean`
 
@@ -4565,7 +4663,7 @@ Caller-owned source files, never mutated; duplicate normalized paths are rejecte
 
 ##### scanOptions?
 
-[`ScanOptions`](#scanoptions-1) = `{}`
+[`ScanOptions`](#scanoptions-2) = `{}`
 
 Recognized protected regions and inventory nesting bounds.
 
@@ -4701,7 +4799,7 @@ Untrusted runtime value to validate.
 
 ***
 
-### mergeProjects()
+### ~~mergeProjects()~~
 
 > **mergeProjects**(`base`, `updates`): [`ParsedProject`](#parsedproject)
 
@@ -4735,9 +4833,13 @@ A new immutable project snapshot.
 
 [PrepTexError](#preptexerror) When either snapshot violates the public data contract.
 
+#### Deprecated
+
+Use updateProjectSnapshot for new source workflows, including explicit deletions. Revision conflict rules differ; see docs/migration-0.3.md.
+
 ***
 
-### parseDocument()
+### ~~parseDocument()~~
 
 > **parseDocument**(`source`, `options?`): [`ParseResult`](#parseresult)
 
@@ -4775,9 +4877,13 @@ The immutable tree, declarations, references, and non-fatal diagnostics.
 
 [PrepTexError](#preptexerror) When a runtime argument violates the public contract.
 
+#### Deprecated
+
+Retained for legacy file-local AST consumers in 0.3.0. New integrations should use createProjectSnapshot and resolveProjectView; see docs/migration-0.3.md.
+
 ***
 
-### parseProject()
+### ~~parseProject()~~
 
 > **parseProject**(`files`, `options?`): [`ParsedProject`](#parsedproject)
 
@@ -4814,6 +4920,10 @@ A transport-safe project containing plain objects and arrays.
 #### Throws
 
 [PrepTexError](#preptexerror) When a path, source, version, or option is invalid.
+
+#### Deprecated
+
+Retained for legacy file-local AST consumers in 0.3.0. Use createProjectSnapshot and resolveProjectView for new project workflows; see docs/migration-0.3.md.
 
 ***
 
@@ -4931,7 +5041,48 @@ Frozen qualified findings, detailed observations and exact operation identity; n
 
 ***
 
-### serializeDocument()
+### runProjectPipeline()
+
+> **runProjectPipeline**(`files`, `options`): [`ProjectPipelineResult`](#projectpipelineresult)
+
+Compose snapshot creation, configured interpretation, ordered analyses and export.
+
+#### Parameters
+
+##### files
+
+readonly [`SourceFile`](#sourcefile)[]
+
+Caller-owned source strings and finite revisions; never modified.
+
+##### options
+
+[`ProjectPipelineOptions`](#projectpipelineoptions)
+
+Separate scan, interpretation, analysis and export settings.
+
+#### Returns
+
+[`ProjectPipelineResult`](#projectpipelineresult)
+
+Frozen source/view/result data equivalent to the individual public calls.
+
+#### Throws
+
+[PrepTexError](#preptexerror) with InvalidArgument for malformed or mixed legacy/new options.
+
+#### Throws
+
+[ProjectOperationError](#projectoperationerror) when the view is not exportable, or an analysis/export fails.
+
+#### Remarks
+
+This synchronous convenience function has no I/O or persistent workflow state.
+Use independent operations when an incomplete view or analysis should be retained without export.
+
+***
+
+### ~~serializeDocument()~~
 
 > **serializeDocument**(`root`, `options?`): `string`
 
@@ -4965,9 +5116,13 @@ Serialized LaTeX source.
 
 [PrepTexError](#preptexerror) When the tree or a runtime option is invalid.
 
+#### Deprecated
+
+Retained for legacy AST round trips. Use planTransformation on original source snapshots or configured views for new workflows; see docs/migration-0.3.md.
+
 ***
 
-### transformProject()
+### ~~transformProject()~~
 
 > **transformProject**(`entryPath`, `project`, `options?`): [`TransformResult`](#transformresult)
 
@@ -5008,6 +5163,10 @@ Immutable generated files. `Separate` emits every project file; other modes emit
 [PrepTexError](#preptexerror) When an argument is invalid, the entry is absent, or
 an input target is unresolved or circular.
 
+#### Deprecated
+
+Retained with legacy whitelist and input-mode semantics. New integrations should use planTransformation or runProjectPipeline; see docs/migration-0.3.md.
+
 ***
 
 ### updateProjectSnapshot()
@@ -5033,7 +5192,7 @@ Caller-owned changes; ordering does not affect the resulting identity.
 
 ##### scanOptions?
 
-[`ScanOptions`](#scanoptions-1)
+[`ScanOptions`](#scanoptions-2)
 
 Optional replacement scan settings; omission retains the current settings.
 

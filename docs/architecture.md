@@ -1,6 +1,6 @@
 # PrepTeX Core architecture
 
-## Source/configured model and operations (C1–C8)
+## Source/configured model and operations
 
 The new model runs alongside the legacy path described below. Public readonly
 contracts are in `core/src/project-types.ts`, explicitly exported by `index.ts`.
@@ -38,8 +38,17 @@ Condition retention and input topology are independent. Output is bounded during
 collection/emission. Source/view/options/version identity invalidates every result;
 configured views and indexes are initially rebuilt in full.
 
-There is no plugin runtime or backend. C9/C10, website changes and a verified
-registry release remain outside this increment.
+`runProjectPipeline` composes the public snapshot, view, analysis and export
+operations without persistent state. The legacy parser/serializer remains
+isolated because static whitelisting, broad conditional recognition and Separate
+file scope do not exactly map to source interpretation. Both boundaries reject
+mixed legacy/new settings; [migration guidance](./migration-0.3.md) documents the
+differences. CLI inventory/analysis use only the public entry point and own their
+filesystem reads and JSON error mapping.
+
+There is no plugin runtime or backend. Website changes follow the verified
+registry release. [Package verification and handoff](./website-handoff.md)
+describes the TypeScript 4.9/ES2020 consumer and public fixture checks.
 
 ## Purpose and scope
 

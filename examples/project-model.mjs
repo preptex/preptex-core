@@ -8,11 +8,12 @@ import {
   indexProjectView,
   planTransformation,
   applyProjectEdits,
+  runProjectPipeline,
 } from '@preptex/core';
 import assert from 'node:assert/strict';
 
 // Run from the repository root after npm run build: node examples/project-model.mjs
-const snapshot = createProjectSnapshot([
+const files = [
   {
     path: 'main.tex',
     version: 1,
@@ -24,7 +25,8 @@ const snapshot = createProjectSnapshot([
 \ifdraft\end{itemize}\else\end{enumerate}\fi`,
   },
   { path: 'setup.tex', version: 1, source: String.raw`\drafttrue` },
-]);
+];
+const snapshot = createProjectSnapshot(files);
 const inventory = inspectProject(snapshot, { kinds: ['condition-declaration', 'input', 'label'] });
 const sourceView = resolveProjectView(snapshot, { entryPath: 'main.tex' });
 const forcedView = resolveProjectView(snapshot, {
@@ -74,10 +76,23 @@ const preserved = planTransformation(sourceView, {
   options: { inputs: 'preserve', conditions: 'preserve' },
 });
 assert.ok(preserved.dependencies.every((dependency) => dependency.status === 'present'));
+const pipeline = runProjectPipeline(files, {
+  configuration: { entryPath: 'main.tex' },
+  analyses: [{ operation: 'references' }],
+  exportOptions: { inputs: 'preserve', conditions: 'preserve' },
+});
+assert.deepEqual(pipeline, {
+  kind: 'pipeline',
+  snapshot,
+  view: sourceView,
+  analyses: [references],
+  transformation: preserved,
+});
 console.log(
   JSON.stringify(
     {
       coreVersion: snapshot.coreVersion,
+      pipelineMatchesIndividualCalls: true,
       inventory: inventory.facts.map((f) => ({ kind: f.kind, path: f.path, range: f.range })),
       source: summarize(sourceView),
       forcedFalse: summarize(forcedView),

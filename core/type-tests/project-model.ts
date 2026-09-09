@@ -12,6 +12,7 @@ import {
   planTransformation,
   applyProjectEdits,
   ProjectOperationError,
+  runProjectPipeline,
   type ConfiguredNode,
   type SyntaxFact,
   type ProjectSnapshot,
@@ -21,9 +22,8 @@ import {
   type AnalysisFinding,
 } from '@preptex/core';
 
-const snapshot: ProjectSnapshot = createProjectSnapshot([
-  { path: 'main.tex', source: '\\label{x}', version: 1 },
-]);
+const sourceFiles = [{ path: 'main.tex', source: '\\label{x}', version: 1 }] as const;
+const snapshot: ProjectSnapshot = createProjectSnapshot(sourceFiles);
 const inventory = inspectProject(snapshot, { scope: { kind: 'all-files' } });
 const view: ProjectView = resolveProjectView(snapshot, {
   entryPath: 'main.tex',
@@ -158,3 +158,18 @@ try {
   }
 }
 void [newSnapshot, available, factName, reviewResults];
+const pipeline = runProjectPipeline(sourceFiles, {
+  configuration: { entryPath: 'main.tex' },
+  analyses: [{ operation: 'references' }],
+  exportOptions: { conditions: 'materialize', inputs: 'inline' },
+});
+// @ts-expect-error Pipeline analysis results are readonly.
+pipeline.analyses.pop();
+// @ts-expect-error Pipeline requires explicit export policies.
+runProjectPipeline(sourceFiles, { configuration: { entryPath: 'main.tex' } });
+runProjectPipeline(sourceFiles, {
+  configuration: { entryPath: 'main.tex' },
+  exportOptions: { conditions: 'preserve', inputs: 'preserve' },
+  // @ts-expect-error Static legacy condition whitelists are not pipeline settings.
+  enabledConditions: [],
+});

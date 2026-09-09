@@ -8,11 +8,12 @@ readonly syntax trees, structured diagnostics, and typed errors.
 npm install --save-exact @preptex/core@0.2.1
 ```
 
-This source tree prepares **0.3.0 (unreleased)**. It implements C1–C8 source
+This source tree prepares **0.3.0 (unreleased)**. It implements source
 snapshots, inventories, configured views, independent analyses, checked edits
-and exports alongside the unchanged legacy API. The install command above
+and exports, plus `runProjectPipeline`, alongside the retained legacy API. The install command above
 describes the existing consumer baseline; use 0.3.0 only after a verified registry
-release. Expanded CLI support and the website release handoff remain C9/C10.
+release. See the bundled migration guide and website handoff for the remaining
+registry gate and reproducible package verification.
 
 See the
 [integration guide](https://github.com/preptex/preptex-core/blob/main/docs/integration.md)
@@ -26,7 +27,9 @@ This package includes the complete specification files for developers and AI age
 
 - `dist/docs/integration.md`: Compact consumer guide, browser Web Worker model, complete frontend example, and error handling.
 - `dist/docs/architecture.md`: Architectural invariants, AST structures, condition models, and limitations.
-- `dist/docs/project-model.md`: C1–C8 public contracts, support matrix, examples and remaining website prerequisites.
+- `dist/docs/project-model.md`: Public contracts, support matrix and examples.
+- `dist/docs/migration-0.3.md`: Legacy mappings, condition semantics and pipeline composition.
+- `dist/docs/website-handoff.md`: Acceptance evidence, TypeScript 4.9 consumer verification and release gate.
 - `dist/docs/api/README.md`: Complete TypeDoc Markdown API reference.
 - `dist/index.d.ts`: Authoritative TypeScript declarations.
 
