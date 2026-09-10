@@ -53,7 +53,8 @@ export function boundaryDelimiter(previous: Lexeme | null, next: string): string
   if (!previous || !next) return '';
   if (previous.kind === 'command' && /^[A-Za-z@]+$/.test(previous.name) && /^[A-Za-z@]/.test(next))
     return ' ';
-  if (previous.kind === 'comment' && !/[\r\n]$/.test(previous.value)) return '\n';
+  if (previous.kind === 'comment' && !/[\r\n]$/.test(previous.value) && !/^[\r\n]/.test(next))
+    return '\n';
   if (previous.kind === 'math' && previous.value.endsWith('$') && next.startsWith('$')) return '{}';
   if (previous.kind === 'command' && previous.value === '\\')
     reject(

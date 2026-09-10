@@ -6,8 +6,11 @@ import type {
   SelectedToken,
   SourceOrigin,
   ViewId,
+  ProjectSnapshot,
 } from '../../project-types.js';
-import { issue } from './shared.js';
+import type { NodeLocation, ConfiguredEnvironmentDelimiter } from '../../node-types.js';
+import { readDelimiter, hasEnvironmentArguments, fileLines } from './environments.js';
+import { issue, rangeAt } from './shared.js';
 import { sectionLevel } from './scan.js';
 
 interface Container {
@@ -19,12 +22,15 @@ interface Container {
   level: 1 | 2 | 3 | 4 | 5;
   starred: boolean;
   delimiter: MathDelimiter;
+  openingEnd: number;
+  closingStart: number;
 }
 
 export function parseConfiguredStructure(
   tokens: readonly SelectedToken[],
   viewId: ViewId,
-  maxNesting: number
+  maxNesting: number,
+  snapshot: ProjectSnapshot
 ):
   | { kind: 'success'; root: ConfiguredContainerNode & { kind: 'root' } }
   | { kind: 'error'; issue: ProjectIssue } {
@@ -39,11 +45,14 @@ export function parseConfiguredStructure(
       level: 1,
       starred: false,
       delimiter: '$',
+      openingEnd: -1,
+      closingStart: -1,
     };
   }
   const root = container('root', 0);
   const stack: Container[] = [root];
   let error: ProjectIssue | undefined;
+  const files = new Map(snapshot.files.map((f) => [f.path, f]));
   function fail(message: string, index: number): void {
     const at = tokens[index]?.origin ?? tokens[tokens.length - 1]?.origin;
     error = {
@@ -80,7 +89,38 @@ export function parseConfiguredStructure(
       end: last?.end ?? -1,
       line: first?.line ?? 1,
     };
-    return { viewId, occurrenceKey: key, origins, projectedRange };
+    const spans = origins.map((origin) => ({
+      ...origin,
+      version: files.get(origin.path)!.version,
+    }));
+    const location: NodeLocation =
+      spans.length === 0
+        ? { kind: 'none', primary: null, spans: [] }
+        : spans.length === 1
+          ? { kind: 'single', primary: spans[0]!, spans: [spans[0]!] }
+          : { kind: 'multiple', primary: spans[0]!, spans };
+    return { viewId, occurrenceKey: key, origins, projectedRange, location };
+  }
+  function delimiter(start: number, end: number): ConfiguredEnvironmentDelimiter | null {
+    const first = tokens[start]?.origin,
+      last = tokens[end]?.origin;
+    if (!first || !last || first.path !== last.path || first.occurrenceId !== last.occurrenceId)
+      return null;
+    const file = files.get(first.path)!;
+    const value = readDelimiter(file, first.range.start, snapshot);
+    if (!value || value.range.end !== last.range.end) return null;
+    let expected = first.range.start;
+    for (let i = start; i <= end; i++) {
+      const at = tokens[i]!.origin;
+      if (
+        at.path !== first.path ||
+        at.occurrenceId !== first.occurrenceId ||
+        at.range.start !== expected
+      )
+        return null;
+      expected = at.range.end + 1;
+    }
+    return { ...value, origin: { ...first, range: value.range, version: file.version } };
   }
   function build(frame: Container, end: number): ConfiguredContainerNode {
     const shared = { ...base(frame.start, end, frame.key), children: frame.children };
@@ -89,8 +129,34 @@ export function parseConfiguredStructure(
         return { ...shared, kind: 'root' };
       case 'group':
         return { ...shared, kind: 'group' };
-      case 'environment':
-        return { ...shared, kind: 'environment', name: frame.name };
+      case 'environment': {
+        const opening = delimiter(frame.start, frame.openingEnd);
+        const closing = delimiter(frame.closingStart, end);
+        const body =
+          shared.location.kind === 'single' && opening && closing
+            ? {
+                ...opening.origin,
+                range: rangeAt(
+                  fileLines(files.get(opening.path)!),
+                  opening.range.end + 1,
+                  closing.range.start - 1
+                ),
+              }
+            : null;
+        return {
+          ...shared,
+          kind: 'environment',
+          name: frame.name,
+          syntax: {
+            opening,
+            closing,
+            body,
+            hasArguments: opening
+              ? hasEnvironmentArguments(files.get(opening.path)!, opening, snapshot)
+              : true,
+          },
+        };
+      }
       case 'math':
         return { ...shared, kind: 'math', delimiter: frame.delimiter };
       case 'section':
@@ -189,6 +255,7 @@ export function parseConfiguredStructure(
       if (command === 'begin') {
         const frame = container('environment', i);
         frame.name = env.name;
+        frame.openingEnd = env.end;
         stack.push(frame);
       } else {
         while (stack[stack.length - 1]!.kind === 'section') close(i - 1);
@@ -197,6 +264,7 @@ export function parseConfiguredStructure(
           fail('Mismatched selected environment.', i);
           break;
         }
+        current.closingStart = i;
         close(env.end);
       }
       i = env.end;

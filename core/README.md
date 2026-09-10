@@ -15,6 +15,11 @@ describes the existing consumer baseline; use 0.3.0 only after a verified regist
 release. See the bundled migration guide and website handoff for the remaining
 registry gate and reproducible package verification.
 
+The same release adds indexed original-source lookup and selected-node removal,
+environment suppression, renaming and wrapping. See the bundled
+`dist/docs/node-operations.md` for the typed requests, source/artifact choices
+and runnable examples. Comment-environment suppression is an explicit option.
+
 See the
 [integration guide](https://github.com/preptex/preptex-core/blob/main/docs/integration.md)
 and

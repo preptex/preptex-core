@@ -1,4 +1,10 @@
 import type { SourceFile, SourceRange, MathDelimiter } from './api-types.js';
+import type {
+  NodeLocation,
+  ConfiguredEnvironmentSyntax,
+  NodeTransformationRequest,
+  NodeEditAction,
+} from './node-types.js';
 
 /** Opaque deterministic content identity; compare exactly, never parse or persist as authorization. */
 export type SnapshotId = string;
@@ -401,6 +407,8 @@ export interface SelectedToken {
 }
 /** Common fields on configured structural nodes; these are not legacy AstNodes. */
 export interface ConfiguredNodeBase {
+  /** Original line/start/end extents with file revisions; no envelope across omitted gaps. */
+  readonly location: NodeLocation;
   /** Exact configured view identity. */
   readonly viewId: ViewId;
 
@@ -425,6 +433,8 @@ export type ConfiguredContainerNode = ConfiguredNodeBase &
     | {
         /** Environment variant, including document. */
         readonly kind: 'environment';
+        /** Exact located delimiters and whether argument adaptation would be required. */
+        readonly syntax: ConfiguredEnvironmentSyntax;
         /** Literal name. */
         readonly name: string;
         /** Ordered children. */
@@ -564,6 +574,7 @@ export interface InventoryResult {
 }
 /** Public requests for independent inventory, interpretation, analysis, and transformation. */
 export type OperationRequest =
+  | NodeTransformationRequest
   | {
       /** Inventory operation. */
       readonly operation: 'source-inventory';
@@ -589,6 +600,8 @@ export type OperationRequest =
       readonly options: {
         /** Inspect all requested source or only the configured selected path. */
         readonly target: 'source' | 'selected';
+        /** Also remove recognized comment environments; default false. Verbatim remains protected. */
+        readonly suppressCommentEnvironments?: boolean;
         /** Source-only scope; forbidden with a selected-path target. */
         readonly scope?: SourceScope;
         /** Maximum total preview size in UTF-16 code units; default 10,000,000, maximum 100,000,000. */
@@ -600,6 +613,10 @@ export type OperationRequest =
       readonly operation: 'materialize';
       /** Output topology independent of traversal. */
       readonly options: {
+        /** Selected-node actions; nonempty actions require inline output. */
+        readonly nodeEdits?: readonly NodeEditAction[];
+        /** Remove selected complete comment environments; default false. */
+        readonly suppressCommentEnvironments?: boolean;
         /** Preserve input commands or expand active inclusion occurrences. */
         readonly inputs: 'preserve' | 'inline';
         /** Suppress eligible comments during export; default false. */
@@ -625,6 +642,10 @@ export interface AnalysisOptions {
 
 /** Output policies for a configured project. No filename rewriting is performed. */
 export interface ExportOptions {
+  /** Selected-node actions before final export; nonempty actions require materialize/inline output. */
+  readonly nodeEdits?: readonly NodeEditAction[];
+  /** Remove selected complete comment environments independently of percent suppression; default false. */
+  readonly suppressCommentEnvironments?: boolean;
   /** Keep wrappers/inactive slices exactly, or export only resolved source. */
   readonly conditions: 'preserve' | 'materialize';
   /** Preserve input commands and relative files, or expand active occurrences. */
@@ -712,12 +733,20 @@ export interface OperationDescriptor {
   readonly coverage: 'recognized' | 'ready-view';
 
   /** Output category. */
-  readonly resultKind: 'inventory' | 'view' | 'findings' | 'edits' | 'artifacts';
+  readonly resultKind: 'inventory' | 'view' | 'findings' | 'edits' | 'artifacts' | 'transformation';
 }
 /** Structured operation ineligibility. */
 export interface CapabilityReason {
   /** Stable reason. */
-  readonly code: 'not-implemented' | 'wrong-model' | 'view-not-ready' | 'missing-file';
+  readonly code:
+    | 'not-implemented'
+    | 'wrong-model'
+    | 'view-not-ready'
+    | 'missing-file'
+    | 'edit-unavailable';
+
+  /** Located edit failure when code is edit-unavailable; absent for model requirements. */
+  readonly failure?: OperationFailure;
 
   /** Display explanation. */
   readonly message: string;

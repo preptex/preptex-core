@@ -51,3 +51,17 @@ changes, additions/removals, earlier setter invalidation, concurrent independent
 configurations, equivalent option ordering and clean-rebuild equivalence. Hosts
 remain responsible for input byte/file quotas, scheduling, workers, termination
 and wall-clock deadlines. Fine-grained incremental interpretation is deferred.
+
+## C5a lookup measurements (2026-09-10)
+
+`node examples/benchmark-node-lookup.mjs` uses 62,024 UTF-16 units: a 2,000-environment
+body file included twice. It measures fresh index construction after scan/view
+creation, then 10,000 original-offset queries. On the same Windows/Node 22.16.0
+host, warm medians were **280 ms** for construction and **85 ms** for all queries,
+against fixed corpus budgets of 2,000 ms and 1,000 ms respectively. Each inclusion
+is indexed distinctly. Index construction is cached only for canonical immutable
+models; these construction measurements use fresh models for each sample.
+
+The original C8 benchmark also passes after adding node metadata: scan **125 ms**,
+view **254 ms**, inventory **2 ms**, references **203 ms**. These are local corpus
+measurements, not latency guarantees or substitutes for host resource limits.

@@ -2,26 +2,30 @@
 
 This checkout prepares **0.3.0 (unreleased)**. C1–C9 provide source snapshots,
 configured structure, independent analyses, checked edits, exports and scan reuse.
+The C5a/C7a extension adds [source lookup and node transformations](./node-operations.md).
 The pipeline and CLI inventory/analysis are available. C10's registry publication
 gate remains open; see [website handoff](./website-handoff.md). Legacy APIs remain
 available with [explicit migration guidance](./migration-0.3.md).
 
 ## Public operations
 
-| Operation                                                        | Result                                                                                       | Available |
-| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | --------- |
-| `createProjectSnapshot(files, scanOptions?)`                     | Immutable original sources, lossless tokens, located facts and per-file coverage             | Yes       |
-| `updateProjectSnapshot(snapshot, changes, scanOptions?)`         | Atomic source upserts/removals and optional scan-setting replacement; unchanged scans reused | Yes       |
-| `inspectProject(snapshot, request?)`                             | Located source inventory; no entry or output required                                        | Yes       |
-| `resolveProjectView(snapshot, configuration)`                    | Ready structure or incomplete/blocked trace                                                  | Yes       |
-| `walkConfiguredNodes(root)` / `isConfiguredContainerNode(node)`  | Public traversal and exhaustive container narrowing                                          | Yes       |
-| `checkOperationCapability(model, request)` / `projectOperations` | Requirements and structured eligibility reasons                                              | Yes       |
-| `validateProjectEditPlan(snapshot, plan, view?)`                 | Identity, range, overlap and occurrence-compatibility validation                             | Yes       |
-| `indexProjectView(view)`                                         | Reusable reached facts in encounter order, with coverage                                     | Yes       |
-| `runAnalysis(model, request)`                                    | Independent reference or conservative command-use findings                                   | Yes       |
-| `planTransformation(model, request)`                             | Checked edit previews or generated artifacts with mappings/dependencies                      | Yes       |
-| `applyProjectEdits(snapshot, plan, view?)`                       | Atomic validated source replacement, advancing changed file revisions                        | Yes       |
-| `runProjectPipeline(files, options)`                             | Frozen snapshot, configured view, ordered analyses and export result                         | Yes       |
+| Operation                                                             | Result                                                                                       | Available |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | --------- |
+| `createProjectSnapshot(files, scanOptions?)`                          | Immutable original sources, lossless tokens, located facts and per-file coverage             | Yes       |
+| `updateProjectSnapshot(snapshot, changes, scanOptions?)`              | Atomic source upserts/removals and optional scan-setting replacement; unchanged scans reused | Yes       |
+| `inspectProject(snapshot, request?)`                                  | Located source inventory; no entry or output required                                        | Yes       |
+| `resolveProjectView(snapshot, configuration)`                         | Ready structure or incomplete/blocked trace                                                  | Yes       |
+| `walkConfiguredNodes(root)` / `isConfiguredContainerNode(node)`       | Public traversal and exhaustive container narrowing                                          | Yes       |
+| `checkOperationCapability(model, request)` / `projectOperations`      | Requirements and structured eligibility reasons                                              | Yes       |
+| `validateProjectEditPlan(snapshot, plan, view?)`                      | Identity, range, overlap and occurrence-compatibility validation                             | Yes       |
+| `indexProjectView(view)`                                              | Reusable reached facts in encounter order, with coverage                                     | Yes       |
+| `runAnalysis(model, request)`                                         | Independent reference or conservative command-use findings                                   | Yes       |
+| `planTransformation(model, request)`                                  | Checked edit previews or generated artifacts with mappings/dependencies                      | Yes       |
+| `applyProjectEdits(snapshot, plan, view?)`                            | Atomic validated source replacement, advancing changed file revisions                        | Yes       |
+| `runProjectPipeline(files, options)`                                  | Frozen snapshot, configured view, ordered analyses and export result                         | Yes       |
+| `inspectProjectEnvironments(snapshot, scope?)`                        | Literal source environments and located ambiguous candidates                                 | Yes       |
+| `createProjectSourceIndex` / `lookupProjectSource` / `sourceOffsetAt` | Indexed source-position lookup and line conversion                                           | Yes       |
+| `selectProjectNode` / `getSelectedNode` / `getSelectedEnvironment`    | Canonical revision-bound selections and original locations                                   | Yes       |
 
 All listed descriptors are implemented. Capability checks use the same model,
 scope and readiness rules as execution. An eligible operation can still fail on

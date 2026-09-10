@@ -2,6 +2,19 @@
 
 Status: proposed implementation plan, not an implementation or an assertion that the new core API exists.
 
+Scope extension (2026-09-09): W4a/W6a add located tree selection, complete node
+suppression, named-environment suppression (including `comment`), environment
+renaming and wrapping. These depend on the new C5a/C7a core requirements and are
+not implemented by the original C0–C9 work. Complete the expanded core release
+gate before exposing these actions. Keep the intended core version at 0.3.0;
+the recorded 0.2.1 starting point below must be rechecked during W0.
+
+Core handoff update (2026-09-10): C5a/C7a are implemented and locally verified in
+the core checkout. [The finalized contract](../node-operations.md) provides the
+public names for inventories, indexed source lookup, selections and node-edit
+requests. Publication and registry verification still precede the website
+dependency update; all website implementation steps remain pending.
+
 Prepared: 2026-09-07. Implement this plan after the required library release described in [the core plan](core-project-model-implementation-plan.md) passes its release gate. API names and types below are capability descriptions; bind them to the public names in that release's shipped declarations.
 
 ## 1. Goal and release outcome
@@ -16,6 +29,10 @@ The release is successful when a user can:
 4. Preview a transformation that changes only the selected path while preserving conditional syntax and inactive source, or explicitly materialize the selected path.
 5. Download results without adding them to the input project or changing its entry.
 6. See which findings are complete, incomplete, stale, or blocked, and navigate findings to their correct original locations.
+7. Select a structural node to remove it completely, rename one environment
+   (for example `itemize` to `enumerate`), or surround it with a new environment.
+8. Remove all recognized environments named `C` or `comment` in an explicitly
+   chosen source/configured scope, with a preview and protected verbatim content.
 
 Keep the client-only React/CRA/CodeMirror stack and the code pane read-only. Preserve the existing visual style while introducing the controls and result views needed for these workflows. Do not add a backend, compilation, deployment, cloud storage, or a general plugin system as part of this migration.
 
@@ -51,8 +68,14 @@ Do not implement condition evaluation, command interpretation, label resolution,
 | Structured source inventories and configured analyses, with operation requirements and provenance                        | Analysis results                                | Required before Phase W5 |
 | Transform results as checked edits or artifacts, preservation/materialization policies, output compatibility diagnostics | Transformation preview and output               | Required before Phase W6 |
 | Public enums/guards, runtime validation, stable diagnostic/error codes, readonly types                                   | Safe strict TypeScript integration              | Required throughout      |
+| Token/node original line/start/end metadata, exact environment delimiter/name locations and indexed source lookup        | Efficient source/tree selection and navigation  | C5a required before W4a  |
+| Model-bound node selections, removal/rename/wrap requests, named-environment suppression and typed eligibility/conflicts | Safe tree actions and bulk environment removal  | C7a required before W6a  |
 
-Candidate release numbering is a new `0.x` minor, for example `0.3.0`, for the expanded public contracts and planned deprecations. The core plan initially retains legacy entry points and their behavior; any actual breaking change must be explicitly documented. The website must install the exact version actually published and verified, not assume that candidate exists. Read that version's shipped docs and declarations again before migrating.
+The intended release is `0.3.0`, including the added C5a/C7a contracts. The core
+retains legacy entry points and their behavior; any actual breaking change must
+be explicitly documented. The website must install the exact version actually
+published and verified, not assume that candidate exists. Read that version's
+shipped docs and declarations again before migrating.
 
 A source snapshot may contain incomplete syntax information for a damaged file. A configured view may also be incomplete. Neither state means that all source operations are unavailable. The core must state what is known and which operations can safely proceed; the website must not turn unknown conditions into false or label a partial reference search complete. Even a ready view must expose its coverage: it is ready within the documented supported subset, not a certification of full TeX execution.
 
@@ -67,6 +90,8 @@ Use these distinct concepts in state and controls:
 - **Source scope:** a file or the uploaded source project for inventories or source-local operations.
 - **Interpretation:** entry, semantic input traversal, condition policy and overrides, and supported analysis settings.
 - **Operation:** a requested analysis or transformation and its operation-specific options.
+- **Node selection:** model-bound references to selected constructs, separate from
+  the viewed file, tree expansion and committed source data.
 - **Output preferences:** conditional retention/materialization, output topology, and output naming. These do not alter an analysis configuration.
 
 Use a discriminated viewed-item identity so a source and an artifact can have the same virtual path without becoming the same selection. An artifact must never be accepted as an entry unless the user explicitly promotes it to sources.
@@ -127,6 +152,12 @@ Names of new files/hooks are recommendations, not mandatory APIs. Keep ownership
 | Pure adapters in `src/services/`                                           | Public core calls, option mapping, readiness mapping, typed error conversion                                      |
 
 Each domain options type has one authoritative definition. Import core domain types directly; website types may add presentation fields but must not restate core unions. Update `docs/architecture.md` and the relevant state-ownership instructions in `AGENTS.md` when replacing the existing `CoreOptionsUI` arrangement.
+
+Tree selection state belongs to presentation state and holds only public
+model-bound references. The operation draft owns pending node actions and scope;
+the operation-result store owns previews and conflicts. Neither checking a node
+nor editing an action draft mutates source or the core tree. Drop or visibly mark
+selections stale when their snapshot/view changes; never reuse old row/node IDs.
 
 ## 5. Ordered implementation phases
 
@@ -215,6 +246,41 @@ Each domain options type has one authoritative definition. Import core domain ty
 
 **Verification / exit:** Both branches of the intertwined-environment fixture remain visible in source inspection; a resolved view contains exactly the chosen well-formed structure. Clicking a finding or active node opens the correct source without changing entry. Two inclusions of the same file have distinct occurrence identities. Multi-origin nodes, Unicode, CRLF, empty documents, repeated jumps, and stale results have deterministic navigation behavior.
 
+### Phase W4a — Add located tree selection and source lookup
+
+**Goal:** Select exact constructs and navigate their source efficiently.
+**Depends on:** W4 and released core C5a.
+
+**Steps:**
+
+1. Add keyboard-accessible single/multiple node selection without changing the
+   project entry. Store exported selection references with snapshot/view and
+   inclusion identity. Offer actions only for the node kinds that core declares
+   eligible; selecting a synthetic root or protected interior must not fabricate
+   an editable source extent.
+2. Show file, original line, start and end positions for the selected token/node.
+   Use the public `range.line/start/end` convention rather than inventing a second
+   `lineno` convention: lines are one-based; start/end are inclusive UTF-16
+   offsets in original source. Multi-origin nodes show each located span and its
+   inclusion, with a clearly labeled primary jump. Empty/synthetic-only nodes
+   have no invented source location. Keep artifact/output coordinates distinct.
+3. Use public indexed offset/range lookup for source-click-to-tree selection and
+   search-result navigation; do not scan rendered labels or rebuild an interval
+   parser in the website. Reuse indexes by source/view identity. Repeated inputs
+   may yield several matches: keep the current inclusion when possible, otherwise
+   offer the returned ordered choices rather than silently choosing one.
+4. Use whole delimiter/name ranges only through public core requests, not direct
+   browser substring edits. Translate inclusive positions to CodeMirror's
+   half-open coordinates at one adapter boundary; handle its displayed line
+   ending representation without normalizing stored source or using visual
+   character columns as UTF-16 offsets. Clear stale selection highlights on a
+   source/configuration change while preserving purely visual filter preferences.
+
+**Verification / exit:** Token/node details and bidirectional navigation agree
+with F37 for emoji, CR/LF/CRLF, empty source, nested nodes, disjoint origins and
+repeated inclusions. Lookup remains responsive on the measured large fixture;
+selecting or clearing nodes changes neither sources nor entry.
+
 ### Phase W5 — Add independent analysis operations and structured results
 
 **Goal:** An analysis is a useful first-class action with no output-generation prerequisite.
@@ -254,11 +320,64 @@ Each domain options type has one authoritative definition. Import core domain ty
 
 **Verification / exit:** With an active-only comment transform, comments in inactive branches and conditional wrappers remain exactly unchanged in preserved output; materialized output contains only the selected path according to core fixtures. Source buffers remain unchanged until Apply. Stale or conflicting edits cannot apply. Repeated transformations do not grow input files. Multi-file ZIP contents match the artifact set and retain valid internal input references for every export option advertised as a usable project. Materialization and inlining preserve command boundaries as established by core fixture F29.
 
+### Phase W6a — Add node actions and named-environment suppression
+
+**Goal:** Preview explicit structural edits and export or apply them safely.
+**Depends on:** W4a/W6 and released core C7a, with real-package tests.
+
+**Steps:**
+
+1. Add actions for selected eligible nodes: **Remove entire node**, **Rename
+   environment**, and **Wrap in environment**. Removal includes contents and
+   delimiters. Renaming `itemize` to `enumerate` changes one selected list's
+   delimiter names and retains its body. Wrapping keeps that list/node intact
+   inside a new `\begin{NAME}` / `\end{NAME}` pair. Validate literal names and
+   unsupported argument/option combinations through public core contracts.
+2. Add **Remove environments by name** with a case-sensitive name list (e.g.
+   `C`, `comment`) and explicit scope: all uploaded sources, named source files,
+   or configured occurrences. The source operation needs no entry or condition
+   choices and includes eligible matches in both branches and stored contexts;
+   show locations/context and the exact affected count. Preserve verbatim
+   lookalikes. Show unmatched/ambiguous-region failures and partial recognition
+   honestly; do not present a regex search count as the number safely removed.
+3. Expose separate choices for percent comments and recognized `comment`
+   environments, including an explicit combined choice. A custom `C` environment
+   is not automatically a comment environment. Demonstrate following declared
+   long/short flags and their setters while removing both comment forms from
+   configured output. Use core coverage and operation descriptors for availability.
+4. Keep pending actions in a previewable operation draft; never directly mutate
+   the core tree. Show complete removed ranges, both renamed delimiters, added
+   wrappers, affected files/inclusions and core normalization/conflicts. Preview
+   nested removals and rename-plus-wrap behavior using core's defined batch
+   order. Preserve node selection independently of tree collapsing/filtering.
+5. Distinguish **Apply edits to sources** from **Generate transformed artifacts**.
+   A disjoint/multi-file node or conflicting repeated inclusion may be ineligible
+   for source edits but eligible in a fully materialized, inlined artifact. Show
+   the located reason and explicit output alternative. Never silently flatten,
+   change scope, edit inactive text or promote artifacts to make an action work.
+6. Explain stage ordering when it matters: configured node actions use the
+   already-resolved view, before final comment filtering/export. Removing a
+   setter-containing node from that output does not recompute earlier choices.
+   To make source removal affect interpretation, Apply that source edit first,
+   refresh the view and select new nodes. Do not silently carry old selection
+   identities across stages. No general pipeline editor is needed.
+7. Apply only current validated plans atomically through source ownership. Keep
+   source unchanged on Cancel, stale identity, conflict or failure. After Apply,
+   invalidate derived results/selections and resolve again. Generated artifacts
+   remain separate; parse them anew for output navigation. Highlight generated
+   wrappers using output ranges and show their synthetic provenance.
+
+**Verification / exit:** Real-package integration and UI tests cover F31–F38:
+whole-node removal, named suppression, combined comments, a single-list rename,
+nested wrapping, source/artifact eligibility, batch conflicts, stage ordering,
+immutable input and stale-selection rejection. Every advertised action uses a
+public core operation; the website implements no replacement source parser.
+
 ### Phase W7 — Harden lifecycle, diagnostics, and measured performance
 
 **Goal:** The workspace remains consistent during imports, replacements, errors, and heavier projects.
 
-**Depends on:** W2–W6.
+**Depends on:** W2–W6, including W4a/W6a.
 
 **Steps:**
 
@@ -282,7 +401,7 @@ Each domain options type has one authoritative definition. Import core domain ty
 
 1. Update `src/services/core.test.ts` for the new adapter contract and actual core behavior. Keep narrow real-package integration tests; do not mock condition resolution or analyses to make migration tests pass.
 2. Extend `src/model/project.test.tsx` for atomic source updates, independent entry/viewing, result keys, artifact separation, per-operation readiness, partial source availability, stale invalidation, and recovery under StrictMode.
-3. Update `src/App.test.tsx` for the new visible workflows, including setup lifecycle and explicit source application. Extend AST builder tests for every released public variant and multi-origin navigation data.
+3. Update `src/App.test.tsx` for the new visible workflows, including setup lifecycle and explicit source application. Extend AST builder tests for every released public variant and multi-origin navigation data. Cover node selection, removal, named suppression, rename/wrap previews and typed conflicts through the actual released APIs, using core F31–F38.
 4. Exercise the acceptance scenarios in Section 6 in a real browser. Inspect rendered layout at the existing normal desktop layout and a narrow viewport; retain usable source and result panes without clipped dialog actions.
 5. Test dialog focus entry/trapping/restoration, Escape, cancel/apply behavior, keyboard operation of condition choices and tabs, visible focus, accessible status messages, and readable disabled-action explanations. Use native radio/select/checkbox semantics where possible rather than unimplemented custom listbox behavior.
 6. Check upload/folder selection, file removal, AST filtering, collapsing/resizing, source jumps, result selection, and actual downloaded file contents. Preserve existing features unless a documented behavior change replaces them.
@@ -322,6 +441,20 @@ Use small shared fixtures from the library plan where possible; assert meaningfu
 | UI-23 | A conditional opens in one file and closes in another, compared with an environment spanning the same input boundary.                      | Source remains inspectable; the first-release conditional-boundary limitation is explicit, while supported projected environment structure is rendered correctly.                                       |
 | UI-24 | Preserve inactive branches while expanding active inputs; an inactive branch contains an input.                                            | The literal inactive input remains, and the result is labeled partially flattened rather than self-contained.                                                                                           |
 
+The added scenarios below are required alongside UI-01–UI-24; they are planned
+acceptance cases, not completed browser verification.
+
+| ID    | Added fixture/action                                                                                      | Expected result                                                                                                                                         |
+| ----- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UI-25 | Select a node from tree and source with Unicode, mixed line endings, multiple origins and repeated inputs | Correct line/start/end display and deterministic indexed lookup; inclusion choices remain distinct; entry/source unchanged.                             |
+| UI-26 | Select and remove one of two similar complete nodes; Cancel, then Apply                                   | Preview removes the entire chosen construct only; Cancel changes nothing; Apply advances source revision and clears stale selections.                   |
+| UI-27 | Remove every `C` environment in all-source scope with setup dismissed                                     | Both branches and eligible nested/body occurrences handled by core; verbatim lookalikes preserved; malformed/ambiguous matches produce located failure. |
+| UI-28 | Follow long/short source setters and request percent plus `comment` suppression                           | Selected output matches F33; comment controls are explicit and verbatim remains protected.                                                              |
+| UI-29 | Rename one `itemize` to `enumerate`                                                                       | Both name ranges change, body and other list remain exact; unsupported argument adaptations are explained.                                              |
+| UI-30 | Wrap a selected environment/group/section and apply nested wraps                                          | Original node remains inside balanced wrappers; nesting/order and output/source locations agree with F35/F38.                                           |
+| UI-31 | Edit a node spanning files/inactive gaps or one inclusion of a shared source                              | Unsafe source Apply unavailable with a reason; supported materialized/inlined artifact preview uses distinct occurrences without implicit mode changes. |
+| UI-32 | Batch ancestor removal/descendant edits, change configuration while preview is open, then attempt Apply   | Core batch policy is shown; stale Apply rejected atomically; a fresh source-before-view stage requires fresh selections.                                |
+
 ## 7. Objective release go/no-go checklist
 
 - [ ] The exact published core version, lockfile, installed package, and reviewed docs agree.
@@ -335,6 +468,9 @@ Use small shared fixtures from the library plan where possible; assert meaningfu
 - [ ] Independent operations are enabled by their own requirements, including usable source operations during unrelated errors.
 - [ ] Preservation/materialization and semantic traversal/output topology are independent and obey core compatibility checks.
 - [ ] Artifacts are excluded from inputs; stale/conflicting edits cannot apply; advertised multi-file exports have coherent references.
+- [ ] C5a/C7a contracts are shipped and reviewed; token/node locations and public indexed lookup match the displayed source and every inclusion.
+- [ ] Node removal, named-environment suppression, selected environment renaming and wrapping have real-package previews and explicit source/artifact eligibility.
+- [ ] Combined percent/comment-environment suppression, protected regions, batch order and selection invalidation pass UI-25–UI-32 and core F31–F38.
 - [ ] Required automated checks, regression fixtures, browser interactions, accessibility checks, and performance measurements pass.
 - [ ] Architecture and user help document the implemented model and limitations rather than the old transform-only behavior.
 

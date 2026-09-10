@@ -4,6 +4,9 @@ The project API is documented in [Project model](./project-model.md), including
 source inventories without an entry, condition/input resolution, original-origin
 navigation, independent analyses, checked edits, export mappings/dependencies,
 operation eligibility, and an executable public-import example.
+See [node operations](./node-operations.md) for indexed line/offset lookup,
+source environment inventories, selected-node removal, environment renaming and
+wrapping, and the distinction between shared source edits and per-inclusion output.
 This checkout prepares 0.3.0 without publishing it. The legacy integration below
 remains supported; do not substitute new source-driven policies for its static
 whitelist semantics. See [0.3.0 migration](./migration-0.3.md) for explicit mappings,

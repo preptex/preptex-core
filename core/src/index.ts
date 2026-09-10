@@ -152,3 +152,29 @@ export {
   checkOperationCapability,
   validateProjectEditPlan,
 } from './lib/project/operations.js';
+
+export type {
+  VersionedSourceOrigin,
+  NodeLocation,
+  EnvironmentDelimiter,
+  ConfiguredEnvironmentDelimiter,
+  ConfiguredEnvironmentSyntax,
+  SourceEnvironment,
+  EnvironmentInventory,
+  NodeSelection,
+  EnvironmentSelection,
+  NodeEditAction,
+  NodeTransformationRequest,
+  SourceLookupHit,
+  SourceInterval,
+  SourceLookupFile,
+  ProjectSourceIndex,
+  SourceLookupQuery,
+} from './node-types.js';
+export { inspectProjectEnvironments, getSelectedEnvironment } from './lib/project/environments.js';
+export { selectProjectNode, getSelectedNode } from './lib/project/selection.js';
+export {
+  createProjectSourceIndex,
+  lookupProjectSource,
+  sourceOffsetAt,
+} from './lib/project/source-index.js';

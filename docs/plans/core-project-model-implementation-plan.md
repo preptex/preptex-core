@@ -1,6 +1,6 @@
 # PrepTeX Core: project model, analyses, and transformations
 
-Status: **C1–C9 implemented for 0.3.0; C10 local verification complete, registry publication pending.**
+Status: **C0–C9, including C5a/C7a, implemented for 0.3.0. C10 local repository and isolated-package checks pass; publication and exact registry-consumer verification remain pending.**
 Prepared against the installed `@preptex/core@0.2.1`. Complete this plan before migrating the website using the
 [website implementation plan](website-project-workspace-implementation-plan.md).
 
@@ -15,6 +15,21 @@ composed pipeline, compatibility guidance and CLI inventory/analysis. The
 [migration guide](../migration-0.3.md) and [website handoff](../website-handoff.md)
 record the contract and reproducible C10 package checks. Keep version 0.3.0;
 no website dependency changes precede a verified registry release.
+
+Scope extension (2026-09-09): add located token/node lookup, selected-node
+suppression, named-environment suppression (including `comment`), environment
+renaming and wrapping. Implement C5a then C7a before repeating C10. The previous
+passing checks cover the original scope only; they do not establish that these
+new operations exist. Keep all work in the same unreleased 0.3.0 preparation.
+
+Implementation update (2026-09-10): C5a/C7a now ship through the public entry
+point; see [node-operation contracts and examples](../node-operations.md).
+The expanded acceptance suite covers selected removal, source environment
+matching, rename/wrap composition, original-source lookup, safe source edits,
+per-inclusion artifacts, transport reconstruction and resource bounds. Runtime,
+declaration, CLI, generated documentation and isolated TypeScript 4.9 checks are
+recorded in [the handoff](../website-handoff.md). This is still the same 0.3.0
+release preparation; no publication or downstream upgrade is implied.
 
 Baseline: clean 0.2.1 checkout; 167 core tests, one CLI regression, workspace
 type checks, public type contracts and TSDoc checks passed. The baseline format
@@ -49,6 +64,10 @@ The first release must support:
 - Reference analyses and conservative unused-command candidates.
 - Independent transformations, including processing selected source while
   preserving inactive source, and exporting a selected configuration.
+- Tree-selected removal, environment renaming and wrapping, plus removal of all
+  recognized environments with specified names in an explicit source/view scope.
+- Original line/start/end locations on tokens and node origins, with public
+  indexed lookup between source positions and structural selections.
 - Explicit diagnostics, coverage, source provenance, and stale-result detection.
 - An incremental migration path for existing public API consumers.
 
@@ -427,6 +446,67 @@ stream in the correct encounter order.
       origin without falsely covering inactive gaps.
 - [x] A partial view never presents an invented complete AST.
 
+### C5a. Extend source locations, environment syntax and selection lookup
+
+**Status:** implemented and locally verified; original C5 remains implemented.
+**Depends on:** C2/C3/C5. **Goal:** select exact constructs and locate them in
+source without searching rendered text or importing parser internals.
+
+**Steps**
+
+1. Reuse the existing `SourceRange` convention: `line` is the one-based original
+   line number (the requested lineno), `start` and `end` are inclusive zero-based
+   UTF-16 positions in the original JavaScript source string. Every source token
+   exposes these attributes through its public range. Retain original CR, LF,
+   CRLF and surrogate code units; never measure against normalized display text.
+2. Every configured node exposes exact located origins with snapshot/file
+   revision, virtual path, inclusion occurrence, and each span's line/start/end.
+   A single contiguous node may expose a convenience location. A disjoint or
+   multi-file node must expose all spans and an explicitly labeled primary
+   location, never a fictitious bounding source range. Empty/synthetic-only nodes
+   have an explicit no-source variant. Keep projected/output coordinates separate
+   from original coordinates; existing legacy positions keep their convention.
+3. Add public environment syntax metadata: literal name, whole opening/closing
+   command ranges, their exact name ranges, body bounds where contiguous, and
+   origin/occurrence identities for each delimiter. Record complete suppression
+   bounds only when established safely. Support special protected `comment`
+   regions without interpreting their contents as executable nodes.
+4. Extend source inspection with located literal environment occurrences,
+   independently of a configured view. Match only the documented source grammar,
+   honoring percent comments, escaped commands, stored-definition context and
+   protected regions. Never pair ambiguous delimiters across alternative branches
+   or fabricate an all-branches structural tree. Unmatched/ambiguous candidates
+   carry coverage and eligibility reasons; unrelated inventory remains usable.
+   For `comment` and other protected syntax, use the scanner's explicit terminator
+   grammar, not ordinary nested-environment rules or package execution.
+5. Add public, immutable selection references and lookup helpers; names are to be
+   finalized in the declarations. Configured selections include snapshot/view ID
+   and node occurrence key; source-environment selections use snapshot/file
+   revision and an occurrence identity. Revalidate against the owning model; do
+   not trust caller-constructed nodes or persist keys across reparses.
+6. Build per-file line-start and interval indexes reusable for the same snapshot
+   or view. Provide offset/range lookup for tokens, source environments and
+   configured nodes, plus line-to-offset conversion. Index each disjoint origin
+   separately. Return every matching inclusion distinctly, with documented
+   deterministic ordering (innermost containing nodes before ancestors, then
+   encounter order); filters can select a specific inclusion. Point lookup uses
+   inclusive containment; EOF is an insertion position, not a fabricated token.
+   Target logarithmic lookup plus returned matches after index construction;
+   benchmark build cost and queries on large files and repeated inclusions.
+7. Export the contracts/helpers only through `index.ts`; document optionality,
+   units, ordering, stale identities and runtime freezing. Add TypeScript 4.9
+   contract tests, transport reconstruction and nested readonly/freeze tests.
+
+**Acceptance**
+
+- [x] Tokens and every original node span expose correct line/start/end metadata.
+- [x] Whole delimiters, name-only ranges and contiguous bodies point to exact
+      source substrings; comment-like text inside verbatim is not an occurrence.
+- [x] Source lookup handles Unicode, CR/LF/CRLF, empty files, EOF, nested nodes,
+      disjoint spans and repeated inclusions without a linear full-project scan.
+- [x] Stale selections fail; a primary location never grants permission to edit
+      all text between a multi-origin node's minimum and maximum offsets.
+
 ### C6. Implement independent analyses and explain their coverage
 
 **Depends on:** C3; configured analyses also require C4/C5.
@@ -519,6 +599,112 @@ stream in the correct encounter order.
 - [x] Output dependency metadata accurately identifies every preserved input.
 - [x] Analyses and transformations leave the originating snapshot untouched.
 
+### C7a. Add node-based removal, environment suppression, renaming and wrapping
+
+**Status:** implemented and locally verified; original C7 remains implemented.
+**Depends on:** C5a and C7. **Goal:** turn explicit structural selections into
+safe previews or transformed artifacts without mutating parsed trees.
+
+**Operation contract**
+
+Expose typed public requests through the operation/capability system.
+`edit-nodes` carries the `remove-node`, `rename-environment` and `wrap-node` actions;
+`remove-environments` is a separate request. The public contracts and supported
+source/artifact targets are finalized in [node operations](../node-operations.md).
+
+| Request               | Required behavior                                                                                                                                                    |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `remove-node`         | Suppress the selected complete construct and its descendants from the result, including its delimiters.                                                              |
+| `remove-environments` | Suppress every safely recognized occurrence matching case-sensitive literal names, e.g. `C` or `comment`, in an explicit all-files, named-files or configured scope. |
+| `rename-environment`  | Rename one selected environment by changing both delimiter name ranges; `itemize` to `enumerate` leaves items and body text untouched.                               |
+| `wrap-node`           | Surround one selected complete construct with `\begin{NAME}` and `\end{NAME}`; retain the original construct and its contents inside.                                |
+
+**Steps**
+
+1. Accept model-bound selection references, not mutable AST edits or arbitrary
+   source-string replacement instructions. Advertise eligible node kinds and
+   located reasons per action. Reject the synthetic document root, incomplete
+   constructs and protected syntax interiors as targets. Names must satisfy the
+   documented literal environment-name grammar; the initial rename/wrap contract
+   supports argument-free environment delimiters. Unsupported argument/option
+   adaptations need an explicit typed extension, not silent textual substitution.
+   Structural validity is not proof that a custom environment/package is defined.
+2. Keep source and configured scopes distinct. Source-wide named suppression
+   visits both conditional branches and eligible stored-body contexts without
+   choosing conditions; it needs no entry or structural tree. Treat custom `C`
+   as ordinary source syntax unless explicitly configured as protected: its name
+   alone must not change interpretation. Match nested complete occurrences and
+   normalize nested removals to the outermost span. Preserve verbatim/literal
+   regions and reject an ambiguous/unclosed requested occurrence atomically,
+   with exact reasons rather than silently claiming every match was removed.
+3. Extend comment suppression to support an explicit typed option for removing
+   recognized `comment` environments as well as percent comments. Keep the
+   established percent-only default unless an explicit compatibility decision
+   changes it. Provide an example that follows `\longtrue`/`\shortfalse` after
+   supported declarations and suppresses both forms. Never remove verbatim merely
+   because it shares the protected-token representation with `comment`.
+4. For source-edit output, use exact proven-safe spans. Whole-node removal/wrapping
+   requires a contiguous compatible source extent in the first implementation;
+   do not envelope inactive gaps or scatter wrapper delimiters across files.
+   Renaming can use two precise per-origin name edits only if all affected
+   inclusion contexts permit both edits. Enforce existing repeated-inclusion,
+   inactive-slice and stale-source protections for every action, including new
+   text inserted at boundaries. Return `edit-conflict` or another documented
+   typed ineligibility reason when no safe mapping exists.
+5. For a fully materialized, inlined configured artifact, perform edits on the
+   selected structure/occurrences before final emission. This permits complete
+   removal or wrapping of a node with disjoint/multi-file origins and permits
+   different edits to separate inclusions. It must never imply that equivalent
+   edits can be applied to shared source. For preserved conditions or preserved
+   inputs, offer only combinations with a proved mapping; otherwise reject and
+   explain the materialize/inline alternative.
+6. Wrapping adds the opener before the complete node and the closer after it;
+   it does not replace the node's existing environment. Insert before `start`
+   and after inclusive `end` for a safe source extent. Use the emission layer to
+   preserve lexical boundaries at comments, control words and line endings.
+   Added delimiters have synthetic provenance; retained content keeps its original
+   mappings. Renamed text has explicit replacement provenance.
+7. Define batch composition deterministically. Resolve every selection against
+   the same original model. Deduplicate identical removals; ancestor removal
+   subsumes descendant removals, but reject rename/wrap actions inside a removed
+   subtree. Permit rename plus wrap on the same environment: rename the inner
+   environment, then surround it. Allow nested wraps; multiple wraps on the same
+   node use request order from outermost to innermost. Normalize coincident
+   boundary insertions into unambiguous edits, with closing delimiters in reverse
+   nesting order; never weaken the generic edit validator's overlap checks.
+8. Make pipeline ordering explicit. Configured node actions refer to the chosen
+   original view and operate before final comment filtering/export emission; the
+   output must not restore removed subtrees. They do not retroactively rerun
+   condition resolution when a removed subtree contained a setter. A source-wide
+   removal intended to affect later resolution is a separate checked source-edit
+   stage, followed by a fresh snapshot/view and fresh selections. Returned
+   provenance records this distinction; never reuse node IDs across stages.
+9. Return a preview of affected files/occurrences and a validated edit plan or
+   artifacts using the existing result contracts. Applying source edits is
+   atomic, advances revisions, and invalidates old views/selections/results.
+   Reparse generated text separately for output-tree navigation. Keep the
+   original source and parsed tree frozen throughout.
+10. Update operation descriptors, pipeline composition, public TSDoc, migration
+    examples and website handoff with exact names, eligibility and supported
+    output combinations. Extend output/nesting limits to inserted wrappers and
+    batched operations. Run new public runtime/type fixtures and the complete
+    repository/packed-consumer checks before release.
+
+**Acceptance**
+
+- [x] Selected constructs disappear completely; unrelated and protected source
+      remains exact, and percent plus `comment` suppression works with source flags.
+- [x] Removing all `C` environments handles nested occurrences and both source
+      branches, with explicit failure for ambiguous/malformed requested matches.
+- [x] A selected `itemize` becomes `enumerate` with both delimiters changed and
+      its body unchanged; another list in the same file remains untouched.
+- [x] Wrapping retains the selected node inside a balanced new environment,
+      including nested wraps and start/EOF boundaries, without token merging.
+- [x] Disjoint/multi-file and repeated-inclusion edits either have safe explicit
+      mappings or fail; per-occurrence artifact edits do not alter shared source.
+- [x] Batches, stale selections, clone/freeze behavior, provenance, bounds and
+      pipeline ordering have exact expected-output and typed-failure tests.
+
 ### C8. Complete updates, invalidation, and operational bounds
 
 **Depends on:** C1-C7. **Goal:** make reuse correct before optimizing it.
@@ -584,7 +770,7 @@ stream in the correct encounter order.
 
 ### C10. Validate the package, publish its contract, and hand off
 
-**Depends on:** C0-C9. **Goal:** provide a real, tested dependency for the website.
+**Depends on:** C0-C9, including added C5a/C7a. **Goal:** provide a real, tested dependency for the website.
 
 **Steps**
 
@@ -614,12 +800,12 @@ stream in the correct encounter order.
 
 **Acceptance**
 
-- [x] All repository checks and the public acceptance matrix pass.
+- [x] All repository checks and the expanded public acceptance matrix, including C5a/C7a, pass.
 - [ ] Packed and published contents match the documented API.
 - [ ] The actual exact release installs and typechecks in a clean consumer.
 - [x] No full-compiler, all-configurations, or complete-byte-preservation claim
       exceeds what the implementation and its input types support.
-- [x] Every capability in section 6 is available through the public entry point.
+- [x] Every capability in section 6, including node-edit and location extensions, is available through the public entry point.
 
 Publication gate: npm reported 0.3.0 absent and release authentication returned
 401 Unauthorized on 2026-09-08. Local tarball checks do not satisfy the published
@@ -628,6 +814,10 @@ run `npm run consumer:check -- --registry` and record its integrity/type/runtime
 evidence before completing C10 or upgrading the website dependency.
 
 ## 5. Minimum acceptance fixtures
+
+F01–F30 cover the original scope. F31–F38 are exercised by the public
+`node-operations.test.ts` suite, its F31 source fixture and exact inline/table-driven
+source cases. The handoff maps each fixture family to its executable evidence.
 
 Use small checked-in `.tex` fixtures plus exact expected strings, structured
 observations, and diagnostic codes. Add table-driven variants where appropriate.
@@ -665,6 +855,19 @@ observations, and diagnostic codes. Add table-driven variants where appropriate.
 | F29 | Materialize `\iftrue\relax\fi abc`; inline a file ending in `\relax` immediately before caller text `abc` | Emit the command token followed by the letters, for example `\relax abc`, never the different command `\relaxabc`. Test both conditional and input boundaries independently.             |
 | F30 | Declare a flag inside a group and use it outside; redefine a tracked test or generated setter             | Local bindings restore/disappear according to the supported scope rules. Redefined names do not keep their stale boolean behavior; an unsupported new meaning yields an incomplete view. |
 
+### Additional required node-edit fixtures
+
+| ID  | Added fixture                                                                                                                      | Required result                                                                                                                                                     |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F31 | Remove one selected environment/group/section subtree beside a similar unselected node                                             | Exact whole-construct removal, correct eligible-kind handling, unchanged neighbors and immutable input.                                                             |
+| F32 | Remove named `C` environments in both branches, nested occurrences, stored bodies, verbatim lookalikes and an unclosed candidate   | All eligible matches removed once; protected lookalikes untouched; ambiguity/unclosed requested match rejects the batch with original locations.                    |
+| F33 | Declared long/short flags, successive setters, percent comments and a `comment` environment                                        | Source-driven choices remain sequential; explicit combined suppression removes both comment forms; verbatim remains exact and defaults remain characterized.        |
+| F34 | Rename one of two `itemize` environments to `enumerate`                                                                            | Exactly two delimiter name edits, unchanged body/other list, and explicit rejection of unsupported delimiter-argument adaptations.                                  |
+| F35 | Wrap a complete node at file start/EOF; wrap an environment; nested/same-node wraps near a control word or EOF comment             | Original node retained; correctly ordered balanced wrappers; exact lexical boundaries, line handling and synthetic provenance.                                      |
+| F36 | Remove/rename/wrap multi-file or disjoint nodes and a shared node included twice with different selections                         | Unsafe source edits rejected; supported fully materialized/inlined per-occurrence artifacts differ correctly without changing sources.                              |
+| F37 | Token/node lookup with emoji, CR/LF/CRLF, empty source, disjoint origins and repeated includes                                     | Exact line/start/end substrings, explicit empty/synthetic locations, deterministic all-occurrence lookup, stale-reference rejection and measured index performance. |
+| F38 | Ancestor removal plus descendant actions, rename+wrap, overlapping wrappers and source-before-view versus configured-output stages | Documented batch normalization or typed conflict, atomicity, bounds and stage-specific condition outcomes; no stale node-key reuse.                                 |
+
 ### F02: required crossing-environment example
 
 ```tex
@@ -695,18 +898,21 @@ Deliver these capabilities under the finalized public names. The website must
 not recreate them with private imports, regex parsing, or locally invented core
 types.
 
-| Capability                                                     | Required handoff evidence                                                  |
-| -------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Inspectable source snapshots and atomic updates/deletions      | Public examples; F01, F03, F20, F22.                                       |
-| Located condition/input/definition/label/reference inventories | Typed facts with context and coverage; F06, F13, F17.                      |
-| Independent entry/traversal/condition configuration            | Public validated configuration type; F04-F12 and F27.                      |
-| Ready/incomplete/blocked views and operation eligibility       | Stable structured reasons and partial coverage; F10/F12/F14.               |
-| Configured structure and original origins                      | Public node union/traversal; F02/F19 plus inclusion IDs.                   |
-| Independent analyses                                           | Public requests/results; F15-F18 and informational forward references.     |
-| Independent transformations and previewable results            | Typed edit/artifact outputs; F19-F21/F25/F26.                              |
-| Export dependency and path semantics                           | Entry identity, remaining dependencies, no hidden rename; F09/F28.         |
-| Legacy compatibility                                           | C0 characterization suite and migration examples.                          |
-| Consumer compatibility                                         | Clean install, TypeScript 4.9 consumer check, exact version, bundled docs. |
+| Capability                                                     | Required handoff evidence                                                                              |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Inspectable source snapshots and atomic updates/deletions      | Public examples; F01, F03, F20, F22.                                                                   |
+| Located condition/input/definition/label/reference inventories | Typed facts with context and coverage; F06, F13, F17.                                                  |
+| Independent entry/traversal/condition configuration            | Public validated configuration type; F04-F12 and F27.                                                  |
+| Ready/incomplete/blocked views and operation eligibility       | Stable structured reasons and partial coverage; F10/F12/F14.                                           |
+| Configured structure and original origins                      | Public node union/traversal; F02/F19 plus inclusion IDs.                                               |
+| Independent analyses                                           | Public requests/results; F15-F18 and informational forward references.                                 |
+| Independent transformations and previewable results            | Typed edit/artifact outputs; F19-F21/F25/F26.                                                          |
+| Export dependency and path semantics                           | Entry identity, remaining dependencies, no hidden rename; F09/F28.                                     |
+| Legacy compatibility                                           | C0 characterization suite and migration examples.                                                      |
+| Located token/node lookup and exact environment delimiters     | Public immutable range/selection/index contracts; F34/F35/F37.                                         |
+| Node removal, environment rename and wrapping                  | Public typed requests, capability checks, previews and safe source/artifact mappings; F31/F34–F38.     |
+| Named-environment and combined comment suppression             | Independent source scope and configured output scope; protected-region coverage and failures; F32/F33. |
+| Consumer compatibility                                         | Clean install, TypeScript 4.9 consumer check, exact version, bundled docs.                             |
 
 The core work is complete when these capabilities ship in the verified release
 and all required acceptance fixtures pass. A working parser alone, a successful
@@ -718,7 +924,8 @@ build alone, or a modal-ready list of condition names does not meet this gate.
   unrestricted catcodes, and exact compiler tracing.
 - Symbolic analysis across every configuration and a universal conditional AST.
 - Automatic cloning/rewriting of shared files for conflicting inclusion contexts.
-- Arbitrary rename/extract/delete refactorings before mapped edits are validated.
+- General symbol renaming, extraction and arbitrary text refactorings beyond the
+  explicitly planned node removal, environment suppression/rename/wrap operations.
 - Full `\include`/`\includeonly` and auxiliary-file reference semantics.
 - A plugin runtime, persistent workflow engine, backend, or TeX compiler service.
 - Fine-grained incremental interpretation beyond the verified full-view rebuild.

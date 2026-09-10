@@ -66,10 +66,12 @@ for (const workspace of ['core', 'cli']) {
     required.push(
       'dist/index.d.ts',
       'dist/project-types.d.ts',
+      'dist/node-types.d.ts',
       'dist/docs/api/README.md',
       'dist/docs/integration.md',
       'dist/docs/architecture.md',
       'dist/docs/project-model.md',
+      'dist/docs/node-operations.md',
       'dist/docs/migration-0.3.md',
       'dist/docs/website-handoff.md'
     );
@@ -157,7 +159,7 @@ try {
   });
   run([path.join(consumer, 'node_modules/typescript/bin/tsc'), '-p', 'tsconfig.json'], consumer);
   await mkdir(path.join(consumer, 'acceptance'), { recursive: true });
-  const suites = ['project-model', 'project-operations', 'project-pipeline'];
+  const suites = ['project-model', 'project-operations', 'project-pipeline', 'node-operations'];
   for (const name of suites) {
     const source = await readFile(path.join(root, `core/tests/${name}.test.ts`), 'utf8');
     const publicSource = source.replaceAll("'../src/index.js'", "'@preptex/core'");
@@ -178,6 +180,11 @@ try {
   run([path.join(consumer, 'node_modules/vitest/vitest.mjs'), 'run'], consumer);
   await cp(path.join(root, 'examples/project-model.mjs'), path.join(consumer, 'example.mjs'));
   run(['example.mjs'], consumer);
+  await cp(
+    path.join(root, 'examples/node-operations.mjs'),
+    path.join(consumer, 'node-example.mjs')
+  );
+  run(['node-example.mjs'], consumer);
   await writeFile(
     path.join(consumer, 'exports.mjs'),
     [

@@ -1,3 +1,8 @@
+import { safeComment, commentEdit } from './comment-edits.js';
+import { sourceOperationEdits } from './source-operations.js';
+import { environmentActions, projectionChanges } from './node-edits.js';
+import { getSelectedNode } from './selection.js';
+import { projectedEditor } from './projected-edits.js';
 import type {
   ExportOptions,
   GeneratedArtifact,
@@ -17,26 +22,9 @@ import { PrepTexError, PrepTexErrorCode, ProjectOperationError } from '../../err
 import { updateProjectSnapshot, validateSnapshot } from './snapshot.js';
 import { validateView } from './view.js';
 import { requireCapability, validateOperation, validateProjectEditPlan } from './operations.js';
-import {
-  boundaryDelimiter,
-  sourceCopier,
-  dependencies,
-  emit,
-  lastToken,
-  synthetic,
-  type Segment,
-} from './emission.js';
-import {
-  coverage,
-  freeze,
-  identity,
-  invalid,
-  issue,
-  lineStarts,
-  rangeAt,
-  record,
-} from './shared.js';
-import { eligibleToken, validateOccurrenceEdits } from './safety.js';
+import { sourceCopier, dependencies, emit, synthetic, type Segment } from './emission.js';
+import { coverage, freeze, identity, invalid, issue, record } from './shared.js';
+import { eligibleToken } from './safety.js';
 import { reject } from './fail.js';
 import { virtualDirname } from '../virtual-path.js';
 
@@ -45,101 +33,6 @@ function selectedFiles(
   scope: SourceScope | undefined
 ): readonly ScannedFile[] {
   return source.files.filter((f) => scope?.kind !== 'files' || scope.paths.includes(f.path));
-}
-
-function safeComment(
-  source: ProjectSnapshot,
-  file: ScannedFile,
-  start: number,
-  end: number
-): boolean {
-  return (
-    !file.coverage.issues.some(
-      (i) => i.location && i.location.range.start <= end && i.location.range.end >= start
-    ) &&
-    file.tokens.some((t) => t.kind === 'comment' && t.range.start === start && t.range.end === end)
-  );
-}
-
-function commentEdit(
-  source: ProjectSnapshot,
-  file: ScannedFile,
-  start: number,
-  end: number
-): ProjectEdit {
-  if (/[\r\n]$/.test(file.source.slice(start, end + 1)))
-    while (/[ \t]/.test(file.source[end + 1] ?? '')) end++;
-  return {
-    kind: 'replace',
-    path: file.path,
-    range: rangeAt(lineStarts(file.source), start, end),
-    expected: file.source.slice(start, end + 1),
-    replacement: '',
-  };
-}
-
-function commentEdits(
-  source: ProjectSnapshot,
-  files: readonly ScannedFile[],
-  view?: ProjectView
-): ProjectEdit[] {
-  const candidates: ProjectEdit[] = [];
-  const seen = new Set<string>();
-  if (view) {
-    for (const selected of view.selectedTokens) {
-      if (!eligibleToken(selected) || selected.token.kind !== 'comment') continue;
-      const file = source.files.find((f) => f.path === selected.origin.path)!;
-      const { start, end } = selected.origin.range;
-      const key = `${file.path}:${start}:${end}`;
-      if (!seen.has(key) && safeComment(source, file, start, end)) {
-        candidates.push(commentEdit(source, file, start, end));
-        seen.add(key);
-      }
-    }
-  } else
-    for (const file of files)
-      for (const token of file.tokens)
-        if (
-          token.kind === 'comment' &&
-          safeComment(source, file, token.range.start, token.range.end)
-        )
-          candidates.push(commentEdit(source, file, token.range.start, token.range.end));
-  candidates.sort((a, b) =>
-    a.path < b.path
-      ? -1
-      : a.path > b.path
-        ? 1
-        : (a.kind === 'replace' ? a.range.start : a.offset) -
-          (b.kind === 'replace' ? b.range.start : b.offset)
-  );
-  // Determine delimiters against all adjacent removals, not against text that is
-  // itself about to disappear. This keeps preview and atomic application equal.
-  for (const file of files) {
-    let prefix = '';
-    let pos = 0;
-    const indices = candidates.flatMap((e, i) => (e.path === file.path ? [i] : []));
-    for (let j = 0; j < indices.length; j++) {
-      const index = indices[j]!;
-      const edit = candidates[index]!;
-      if (edit.kind !== 'replace') continue;
-      prefix += file.source.slice(pos, edit.range.start);
-      let next = edit.range.end + 1;
-      for (let k = j + 1; k < indices.length; k++) {
-        const following = candidates[indices[k]!]!;
-        if (following.kind !== 'replace' || following.range.start !== next) break;
-        next = following.range.end + 1;
-      }
-      const replacement = boundaryDelimiter(
-        lastToken(prefix, source.scanOptions),
-        file.source.slice(next)
-      );
-      candidates[index] = { ...edit, replacement };
-      prefix += replacement;
-      pos = edit.range.end + 1;
-    }
-  }
-  if (view) validateOccurrenceEdits(view, candidates);
-  return candidates;
 }
 
 function editedSegments(
@@ -240,10 +133,18 @@ export function planTransformation(
     operationVersion: 1,
   };
   const resultId = identity('transformation', provenance);
-  if (operation.operation === 'identity' || operation.operation === 'suppress-comments') {
-    const files = selectedFiles(source, operation.options.scope);
+  if (
+    operation.operation === 'identity' ||
+    operation.operation === 'suppress-comments' ||
+    ((operation.operation === 'edit-nodes' || operation.operation === 'remove-environments') &&
+      operation.options.target !== 'artifact')
+  ) {
+    const files = selectedFiles(
+      source,
+      'scope' in operation.options ? operation.options.scope : undefined
+    );
     const view = normalized.kind === 'view' ? normalized : undefined;
-    const edits = operation.operation === 'identity' ? [] : commentEdits(source, files, view);
+    const edits = sourceOperationEdits(source, operation, view);
     const plan = freeze({ kind: 'edits' as const, provenance, edits });
     validateProjectEditPlan(source, plan, view);
     let remaining = operation.options.maxOutputCodeUnits ?? 10000000;
@@ -271,12 +172,27 @@ export function planTransformation(
     });
   }
   if (normalized.kind !== 'view') invalid('Configured exports require a view.');
-  if (operation.operation !== 'materialize' && operation.operation !== 'export-project')
+  if (
+    operation.operation !== 'materialize' &&
+    operation.operation !== 'export-project' &&
+    operation.operation !== 'edit-nodes' &&
+    operation.operation !== 'remove-environments'
+  )
     invalid('Expected a configured export operation.');
   const options: ExportOptions =
-    operation.operation === 'materialize'
-      ? { ...operation.options, conditions: 'materialize' }
-      : operation.options;
+    operation.operation === 'edit-nodes' || operation.operation === 'remove-environments'
+      ? {
+          conditions: 'materialize',
+          inputs: 'inline',
+          nodeEdits:
+            operation.operation === 'edit-nodes'
+              ? operation.options.actions
+              : environmentActions(normalized, operation.options.names),
+          maxOutputCodeUnits: operation.options.maxOutputCodeUnits ?? 10000000,
+        }
+      : operation.operation === 'materialize'
+        ? { ...operation.options, conditions: 'materialize' }
+        : operation.options;
   const exported = exportView(normalized, options, provenance);
   return freeze({ kind: 'transformation', resultId, provenance, editPlan: null, ...exported });
 }
@@ -293,6 +209,16 @@ function exportView(
 } {
   const source = view.snapshot;
   const copied = sourceCopier(source);
+  const commentActions = options.suppressCommentEnvironments
+    ? environmentActions(view, ['comment'])
+    : [];
+  const nodeActions = options.nodeEdits ?? [];
+  // Explicit actions share one conflict check with export-time environment suppression.
+  const project = projectedEditor(
+    view,
+    projectionChanges(view, [...nodeActions, ...commentActions])
+  );
+  const commentNodes = commentActions.map((a) => getSelectedNode(view, a.selection));
   const issues: ProjectIssue[] = [...view.coverage.issues];
   const selectedByOccurrence = new Map<string, SelectedToken[]>();
   for (const token of view.selectedTokens) {
@@ -404,12 +330,9 @@ function exportView(
       const events: { start: number; pieces: Segment[] }[] = [];
       let omittedIndentUntil = -1;
       for (const token of tokens) {
-        if (
-          knownScaffolding
-            .get(occurrence.id)
-            ?.some((r) => r.start <= token.origin.range.start && r.end >= token.origin.range.end)
-        )
-          continue;
+        let keep = !knownScaffolding
+          .get(occurrence.id)
+          ?.some((r) => r.start <= token.origin.range.start && r.end >= token.origin.range.end);
         if (
           options.suppressComments &&
           eligibleToken(token) &&
@@ -418,14 +341,10 @@ function exportView(
         ) {
           const edit = commentEdit(source, file, token.origin.range.start, token.origin.range.end);
           if (edit.kind === 'replace') omittedIndentUntil = edit.range.end + 1;
-          continue;
+          keep = false;
         }
         const start = Math.max(token.origin.range.start, omittedIndentUntil);
-        if (start <= token.origin.range.end)
-          events.push({
-            start,
-            pieces: [copied(file, start, token.origin.range.end + 1, occurrence.id)],
-          });
+        events.push({ start: token.origin.range.start, pieces: project(token, file, keep, start) });
       }
       for (const child of ownChildren)
         events.push({
@@ -446,6 +365,17 @@ function exportView(
         for (const segment of event.pieces) collect(segment);
     } else {
       const edits: { start: number; end: number; pieces: Segment[] }[] = [];
+      for (const node of commentNodes) {
+        if (node.location.kind !== 'single')
+          reject(
+            'edit-conflict',
+            'Preserved output requires a contiguous comment environment.',
+            node.origins
+          );
+        const origin = node.location.primary;
+        if (origin.occurrenceId === occurrence.id)
+          edits.push({ start: origin.range.start, end: origin.range.end + 1, pieces: [] });
+      }
       if (options.suppressComments)
         for (const token of tokens)
           if (
@@ -470,7 +400,9 @@ function exportView(
             pieces: rendered.get(child.id)!,
           });
       let pos = 0;
-      for (const edit of edits.sort((a, b) => a.start - b.start)) {
+      for (const edit of edits.sort((a, b) => a.start - b.start || b.end - a.end)) {
+        if (edit.end <= pos) continue;
+        if (edit.start < pos) reject('edit-conflict', 'Overlapping preserved output edits.');
         collect(copied(file, pos, edit.start, occurrence.id));
         for (const segment of edit.pieces) collect(segment);
         pos = edit.end;

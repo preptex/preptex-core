@@ -308,6 +308,15 @@ size depends on the input graph and repeated inclusions.
 
 ## Stability and release boundaries
 
+The project model's node extension keeps immutable data contracts in
+`core/src/node-types.ts`. Source environment matching/context, selection lookup,
+interval indexing, node-action planning and projected emission are separate
+modules under `core/src/lib/project/`. They share the existing scanner and range
+conventions. Canonical source proposals are recomputed before application;
+configured artifact edits operate on the original selected token stream after
+condition/input resolution. Generated wrapper and replacement text has synthetic
+provenance. See [node operations](./node-operations.md) for the public contract.
+
 The explicit exports from `core/src/index.ts` are the compatibility boundary.
 Public functions, named types, enums, readonly fields, error codes, defaults,
 range conventions, and documented identity behavior follow package SemVer.

@@ -4,6 +4,7 @@ import type {
   OperationDescriptor,
   OperationRequest,
   ProjectEditPlan,
+  ProjectEdit,
   ProjectSnapshot,
   ProjectView,
 } from '../../project-types.js';
@@ -25,9 +26,31 @@ import {
 import { validateView } from './view.js';
 import { reject } from './fail.js';
 import { validateOccurrenceEdits } from './safety.js';
+import { normalizeNodeActions, normalizeNodeOperation } from './node-options.js';
+import { sourceOperationEdits } from './source-operations.js';
+import { environmentActions, projectionChanges } from './node-edits.js';
+import { ProjectOperationError } from '../../errors.js';
 
 /** Frozen operation requirements shared by capability checks and execution. */
 export const projectOperations: readonly OperationDescriptor[] = freeze([
+  {
+    id: 'edit-nodes',
+    version: 1,
+    implemented: true,
+    representation: 'view',
+    scopes: ['configured'],
+    coverage: 'ready-view',
+    resultKind: 'transformation',
+  },
+  {
+    id: 'remove-environments',
+    version: 1,
+    implemented: true,
+    representation: 'either',
+    scopes: ['all-files', 'files', 'configured'],
+    coverage: 'recognized',
+    resultKind: 'transformation',
+  },
   {
     id: 'source-inventory',
     version: 1,
@@ -106,6 +129,8 @@ export function validateOperation(value: unknown): OperationRequest {
   const request = record(value, 'operation request');
   fields(request, ['operation', 'options'], 'operation request');
   const operation = request['operation'];
+  if (operation === 'edit-nodes' || operation === 'remove-environments')
+    return normalizeNodeOperation(operation, request['options']);
   if (operation === 'source-inventory')
     return { operation, options: normalizeInventory(request['options']) };
   if (operation === 'resolve-view') {
@@ -129,7 +154,22 @@ export function validateOperation(value: unknown): OperationRequest {
     };
   }
   if (operation === 'suppress-comments' || operation === 'identity') {
-    fields(options, ['target', 'scope', 'maxOutputCodeUnits'], 'source edit options');
+    fields(
+      options,
+      ['target', 'scope', 'maxOutputCodeUnits', 'suppressCommentEnvironments'],
+      'source edit options'
+    );
+    if (
+      options['suppressCommentEnvironments'] !== undefined &&
+      typeof options['suppressCommentEnvironments'] !== 'boolean'
+    )
+      invalid('suppressCommentEnvironments must be a boolean.');
+    if (operation === 'identity' && options['suppressCommentEnvironments'])
+      invalid('Identity cannot suppress comment environments.');
+    const commentOptions =
+      options['suppressCommentEnvironments'] === undefined
+        ? {}
+        : { suppressCommentEnvironments: options['suppressCommentEnvironments'] === true };
     const target = options['target'];
     if (target !== 'source' && target !== 'selected')
       invalid('Invalid comment transformation target.');
@@ -145,16 +185,34 @@ export function validateOperation(value: unknown): OperationRequest {
       operation,
       options:
         target === 'source'
-          ? { target, scope: normalizeScope(options['scope']), maxOutputCodeUnits }
-          : { target, maxOutputCodeUnits },
+          ? {
+              target,
+              scope: normalizeScope(options['scope']),
+              maxOutputCodeUnits,
+              ...commentOptions,
+            }
+          : { target, maxOutputCodeUnits, ...commentOptions },
     };
   }
   if (operation === 'materialize' || operation === 'export-project') {
     fields(
       options,
       operation === 'materialize'
-        ? ['inputs', 'suppressComments', 'maxOutputCodeUnits']
-        : ['inputs', 'conditions', 'suppressComments', 'maxOutputCodeUnits'],
+        ? [
+            'inputs',
+            'suppressComments',
+            'suppressCommentEnvironments',
+            'nodeEdits',
+            'maxOutputCodeUnits',
+          ]
+        : [
+            'inputs',
+            'conditions',
+            'suppressComments',
+            'suppressCommentEnvironments',
+            'nodeEdits',
+            'maxOutputCodeUnits',
+          ],
       'export options'
     );
     const inputs = options['inputs'];
@@ -165,6 +223,12 @@ export function validateOperation(value: unknown): OperationRequest {
     )
       invalid('suppressComments must be a boolean.');
     const common = {
+      ...(options['nodeEdits'] === undefined
+        ? {}
+        : { nodeEdits: normalizeNodeActions(options['nodeEdits']) }),
+      ...(options['suppressCommentEnvironments'] === undefined
+        ? {}
+        : { suppressCommentEnvironments: options['suppressCommentEnvironments'] === true }),
       inputs,
       suppressComments: options['suppressComments'] === true,
       maxOutputCodeUnits: bounded(
@@ -174,6 +238,11 @@ export function validateOperation(value: unknown): OperationRequest {
         'maxOutputCodeUnits'
       ),
     } as const;
+    if (
+      options['suppressCommentEnvironments'] !== undefined &&
+      typeof options['suppressCommentEnvironments'] !== 'boolean'
+    )
+      invalid('suppressCommentEnvironments must be a boolean.');
     if (operation === 'materialize') return { operation, options: common };
     const conditions = options['conditions'];
     if (conditions !== 'preserve' && conditions !== 'materialize')
@@ -214,7 +283,9 @@ export function checkOperationCapability(
       message: `${descriptor.id} is reserved for a later implementation phase.`,
     });
   const representation =
-    operation.operation === 'suppress-comments' || operation.operation === 'identity'
+    operation.operation === 'suppress-comments' ||
+    operation.operation === 'identity' ||
+    operation.operation === 'remove-environments'
       ? operation.options.target === 'source'
         ? 'snapshot'
         : 'view'
@@ -230,6 +301,7 @@ export function checkOperationCapability(
     ) &&
     (descriptor.coverage === 'ready-view' ||
       operation.operation === 'suppress-comments' ||
+      operation.operation === 'remove-environments' ||
       operation.operation === 'identity')
   )
     reasons.push({ code: 'view-not-ready', message: 'A complete configured view is required.' });
@@ -256,6 +328,7 @@ export function checkOperationCapability(
   const scope =
     operation.operation === 'unused-commands' ||
     operation.operation === 'suppress-comments' ||
+    operation.operation === 'remove-environments' ||
     operation.operation === 'identity'
       ? operation.options?.scope
       : undefined;
@@ -265,6 +338,54 @@ export function checkOperationCapability(
     scope.paths.some((p) => !snapshot.files.some((f) => f.path === p))
   )
     reasons.push({ code: 'missing-file', message: 'An operation scope requests an absent file.' });
+  if (!reasons.length) {
+    try {
+      if (operation.operation === 'edit-nodes' || operation.operation === 'remove-environments') {
+        if (operation.options.target === 'artifact' && model.kind === 'view')
+          projectionChanges(
+            model,
+            operation.operation === 'edit-nodes'
+              ? operation.options.actions
+              : environmentActions(model, operation.options.names)
+          );
+        else
+          sourceOperationEdits(
+            model.kind === 'snapshot' ? model : model.snapshot,
+            operation,
+            model.kind === 'view' ? model : undefined
+          );
+      }
+      if (
+        (operation.operation === 'materialize' || operation.operation === 'export-project') &&
+        model.kind === 'view'
+      ) {
+        if (operation.options.nodeEdits?.length) {
+          if (
+            operation.options.inputs !== 'inline' ||
+            (operation.operation === 'export-project' &&
+              operation.options.conditions !== 'materialize')
+          )
+            reject(
+              'unavailable',
+              'Node artifact edits require materialized conditions and inline inputs.'
+            );
+          projectionChanges(model, operation.options.nodeEdits);
+        }
+      }
+      if (
+        operation.operation === 'suppress-comments' &&
+        operation.options.suppressCommentEnvironments
+      )
+        sourceOperationEdits(
+          model.kind === 'snapshot' ? model : model.snapshot,
+          operation,
+          model.kind === 'view' ? model : undefined
+        );
+    } catch (error: unknown) {
+      if (!(error instanceof ProjectOperationError)) throw error;
+      reasons.push({ code: 'edit-unavailable', message: error.message, failure: error.failure });
+    }
+  }
   return reasons.length
     ? freeze({ eligible: false, reasons })
     : freeze({ eligible: true, reasons: [] });
@@ -293,8 +414,16 @@ export function validateProjectEditPlan(
   if (provenance['snapshotId'] !== source.id || provenance['operationVersion'] !== 1)
     invalid('Stale edit snapshot or unsupported operation version.');
   const request = validateOperation(provenance['request']);
-  if (request.operation !== 'suppress-comments' && request.operation !== 'identity')
+  if (
+    request.operation !== 'suppress-comments' &&
+    request.operation !== 'identity' &&
+    request.operation !== 'edit-nodes' &&
+    request.operation !== 'remove-environments'
+  )
     invalid('This operation does not produce source edits.');
+  if (request.options.target === 'artifact')
+    invalid('Artifact operations do not produce source edits.');
+  const scope = 'scope' in request.options ? request.options.scope : undefined;
   const viewId = provenance['viewId'];
   if (view) view = validateView(view);
   if (request.options.target === 'selected') {
@@ -318,7 +447,7 @@ export function validateProjectEditPlan(
     if (path !== edit['path']) invalid('Edit paths must already be normalized.');
     const file = source.files.find((f) => f.path === path);
     if (!file) invalid('An edit targets an absent file.');
-    if (request.options.scope?.kind === 'files' && !request.options.scope.paths.includes(path))
+    if (scope?.kind === 'files' && !scope.paths.includes(path))
       reject('invalid-edit', 'An edit targets a file outside its declared source scope.');
     let start: number;
     let end: number;
@@ -370,17 +499,34 @@ export function validateProjectEditPlan(
   if (request.operation === 'identity' && plan.edits.length)
     reject('invalid-edit', 'Identity transformations cannot modify source.');
   let outputSize = source.files
-    .filter(
-      (file) =>
-        request.options.scope?.kind !== 'files' || request.options.scope.paths.includes(file.path)
-    )
+    .filter((file) => scope?.kind !== 'files' || scope.paths.includes(file.path))
     .reduce((total, file) => total + file.source.length, 0);
   for (const edit of plan.edits)
     outputSize +=
       edit.kind === 'insert' ? edit.text.length : edit.replacement.length - edit.expected.length;
   if (outputSize > (request.options.maxOutputCodeUnits ?? 10000000))
     reject('output-limit', 'The planned source output exceeds its configured size limit.');
-  if (request.options.target === 'selected' && view) validateOccurrenceEdits(view, plan.edits);
+  if (
+    request.operation === 'edit-nodes' ||
+    request.operation === 'remove-environments' ||
+    (request.operation === 'suppress-comments' && request.options.suppressCommentEnvironments)
+  ) {
+    const expected = sourceOperationEdits(source, request, view);
+    const signature = (edits: readonly ProjectEdit[]) =>
+      JSON.stringify(
+        edits.map((e) =>
+          e.kind === 'insert'
+            ? [e.kind, e.path, e.offset, e.text]
+            : [e.kind, e.path, e.range.start, e.range.end, e.range.line, e.expected, e.replacement]
+        )
+      );
+    if (signature(expected) !== signature(plan.edits))
+      reject(
+        'invalid-edit',
+        'Node/environment edits must match their complete canonical proposal.'
+      );
+  } else if (request.options.target === 'selected' && view)
+    validateOccurrenceEdits(view, plan.edits);
 }
 
 export function requireCapability(
@@ -388,5 +534,9 @@ export function requireCapability(
   request: OperationRequest
 ): void {
   const result = checkOperationCapability(model, request);
-  if (!result.eligible) reject('unavailable', result.reasons.map((r) => r.message).join(' '));
+  if (!result.eligible) {
+    const failure = result.reasons.find((r) => r.failure)?.failure;
+    if (failure) throw new ProjectOperationError(failure);
+    reject('unavailable', result.reasons.map((r) => r.message).join(' '));
+  }
 }

@@ -662,7 +662,7 @@ Normalized project-relative source path.
 
 ###### Inherited from
 
-[`SourceLocation`](#sourcelocation).[`path`](#path-8)
+[`SourceLocation`](#sourcelocation).[`path`](#path-12)
 
 ##### range
 
@@ -672,7 +672,7 @@ Original source range, never a projected offset.
 
 ###### Inherited from
 
-[`SourceLocation`](#sourcelocation).[`range`](#range-2)
+[`SourceLocation`](#sourcelocation).[`range`](#range-5)
 
 ##### snapshotId
 
@@ -910,9 +910,15 @@ Structured operation ineligibility.
 
 ##### code
 
-> `readonly` **code**: `"not-implemented"` \| `"wrong-model"` \| `"view-not-ready"` \| `"missing-file"`
+> `readonly` **code**: `"not-implemented"` \| `"wrong-model"` \| `"view-not-ready"` \| `"missing-file"` \| `"edit-unavailable"`
 
 Stable reason.
+
+##### failure?
+
+> `readonly` `optional` **failure?**: [`OperationFailure`](#operationfailure)
+
+Located edit failure when code is edit-unavailable; absent for model requirements.
 
 ##### message
 
@@ -1434,6 +1440,96 @@ Discriminant used to narrow the [AstNode](#astnode) union.
 
 ***
 
+### ConfiguredEnvironmentDelimiter
+
+Located delimiter in one configured inclusion.
+
+#### Extends
+
+- [`EnvironmentDelimiter`](#environmentdelimiter)
+
+#### Properties
+
+##### name
+
+> `readonly` **name**: `string`
+
+Name inside braces, without expansion.
+
+###### Inherited from
+
+[`EnvironmentDelimiter`](#environmentdelimiter).[`name`](#name-9)
+
+##### nameRange
+
+> `readonly` **nameRange**: [`SourceRange`](#sourcerange)
+
+Inclusive original range of the name alone.
+
+###### Inherited from
+
+[`EnvironmentDelimiter`](#environmentdelimiter).[`nameRange`](#namerange-1)
+
+##### origin
+
+> `readonly` **origin**: [`VersionedSourceOrigin`](#versionedsourceorigin)
+
+Exact selected origin and file revision.
+
+##### path
+
+> `readonly` **path**: `string`
+
+Normalized project-relative source path.
+
+###### Inherited from
+
+[`EnvironmentDelimiter`](#environmentdelimiter).[`path`](#path-2)
+
+##### range
+
+> `readonly` **range**: [`SourceRange`](#sourcerange)
+
+Original source range, never a projected offset.
+
+###### Inherited from
+
+[`EnvironmentDelimiter`](#environmentdelimiter).[`range`](#range-3)
+
+***
+
+### ConfiguredEnvironmentSyntax
+
+Exact delimiters when each is one literal physical command.
+
+#### Properties
+
+##### body
+
+> `readonly` **body**: [`VersionedSourceOrigin`](#versionedsourceorigin) \| `null`
+
+Contiguous original body including empty bodies (end=start-1); null for disjoint/multi-file syntax.
+
+##### closing
+
+> `readonly` **closing**: [`ConfiguredEnvironmentDelimiter`](#configuredenvironmentdelimiter) \| `null`
+
+Closer or null for a delimiter assembled from disjoint source.
+
+##### hasArguments
+
+> `readonly` **hasArguments**: `boolean`
+
+An optional/braced argument immediately follows the opener; renaming cannot adapt it.
+
+##### opening
+
+> `readonly` **opening**: [`ConfiguredEnvironmentDelimiter`](#configuredenvironmentdelimiter) \| `null`
+
+Opener or null for a delimiter assembled from disjoint source.
+
+***
+
 ### ConfiguredIndex
 
 Reusable configured fact index in execution order.
@@ -1477,6 +1573,12 @@ Exact view identity.
 Common fields on configured structural nodes; these are not legacy AstNodes.
 
 #### Properties
+
+##### location
+
+> `readonly` **location**: [`NodeLocation`](#nodelocation)
+
+Original line/start/end extents with file revisions; no envelope across omitted gaps.
 
 ##### occurrenceKey
 
@@ -1632,6 +1734,92 @@ Complete recognized coverage, or explicitly limited observations.
 
 ***
 
+### EnvironmentDelimiter
+
+A complete literal begin/end command in original source.
+
+#### Extends
+
+- [`SourceLocation`](#sourcelocation)
+
+#### Extended by
+
+- [`ConfiguredEnvironmentDelimiter`](#configuredenvironmentdelimiter)
+
+#### Properties
+
+##### name
+
+> `readonly` **name**: `string`
+
+Name inside braces, without expansion.
+
+##### nameRange
+
+> `readonly` **nameRange**: [`SourceRange`](#sourcerange)
+
+Inclusive original range of the name alone.
+
+##### path
+
+> `readonly` **path**: `string`
+
+Normalized project-relative source path.
+
+###### Inherited from
+
+[`SourceLocation`](#sourcelocation).[`path`](#path-12)
+
+##### range
+
+> `readonly` **range**: [`SourceRange`](#sourcerange)
+
+Original source range, never a projected offset.
+
+###### Inherited from
+
+[`SourceLocation`](#sourcelocation).[`range`](#range-5)
+
+***
+
+### EnvironmentInventory
+
+Frozen source environment inventory; no entry or configured view required.
+
+#### Properties
+
+##### coverage
+
+> `readonly` **coverage**: [`Coverage`](#coverage-2)
+
+Recognition limitations; candidates do not erase healthy results.
+
+##### environments
+
+> `readonly` **environments**: readonly [`SourceEnvironment`](#sourceenvironment)[]
+
+Path/offset ordered matched regions and candidates.
+
+##### kind
+
+> `readonly` **kind**: `"environments"`
+
+Result discriminant.
+
+##### resultId
+
+> `readonly` **resultId**: `string`
+
+Canonical request/content identity.
+
+##### snapshotId
+
+> `readonly` **snapshotId**: `string`
+
+Exact source authority.
+
+***
+
 ### EnvironmentNode
 
 A matched LaTeX environment other than `document`.
@@ -1730,6 +1918,44 @@ Discriminant used to narrow the [AstNode](#astnode) union.
 
 ***
 
+### EnvironmentSelection
+
+Reference to one recognized physical source environment.
+
+#### Properties
+
+##### environmentId
+
+> `readonly` **environmentId**: `string`
+
+Inventory occurrence ID within the snapshot.
+
+##### kind
+
+> `readonly` **kind**: `"source-environment"`
+
+Selection discriminant.
+
+##### path
+
+> `readonly` **path**: `string`
+
+Original path.
+
+##### snapshotId
+
+> `readonly` **snapshotId**: `string`
+
+Owning source identity.
+
+##### version
+
+> `readonly` **version**: `number`
+
+Original revision.
+
+***
+
 ### ExportOptions
 
 Output policies for a configured project. No filename rewriting is performed.
@@ -1753,6 +1979,18 @@ Preserve input commands and relative files, or expand active occurrences.
 > `readonly` `optional` **maxOutputCodeUnits?**: `number`
 
 Total UTF-16 output limit across artifacts, default 10000000; maximum 100000000.
+
+##### nodeEdits?
+
+> `readonly` `optional` **nodeEdits?**: readonly [`NodeEditAction`](#nodeeditaction)[]
+
+Selected-node actions before final export; nonempty actions require materialize/inline output.
+
+##### suppressCommentEnvironments?
+
+> `readonly` `optional` **suppressCommentEnvironments?**: `boolean`
+
+Remove selected complete comment environments independently of percent suppression; default false.
 
 ##### suppressComments?
 
@@ -2306,7 +2544,7 @@ Zero-based offset of the last included UTF-16 code unit.
 
 ###### Inherited from
 
-[`SourceRange`](#sourcerange).[`end`](#end-14)
+[`SourceRange`](#sourcerange).[`end`](#end-15)
 
 ##### id
 
@@ -2332,13 +2570,45 @@ Zero-based offset of the first included UTF-16 code unit.
 
 ###### Inherited from
 
-[`SourceRange`](#sourcerange).[`start`](#start-14)
+[`SourceRange`](#sourcerange).[`start`](#start-15)
 
 ##### type
 
 > `readonly` **type**: `TType`
 
 Discriminant used to narrow the [AstNode](#astnode) union.
+
+***
+
+### NodeSelection
+
+Reference to one configured structural node, including its inclusion context.
+
+#### Properties
+
+##### kind
+
+> `readonly` **kind**: `"node"`
+
+Selection discriminant.
+
+##### nodeKey
+
+> `readonly` **nodeKey**: `string`
+
+Unique node occurrence key within that view.
+
+##### snapshotId
+
+> `readonly` **snapshotId**: `string`
+
+Owning original source identity.
+
+##### viewId
+
+> `readonly` **viewId**: `string`
+
+Owning configured interpretation identity.
 
 ***
 
@@ -2414,7 +2684,7 @@ Required completeness.
 
 ##### id
 
-> `readonly` **id**: `"source-inventory"` \| `"resolve-view"` \| `"references"` \| `"unused-commands"` \| `"suppress-comments"` \| `"identity"` \| `"materialize"` \| `"export-project"`
+> `readonly` **id**: `"edit-nodes"` \| `"remove-environments"` \| `"source-inventory"` \| `"resolve-view"` \| `"references"` \| `"unused-commands"` \| `"suppress-comments"` \| `"identity"` \| `"materialize"` \| `"export-project"`
 
 Stable operation name.
 
@@ -2432,7 +2702,7 @@ Required model, allowing a source or selected-path comment operation.
 
 ##### resultKind
 
-> `readonly` **resultKind**: `"view"` \| `"inventory"` \| `"findings"` \| `"edits"` \| `"artifacts"`
+> `readonly` **resultKind**: `"view"` \| `"inventory"` \| `"findings"` \| `"edits"` \| `"artifacts"` \| `"transformation"`
 
 Output category.
 
@@ -2546,7 +2816,7 @@ Normalized virtual source path associated with this parse.
 
 ###### Inherited from
 
-[`ParseResult`](#parseresult).[`path`](#path-5)
+[`ParseResult`](#parseresult).[`path`](#path-8)
 
 ##### referencedFiles
 
@@ -2888,6 +3158,50 @@ Source-model schema version.
 
 ***
 
+### ProjectSourceIndex
+
+Clone-safe lookup index; reuse only with its exact snapshot/view.
+
+#### Properties
+
+##### files
+
+> `readonly` **files**: readonly [`SourceLookupFile`](#sourcelookupfile)[]
+
+Path-sorted indexes.
+
+##### id
+
+> `readonly` **id**: `string`
+
+Versioned deterministic index identity.
+
+##### kind
+
+> `readonly` **kind**: `"source-index"`
+
+Index discriminant.
+
+##### model
+
+> `readonly` **model**: [`ProjectSnapshot`](#projectsnapshot) \| [`ProjectView`](#projectview)
+
+Immutable source/view authority used to reconstruct transported indexes.
+
+##### snapshotId
+
+> `readonly` **snapshotId**: `string`
+
+Original snapshot identity.
+
+##### viewId
+
+> `readonly` **viewId**: `string` \| `null`
+
+Configured identity, null for independent source lookup.
+
+***
+
 ### ProjectViewBase
 
 Fields shared by ready, incomplete, and blocked configured results.
@@ -3002,7 +3316,7 @@ Original reference occurrence.
 
 ##### status
 
-> `readonly` **status**: `"unresolved"` \| `"matched"` \| `"duplicate"` \| `"missing"` \| `"unknown-coverage"`
+> `readonly` **status**: `"matched"` \| `"unresolved"` \| `"duplicate"` \| `"missing"` \| `"unknown-coverage"`
 
 Distinguishes matched, ambiguous, missing, and insufficient coverage.
 
@@ -3044,7 +3358,7 @@ Stable virtual path used by entry selection and `\input` resolution.
 
 ###### Inherited from
 
-[`SourceFile`](#sourcefile).[`path`](#path-7)
+[`SourceFile`](#sourcefile).[`path`](#path-11)
 
 ##### source
 
@@ -3070,7 +3384,7 @@ Caller-owned finite number used to resolve incremental merge conflicts.
 
 ###### Inherited from
 
-[`SourceFile`](#sourcefile).[`version`](#version-3)
+[`SourceFile`](#sourcefile).[`version`](#version-5)
 
 ***
 
@@ -3273,6 +3587,92 @@ Replace recognized comments and newly empty comment lines; defaults to `false`.
 
 ***
 
+### SourceEnvironment
+
+Located source environment; candidates never authorize a whole-region edit.
+
+#### Properties
+
+##### body
+
+> `readonly` **body**: [`SourceRange`](#sourcerange) \| `null`
+
+Inclusive body range; empty bodies have end=start-1; null for candidates.
+
+##### closing
+
+> `readonly` **closing**: [`EnvironmentDelimiter`](#environmentdelimiter) \| `null`
+
+Located closer, null for an unmatched opening delimiter.
+
+##### context
+
+> `readonly` **context**: [`FactContext`](#factcontext)
+
+Source-only context, not evidence of execution.
+
+##### id
+
+> `readonly` **id**: `string`
+
+Snapshot-local identifier; do not persist across edits.
+
+##### name
+
+> `readonly` **name**: `string` \| `null`
+
+Literal name, or null for a dynamic/malformed delimiter.
+
+##### opening
+
+> `readonly` **opening**: [`EnvironmentDelimiter`](#environmentdelimiter) \| `null`
+
+Located opener, null for an unmatched closing delimiter.
+
+##### path
+
+> `readonly` **path**: `string`
+
+Original file path.
+
+##### protected
+
+> `readonly` **protected**: `boolean`
+
+Protected region grammar rather than nested environment matching.
+
+##### range
+
+> `readonly` **range**: [`SourceRange`](#sourcerange)
+
+Whole extent when matched; otherwise the known delimiter range only.
+
+##### reason
+
+> `readonly` **reason**: `string` \| `null`
+
+Null when matched; explanation of incomplete recognition otherwise.
+
+##### snapshotId
+
+> `readonly` **snapshotId**: `string`
+
+Exact original source identity.
+
+##### status
+
+> `readonly` **status**: `"matched"` \| `"candidate"`
+
+Complete matched region or unresolved delimiter.
+
+##### version
+
+> `readonly` **version**: `number`
+
+Caller-owned original revision.
+
+***
+
 ### SourceFile
 
 One versioned source file supplied to [parseProject](#parseproject).
@@ -3303,6 +3703,38 @@ Caller-owned finite number used to resolve incremental merge conflicts.
 
 ***
 
+### SourceInterval
+
+Plain-data augmented interval tree node; not an executable parser class.
+
+#### Properties
+
+##### hit
+
+> `readonly` **hit**: [`SourceLookupHit`](#sourcelookuphit)
+
+Indexed hit.
+
+##### left
+
+> `readonly` **left**: [`SourceInterval`](#sourceinterval) \| `null`
+
+Earlier intervals or null.
+
+##### maxEnd
+
+> `readonly` **maxEnd**: `number`
+
+Largest inclusive end in this subtree.
+
+##### right
+
+> `readonly` **right**: [`SourceInterval`](#sourceinterval) \| `null`
+
+Later intervals or null.
+
+***
+
 ### SourceLocation
 
 A location in an original source string; ranges are inclusive UTF-16.
@@ -3312,6 +3744,7 @@ A location in an original source string; ranges are inclusive UTF-16.
 - [`SourceOrigin`](#sourceorigin)
 - [`SyntaxFactBase`](#syntaxfactbase)
 - [`AnalysisLocation`](#analysislocation)
+- [`EnvironmentDelimiter`](#environmentdelimiter)
 
 #### Properties
 
@@ -3329,6 +3762,82 @@ Original source range, never a projected offset.
 
 ***
 
+### SourceLookupFile
+
+Per-file immutable source-search data.
+
+#### Properties
+
+##### intervals
+
+> `readonly` **intervals**: [`SourceInterval`](#sourceinterval) \| `null`
+
+Balanced interval tree, null for no entries.
+
+##### length
+
+> `readonly` **length**: `number`
+
+Original UTF-16 length; also the EOF insertion offset.
+
+##### lineStarts
+
+> `readonly` **lineStarts**: readonly `number`[]
+
+Zero-based line starts; CRLF occupies two source units and one line boundary.
+
+##### path
+
+> `readonly` **path**: `string`
+
+Original virtual path.
+
+##### version
+
+> `readonly` **version**: `number`
+
+Original revision.
+
+***
+
+### SourceLookupQuery
+
+Point or inclusive-overlap query in original source coordinates.
+
+#### Properties
+
+##### end?
+
+> `readonly` `optional` **end?**: `number`
+
+Inclusive end; omission performs a point lookup.
+
+##### kinds?
+
+> `readonly` `optional` **kinds?**: readonly (`"environment"` \| `"node"` \| `"token"`)[]
+
+Categories to return; omission returns all, empty returns none.
+
+##### occurrenceId?
+
+> `readonly` `optional` **occurrenceId?**: `string`
+
+Optional inclusion filter for configured node hits.
+
+##### path
+
+> `readonly` **path**: `string`
+
+Original file path.
+
+##### start
+
+> `readonly` **start**: `number`
+
+Zero-based original UTF-16 point/start; EOF returns no point hit.
+
+***
+
 ### SourceOrigin
 
 A location of one selected source occurrence.
@@ -3336,6 +3845,10 @@ A location of one selected source occurrence.
 #### Extends
 
 - [`SourceLocation`](#sourcelocation)
+
+#### Extended by
+
+- [`VersionedSourceOrigin`](#versionedsourceorigin)
 
 #### Properties
 
@@ -3353,7 +3866,7 @@ Normalized project-relative source path.
 
 ###### Inherited from
 
-[`SourceLocation`](#sourcelocation).[`path`](#path-8)
+[`SourceLocation`](#sourcelocation).[`path`](#path-12)
 
 ##### range
 
@@ -3363,7 +3876,7 @@ Original source range, never a projected offset.
 
 ###### Inherited from
 
-[`SourceLocation`](#sourcelocation).[`range`](#range-2)
+[`SourceLocation`](#sourcelocation).[`range`](#range-5)
 
 ##### snapshotId
 
@@ -3500,7 +4013,7 @@ Normalized project-relative source path.
 
 ###### Inherited from
 
-[`SourceLocation`](#sourcelocation).[`path`](#path-8)
+[`SourceLocation`](#sourcelocation).[`path`](#path-12)
 
 ##### range
 
@@ -3510,11 +4023,11 @@ Original source range, never a projected offset.
 
 ###### Inherited from
 
-[`SourceLocation`](#sourcelocation).[`range`](#range-2)
+[`SourceLocation`](#sourcelocation).[`range`](#range-5)
 
 ##### recognition
 
-> `readonly` **recognition**: `"recognized"` \| `"candidate"`
+> `readonly` **recognition**: `"candidate"` \| `"recognized"`
 
 Whether this construct is recognized or retained as an unresolved candidate.
 
@@ -3729,6 +4242,64 @@ Generated files.
 
 Preserve and flatten modes return only the entry file. Separate mode returns
 every project file in deterministic path order.
+
+***
+
+### VersionedSourceOrigin
+
+Original selected span with its caller-owned file revision.
+
+#### Extends
+
+- [`SourceOrigin`](#sourceorigin)
+
+#### Properties
+
+##### occurrenceId
+
+> `readonly` **occurrenceId**: `string`
+
+Inclusion occurrence containing this span.
+
+###### Inherited from
+
+[`SourceOrigin`](#sourceorigin).[`occurrenceId`](#occurrenceid-2)
+
+##### path
+
+> `readonly` **path**: `string`
+
+Normalized project-relative source path.
+
+###### Inherited from
+
+[`SourceOrigin`](#sourceorigin).[`path`](#path-15)
+
+##### range
+
+> `readonly` **range**: [`SourceRange`](#sourcerange)
+
+Original source range, never a projected offset.
+
+###### Inherited from
+
+[`SourceOrigin`](#sourceorigin).[`range`](#range-6)
+
+##### snapshotId
+
+> `readonly` **snapshotId**: `string`
+
+Exact source snapshot identity.
+
+###### Inherited from
+
+[`SourceOrigin`](#sourceorigin).[`snapshotId`](#snapshotid-10)
+
+##### version
+
+> `readonly` **version**: `number`
+
+Finite revision of the original file in the owning snapshot.
 
 ***
 
@@ -3998,7 +4569,7 @@ Permanent per-test overrides.
 
 ### ConfiguredContainerNode
 
-> **ConfiguredContainerNode** = [`ConfiguredNodeBase`](#configurednodebase) & \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"root"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"environment"`; `name`: `string`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"group"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `delimiter`: [`MathDelimiter`](#mathdelimiter); `kind`: `"math"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"section"`; `level`: `1` \| `2` \| `3` \| `4` \| `5`; `name`: `string`; `starred`: `boolean`; \}
+> **ConfiguredContainerNode** = [`ConfiguredNodeBase`](#configurednodebase) & \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"root"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"environment"`; `name`: `string`; `syntax`: [`ConfiguredEnvironmentSyntax`](#configuredenvironmentsyntax); \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"group"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `delimiter`: [`MathDelimiter`](#mathdelimiter); `kind`: `"math"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"section"`; `level`: `1` \| `2` \| `3` \| `4` \| `5`; `name`: `string`; `starred`: `boolean`; \}
 
 Configured containers, with a complete ordered child list only in ready views.
 
@@ -4127,11 +4698,251 @@ An opening delimiter recognized for a LaTeX math node.
 
 ***
 
+### NodeEditAction
+
+> **NodeEditAction** = \{ `kind`: `"remove-node"`; `selection`: [`NodeSelection`](#nodeselection); \} \| \{ `kind`: `"rename-environment"`; `name`: `string`; `selection`: [`NodeSelection`](#nodeselection); \} \| \{ `kind`: `"wrap-node"`; `name`: `string`; `selection`: [`NodeSelection`](#nodeselection); \}
+
+Tree-selected change; all references belong to the same original view.
+
+#### Union Members
+
+##### Type Literal
+
+\{ `kind`: `"remove-node"`; `selection`: [`NodeSelection`](#nodeselection); \}
+
+###### kind
+
+> `readonly` **kind**: `"remove-node"`
+
+Remove the complete subtree.
+
+###### selection
+
+> `readonly` **selection**: [`NodeSelection`](#nodeselection)
+
+Selected construct.
+
+***
+
+##### Type Literal
+
+\{ `kind`: `"rename-environment"`; `name`: `string`; `selection`: [`NodeSelection`](#nodeselection); \}
+
+###### kind
+
+> `readonly` **kind**: `"rename-environment"`
+
+Rename both environment delimiters, retaining the body.
+
+###### name
+
+> `readonly` **name**: `string`
+
+Literal argument-free environment name.
+
+###### selection
+
+> `readonly` **selection**: [`NodeSelection`](#nodeselection)
+
+Selected environment.
+
+***
+
+##### Type Literal
+
+\{ `kind`: `"wrap-node"`; `name`: `string`; `selection`: [`NodeSelection`](#nodeselection); \}
+
+###### kind
+
+> `readonly` **kind**: `"wrap-node"`
+
+Retain the node inside a new environment.
+
+###### name
+
+> `readonly` **name**: `string`
+
+Literal argument-free wrapper name.
+
+###### selection
+
+> `readonly` **selection**: [`NodeSelection`](#nodeselection)
+
+Selected construct.
+
+***
+
 ### NodeId
 
 > **NodeId** = `number`
 
 A node identifier that is unique within one parsed file.
+
+***
+
+### NodeLocation
+
+> **NodeLocation** = \{ `kind`: `"none"`; `primary`: `null`; `spans`: readonly \[\]; \} \| \{ `kind`: `"single"`; `primary`: [`VersionedSourceOrigin`](#versionedsourceorigin); `spans`: readonly \[[`VersionedSourceOrigin`](#versionedsourceorigin)\]; \} \| \{ `kind`: `"multiple"`; `primary`: [`VersionedSourceOrigin`](#versionedsourceorigin); `spans`: readonly [`VersionedSourceOrigin`](#versionedsourceorigin)[]; \}
+
+Original locations, never an envelope across omitted source.
+
+#### Union Members
+
+##### Type Literal
+
+\{ `kind`: `"none"`; `primary`: `null`; `spans`: readonly \[\]; \}
+
+###### kind
+
+> `readonly` **kind**: `"none"`
+
+No contributing source, for an empty root.
+
+###### primary
+
+> `readonly` **primary**: `null`
+
+No primary jump.
+
+###### spans
+
+> `readonly` **spans**: readonly \[\]
+
+Empty origins.
+
+***
+
+##### Type Literal
+
+\{ `kind`: `"single"`; `primary`: [`VersionedSourceOrigin`](#versionedsourceorigin); `spans`: readonly \[[`VersionedSourceOrigin`](#versionedsourceorigin)\]; \}
+
+###### kind
+
+> `readonly` **kind**: `"single"`
+
+One contiguous original extent.
+
+###### primary
+
+> `readonly` **primary**: [`VersionedSourceOrigin`](#versionedsourceorigin)
+
+The sole span.
+
+###### spans
+
+> `readonly` **spans**: readonly \[[`VersionedSourceOrigin`](#versionedsourceorigin)\]
+
+Exactly one span.
+
+***
+
+##### Type Literal
+
+\{ `kind`: `"multiple"`; `primary`: [`VersionedSourceOrigin`](#versionedsourceorigin); `spans`: readonly [`VersionedSourceOrigin`](#versionedsourceorigin)[]; \}
+
+###### kind
+
+> `readonly` **kind**: `"multiple"`
+
+Ordered disjoint or multi-file extents.
+
+###### primary
+
+> `readonly` **primary**: [`VersionedSourceOrigin`](#versionedsourceorigin)
+
+First contributing span, for navigation only.
+
+###### spans
+
+> `readonly` **spans**: readonly [`VersionedSourceOrigin`](#versionedsourceorigin)[]
+
+Every contributing extent in encounter order.
+
+***
+
+### NodeTransformationRequest
+
+> **NodeTransformationRequest** = \{ `operation`: `"edit-nodes"`; `options`: \{ `actions`: readonly [`NodeEditAction`](#nodeeditaction)[]; `maxOutputCodeUnits?`: `number`; `target`: `"selected"` \| `"artifact"`; \}; \} \| \{ `operation`: `"remove-environments"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `names`: readonly `string`[]; `scope?`: [`SourceScope`](#sourcescope); `target`: `"source"` \| `"selected"` \| `"artifact"`; \}; \}
+
+Additional transformations using source environments or configured nodes.
+
+#### Union Members
+
+##### Type Literal
+
+\{ `operation`: `"edit-nodes"`; `options`: \{ `actions`: readonly [`NodeEditAction`](#nodeeditaction)[]; `maxOutputCodeUnits?`: `number`; `target`: `"selected"` \| `"artifact"`; \}; \}
+
+###### operation
+
+> `readonly` **operation**: `"edit-nodes"`
+
+Batch of configured node actions.
+
+###### options
+
+> `readonly` **options**: `object`
+
+Source edits or fully materialized/inlined artifacts.
+
+###### options.actions
+
+> `readonly` **actions**: readonly [`NodeEditAction`](#nodeeditaction)[]
+
+Ordered actions; at most 10000.
+
+###### options.maxOutputCodeUnits?
+
+> `readonly` `optional` **maxOutputCodeUnits?**: `number`
+
+Total output UTF-16 bound, default 10000000.
+
+###### options.target
+
+> `readonly` **target**: `"selected"` \| `"artifact"`
+
+Source previews preserve every unmapped slice; artifact mode specializes occurrences.
+
+***
+
+##### Type Literal
+
+\{ `operation`: `"remove-environments"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `names`: readonly `string`[]; `scope?`: [`SourceScope`](#sourcescope); `target`: `"source"` \| `"selected"` \| `"artifact"`; \}; \}
+
+###### operation
+
+> `readonly` **operation**: `"remove-environments"`
+
+Remove matching literal environments.
+
+###### options
+
+> `readonly` **options**: `object`
+
+Explicit physical or selected scope.
+
+###### options.maxOutputCodeUnits?
+
+> `readonly` `optional` **maxOutputCodeUnits?**: `number`
+
+Total output UTF-16 bound, default 10000000.
+
+###### options.names
+
+> `readonly` **names**: readonly `string`[]
+
+Case-sensitive literal names; nonempty, sorted during normalization.
+
+###### options.scope?
+
+> `readonly` `optional` **scope?**: [`SourceScope`](#sourcescope)
+
+Source-only scope, defaults to all files; forbidden for selected/artifact targets.
+
+###### options.target
+
+> `readonly` **target**: `"source"` \| `"selected"` \| `"artifact"`
+
+All source branches or configured selected occurrences.
 
 ***
 
@@ -4189,11 +5000,15 @@ Ordered reasons.
 
 ### OperationRequest
 
-> **OperationRequest** = \{ `operation`: `"source-inventory"`; `options?`: [`InventoryRequest`](#inventoryrequest); \} \| \{ `operation`: `"resolve-view"`; `options`: [`ViewConfiguration`](#viewconfiguration); \} \| \{ `operation`: `"references"` \| `"unused-commands"`; `options?`: [`AnalysisOptions`](#analysisoptions); \} \| \{ `operation`: `"suppress-comments"` \| `"identity"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `scope?`: [`SourceScope`](#sourcescope); `target`: `"source"` \| `"selected"`; \}; \} \| \{ `operation`: `"materialize"`; `options`: \{ `inputs`: `"preserve"` \| `"inline"`; `maxOutputCodeUnits?`: `number`; `suppressComments?`: `boolean`; \}; \} \| \{ `operation`: `"export-project"`; `options`: [`ExportOptions`](#exportoptions); \}
+> **OperationRequest** = [`NodeTransformationRequest`](#nodetransformationrequest) \| \{ `operation`: `"source-inventory"`; `options?`: [`InventoryRequest`](#inventoryrequest); \} \| \{ `operation`: `"resolve-view"`; `options`: [`ViewConfiguration`](#viewconfiguration); \} \| \{ `operation`: `"references"` \| `"unused-commands"`; `options?`: [`AnalysisOptions`](#analysisoptions); \} \| \{ `operation`: `"suppress-comments"` \| `"identity"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `scope?`: [`SourceScope`](#sourcescope); `suppressCommentEnvironments?`: `boolean`; `target`: `"source"` \| `"selected"`; \}; \} \| \{ `operation`: `"materialize"`; `options`: \{ `inputs`: `"preserve"` \| `"inline"`; `maxOutputCodeUnits?`: `number`; `nodeEdits?`: readonly [`NodeEditAction`](#nodeeditaction)[]; `suppressCommentEnvironments?`: `boolean`; `suppressComments?`: `boolean`; \}; \} \| \{ `operation`: `"export-project"`; `options`: [`ExportOptions`](#exportoptions); \}
 
 Public requests for independent inventory, interpretation, analysis, and transformation.
 
 #### Union Members
+
+[`NodeTransformationRequest`](#nodetransformationrequest)
+
+***
 
 ##### Type Literal
 
@@ -4251,7 +5066,7 @@ Partial view observations require explicit opt-in; source scope is for source mo
 
 ##### Type Literal
 
-\{ `operation`: `"suppress-comments"` \| `"identity"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `scope?`: [`SourceScope`](#sourcescope); `target`: `"source"` \| `"selected"`; \}; \}
+\{ `operation`: `"suppress-comments"` \| `"identity"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `scope?`: [`SourceScope`](#sourcescope); `suppressCommentEnvironments?`: `boolean`; `target`: `"source"` \| `"selected"`; \}; \}
 
 ###### operation
 
@@ -4277,6 +5092,12 @@ Maximum total preview size in UTF-16 code units; default 10,000,000, maximum 100
 
 Source-only scope; forbidden with a selected-path target.
 
+###### options.suppressCommentEnvironments?
+
+> `readonly` `optional` **suppressCommentEnvironments?**: `boolean`
+
+Also remove recognized comment environments; default false. Verbatim remains protected.
+
 ###### options.target
 
 > `readonly` **target**: `"source"` \| `"selected"`
@@ -4287,7 +5108,7 @@ Inspect all requested source or only the configured selected path.
 
 ##### Type Literal
 
-\{ `operation`: `"materialize"`; `options`: \{ `inputs`: `"preserve"` \| `"inline"`; `maxOutputCodeUnits?`: `number`; `suppressComments?`: `boolean`; \}; \}
+\{ `operation`: `"materialize"`; `options`: \{ `inputs`: `"preserve"` \| `"inline"`; `maxOutputCodeUnits?`: `number`; `nodeEdits?`: readonly [`NodeEditAction`](#nodeeditaction)[]; `suppressCommentEnvironments?`: `boolean`; `suppressComments?`: `boolean`; \}; \}
 
 ###### operation
 
@@ -4312,6 +5133,18 @@ Preserve input commands or expand active inclusion occurrences.
 > `readonly` `optional` **maxOutputCodeUnits?**: `number`
 
 Maximum total output UTF-16 units; default 10000000.
+
+###### options.nodeEdits?
+
+> `readonly` `optional` **nodeEdits?**: readonly [`NodeEditAction`](#nodeeditaction)[]
+
+Selected-node actions; nonempty actions require inline output.
+
+###### options.suppressCommentEnvironments?
+
+> `readonly` `optional` **suppressCommentEnvironments?**: `boolean`
+
+Remove selected complete comment environments; default false.
 
 ###### options.suppressComments?
 
@@ -4499,6 +5332,98 @@ Opaque deterministic content identity; compare exactly, never parse or persist a
 
 ***
 
+### SourceLookupHit
+
+> **SourceLookupHit** = \{ `kind`: `"token"`; `location`: [`SourceLocation`](#sourcelocation); `tokenIndex`: `number`; \} \| \{ `kind`: `"environment"`; `location`: [`SourceLocation`](#sourcelocation); `selection`: [`EnvironmentSelection`](#environmentselection); \} \| \{ `depth`: `number`; `kind`: `"node"`; `location`: [`VersionedSourceOrigin`](#versionedsourceorigin); `order`: `number`; `selection`: [`NodeSelection`](#nodeselection); \}
+
+One immutable hit returned by original-source lookup.
+
+#### Union Members
+
+##### Type Literal
+
+\{ `kind`: `"token"`; `location`: [`SourceLocation`](#sourcelocation); `tokenIndex`: `number`; \}
+
+###### kind
+
+> `readonly` **kind**: `"token"`
+
+Source lexical token.
+
+###### location
+
+> `readonly` **location**: [`SourceLocation`](#sourcelocation)
+
+Original extent.
+
+###### tokenIndex
+
+> `readonly` **tokenIndex**: `number`
+
+Original token index in its file.
+
+***
+
+##### Type Literal
+
+\{ `kind`: `"environment"`; `location`: [`SourceLocation`](#sourcelocation); `selection`: [`EnvironmentSelection`](#environmentselection); \}
+
+###### kind
+
+> `readonly` **kind**: `"environment"`
+
+Located source environment.
+
+###### location
+
+> `readonly` **location**: [`SourceLocation`](#sourcelocation)
+
+Known original extent.
+
+###### selection
+
+> `readonly` **selection**: [`EnvironmentSelection`](#environmentselection)
+
+Safe identity for subsequent inspection.
+
+***
+
+##### Type Literal
+
+\{ `depth`: `number`; `kind`: `"node"`; `location`: [`VersionedSourceOrigin`](#versionedsourceorigin); `order`: `number`; `selection`: [`NodeSelection`](#nodeselection); \}
+
+###### depth
+
+> `readonly` **depth**: `number`
+
+Structural depth, root is zero.
+
+###### kind
+
+> `readonly` **kind**: `"node"`
+
+Configured node occurrence.
+
+###### location
+
+> `readonly` **location**: [`VersionedSourceOrigin`](#versionedsourceorigin)
+
+Exact matching original span with revision and inclusion.
+
+###### order
+
+> `readonly` **order**: `number`
+
+Stable configured encounter order.
+
+###### selection
+
+> `readonly` **selection**: [`NodeSelection`](#nodeselection)
+
+View-bound selection.
+
+***
+
 ### SourceScope
 
 > **SourceScope** = \{ `kind`: `"all-files"`; \} \| \{ `kind`: `"files"`; `paths`: readonly `string`[]; \}
@@ -4679,6 +5604,101 @@ A deterministic, deeply frozen, transport-safe snapshot in path order.
 
 ***
 
+### createProjectSourceIndex()
+
+> **createProjectSourceIndex**(`model`): [`ProjectSourceIndex`](#projectsourceindex)
+
+Build a clone-safe original-source interval index once per immutable model.
+
+#### Parameters
+
+##### model
+
+[`ProjectSnapshot`](#projectsnapshot) \| [`ProjectView`](#projectview)
+
+Source snapshot or configured view; incomplete views have no node hits.
+
+#### Returns
+
+[`ProjectSourceIndex`](#projectsourceindex)
+
+Frozen per-file line/interval indexes. Canonical repeat calls reuse object identity.
+
+#### Throws
+
+[PrepTexError](#preptexerror) on malformed source/view transports.
+
+#### Remarks
+
+Construction costs O(n log n) for n indexed spans. Queries prune nonoverlapping subtrees;
+nodes with several origins are indexed separately and repeated inclusions remain distinct.
+
+***
+
+### getSelectedEnvironment()
+
+> **getSelectedEnvironment**(`snapshot`, `selection`): [`SourceEnvironment`](#sourceenvironment)
+
+Resolve a source-environment selection without trusting copied delimiter data.
+
+#### Parameters
+
+##### snapshot
+
+[`ProjectSnapshot`](#projectsnapshot)
+
+Exact owning snapshot.
+
+##### selection
+
+[`EnvironmentSelection`](#environmentselection)
+
+Public inventory identity and file revision.
+
+#### Returns
+
+[`SourceEnvironment`](#sourceenvironment)
+
+Canonical frozen environment, which may be a non-editable candidate.
+
+#### Throws
+
+[ProjectOperationError](#projectoperationerror) with StaleResult for an obsolete or unknown selection.
+
+***
+
+### getSelectedNode()
+
+> **getSelectedNode**(`view`, `selection`): [`ConfiguredNode`](#configurednode)
+
+Resolve a selection against canonical immutable structure.
+
+#### Parameters
+
+##### view
+
+[`ProjectView`](#projectview)
+
+Exact owning view; transported structure is reconstructed.
+
+##### selection
+
+[`NodeSelection`](#nodeselection)
+
+Snapshot/view/node identity, never a caller-constructed AST.
+
+#### Returns
+
+[`ConfiguredNode`](#configurednode)
+
+The original frozen node with line/start/end spans and delimiter metadata.
+
+#### Throws
+
+[ProjectOperationError](#projectoperationerror) with StaleResult for stale/unknown selections.
+
+***
+
 ### indexProjectView()
 
 > **indexProjectView**(`view`): [`ConfiguredIndex`](#configuredindex)
@@ -4734,6 +5754,38 @@ Frozen inventory, exact result identity, and coverage for only the requested fil
 #### Throws
 
 [PrepTexError](#preptexerror) with InvalidArgument for stale snapshots, missing requested files, or malformed options.
+
+***
+
+### inspectProjectEnvironments()
+
+> **inspectProjectEnvironments**(`snapshot`, `scope?`): [`EnvironmentInventory`](#environmentinventory)
+
+Inspect literal environment syntax independently of condition resolution.
+
+#### Parameters
+
+##### snapshot
+
+[`ProjectSnapshot`](#projectsnapshot)
+
+Original source authority; transported derived data is rebuilt.
+
+##### scope?
+
+[`SourceScope`](#sourcescope)
+
+All files by default, or an explicit nonempty file scope.
+
+#### Returns
+
+[`EnvironmentInventory`](#environmentinventory)
+
+Frozen path/offset ordered matches and located candidates with coverage.
+
+#### Throws
+
+[PrepTexError](#preptexerror) for malformed scope or absent files.
 
 ***
 
@@ -4796,6 +5848,39 @@ Untrusted runtime value to validate.
 `value is InputHandlingMode`
 
 `true` when `value` is a supported mode.
+
+***
+
+### lookupProjectSource()
+
+> **lookupProjectSource**(`index`, `query`): readonly [`SourceLookupHit`](#sourcelookuphit)[]
+
+Find tokens, environment occurrences and nodes intersecting original source.
+
+#### Parameters
+
+##### index
+
+[`ProjectSourceIndex`](#projectsourceindex)
+
+Owning immutable index; mutable transported indexes are rebuilt on each call.
+
+##### query
+
+[`SourceLookupQuery`](#sourcelookupquery)
+
+Inclusive UTF-16 point/range and optional category/inclusion filters.
+
+#### Returns
+
+readonly [`SourceLookupHit`](#sourcelookuphit)[]
+
+Frozen hits, nodes innermost first then encounter order; other hits follow by start/end/kind.
+A multi-span node contributes each intersecting span. EOF point queries return no hits.
+
+#### Throws
+
+[PrepTexError](#preptexerror) for invalid bounds, paths, filters or index identity.
 
 ***
 
@@ -5082,6 +6167,38 @@ Use independent operations when an incomplete view or analysis should be retaine
 
 ***
 
+### selectProjectNode()
+
+> **selectProjectNode**(`view`, `nodeKey`): [`NodeSelection`](#nodeselection)
+
+Select a canonical configured node without copying mutable parser state.
+
+#### Parameters
+
+##### view
+
+[`ProjectView`](#projectview)
+
+Owning configured view.
+
+##### nodeKey
+
+`string`
+
+Node occurrence key obtained by traversal or indexed lookup.
+
+#### Returns
+
+[`NodeSelection`](#nodeselection)
+
+A deeply frozen model-bound reference. Root references are inspectable but not editable.
+
+#### Throws
+
+[ProjectOperationError](#projectoperationerror) with StaleResult if no such node exists.
+
+***
+
 ### ~~serializeDocument()~~
 
 > **serializeDocument**(`root`, `options?`): `string`
@@ -5119,6 +6236,50 @@ Serialized LaTeX source.
 #### Deprecated
 
 Retained for legacy AST round trips. Use planTransformation on original source snapshots or configured views for new workflows; see docs/migration-0.3.md.
+
+***
+
+### sourceOffsetAt()
+
+> **sourceOffsetAt**(`index`, `path`, `line`, `column?`): `number`
+
+Convert an original source line and UTF-16 column to a source offset.
+
+#### Parameters
+
+##### index
+
+[`ProjectSourceIndex`](#projectsourceindex)
+
+Owning source index.
+
+##### path
+
+`string`
+
+Original virtual file path.
+
+##### line
+
+`number`
+
+One-based line number, including an empty final line after a newline.
+
+##### column?
+
+`number` = `0`
+
+Zero-based raw UTF-16 column; default zero. Includes original newline units.
+
+#### Returns
+
+`number`
+
+Original offset; the last line permits EOF. No source normalization is performed.
+
+#### Throws
+
+[PrepTexError](#preptexerror) for absent files or out-of-range coordinates.
 
 ***
 

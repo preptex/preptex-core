@@ -651,7 +651,7 @@ export function resolveProjectView(
     return rememberView(
       freeze({ ...base, ...failure, root: null, coverage: coverage([failure.reason]) })
     );
-  const parsed = parseConfiguredStructure(selectedTokens, id, config.limits.maxNesting);
+  const parsed = parseConfiguredStructure(selectedTokens, id, config.limits.maxNesting, source);
   if (parsed.kind === 'error') {
     const inputChain: string[] = [];
     let occurrence = occurrences.find((o) => o.id === parsed.issue.inputChain[0]);

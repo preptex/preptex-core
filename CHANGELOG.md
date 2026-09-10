@@ -6,6 +6,13 @@ All notable changes to this project will be documented here.
 
 ### Added
 
+- C5a revision-bound node locations, exact environment delimiter/body metadata,
+  source environment inventories and immutable interval/line indexes for source lookup.
+- C7a selected-node removal, named-environment removal, precise environment renaming
+  and wrapping, with checked source previews or independent inclusion artifacts.
+  Added explicit comment-environment suppression, pipeline options, shared-source
+  conflict checks, synthetic provenance and bounds for inserted wrappers.
+
 - C1–C5 source snapshots, atomic source changes, lossless syntax inventories,
   normalized boolean policies, operation requirements and edit precondition/range
   validation.

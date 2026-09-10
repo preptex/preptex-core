@@ -5,6 +5,13 @@ remain exported, with deprecation annotations to guide new integrations. Existin
 valid calls retain their behavior. Mixing legacy fields with new policies now
 throws `PrepTexError` with `PrepTexErrorCode.InvalidArgument` in either API.
 
+C5a/C7a adds [node locations, lookup and transformations](./node-operations.md)
+within this same unreleased version. Recreate earlier development snapshots/views
+from their original sources. Configured nodes now carry `location` and environment
+`syntax`; operation unions include `edit-nodes` and `remove-environments`, whose
+descriptors have `resultKind: 'transformation'`. Update exhaustive consumer switches.
+Comment-environment suppression is explicit; percent-only behavior stays the default.
+
 ## Choose the representation explicitly
 
 | Legacy API                                          | New workflow                                                                             | Migration difference                                                                                                             |
