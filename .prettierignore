@@ -3,3 +3,5 @@ node_modules/
 **/coverage/
 docs/api/
 package-lock.json
+examples/build/
+examples/dist/
