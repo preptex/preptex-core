@@ -1,0 +1,13 @@
+\newif\ifdraft
+\drafttrue
+\ifdraft
+  \begin{itemize}
+\else
+  \begin{enumerate}
+\fi
+  \item Shared content.
+\ifdraft
+  \end{itemize}
+\else
+  \end{enumerate}
+\fi

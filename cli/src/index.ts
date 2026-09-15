@@ -3,6 +3,7 @@
 import { parseCommand, printGlobalHelp } from './args.js';
 import { handleAst } from './commands/ast-cmd.js';
 import { handleTransform } from './commands/transform-cmd.js';
+import { handleProjectCommand } from './commands/project-cmd.js';
 
 export async function runPreptexCli(argv: string[] = process.argv.slice(2)): Promise<void> {
   const parsed = parseCommand(argv);
@@ -19,7 +20,9 @@ export async function runPreptexCli(argv: string[] = process.argv.slice(2)): Pro
 
   if (command === 'ast') {
     await handleAst(rest);
+    return;
   }
+  await handleProjectCommand(command, rest);
 }
 
 runPreptexCli().catch((err) => {

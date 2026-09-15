@@ -1,11 +1,11 @@
 {
   "name": "@preptex/core",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Environment-neutral TypeScript library for parsing and transforming virtual LaTeX projects.",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/preptex/preptex-core.git"
+    "url": "git+https://github.com/preptex/preptex-core.git"
   },
   "bugs": {
     "url": "https://github.com/preptex/preptex-core/issues"

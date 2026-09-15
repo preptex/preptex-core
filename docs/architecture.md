@@ -1,5 +1,55 @@
 # PrepTeX Core architecture
 
+## Source/configured model and operations
+
+The new model runs alongside the legacy path described below. Public readonly
+contracts are in `core/src/project-types.ts`, explicitly exported by `index.ts`.
+`core/src/lib/project/` contains transport validation, the lossless scanner,
+inventory handlers, normalized policies, an iterative input/condition resolver,
+and a separate configured structural parser, analysis index and artifact emitter. See
+[the project model support matrix](./project-model.md) for exact semantics.
+
+The flow is source files → immutable snapshot → independent source inventory or
+configured token occurrences → complete configured structure. A source snapshot
+does not require balanced file-local structure. Interpretation uses live boolean
+bindings, saved local scopes, active input chains, distinct repeated inclusions,
+and a separate skipped-conditional token mode. Selected tokens retain boundaries
+at branch/input joins; the configured parser never reconstructs a raw string and
+re-lexes those joins. Origins are ordered original spans, never bounding ranges
+over inactive text.
+
+Expected source issues are per-file coverage data. Required interpretation
+failures return `incomplete`/`blocked` with trace and original locations; only
+`ready` owns an AST. Public operations remain synchronous, pure, deeply frozen,
+and free of host dependencies. Transported source snapshots are rebuilt from
+validated strings/options and checked against their content identity. Source
+updates atomically reuse unchanged scans. Revision-only changes retain token/fact
+arrays; scan-setting changes rescan. Views retain their immutable source authority,
+and transported views rebuild from validated source/configuration. Canonical
+immutable data is recognized through weak identity attestations; mutable transports
+never bypass validation. Condition state is local to each resolver call.
+
+Operation descriptors drive both eligibility and execution. Analyses consume
+source facts or reached facts independently and report their assumptions. Edit
+plans validate exact source/view identity, ranges and all affected occurrences
+before atomic application. Exports consume selected token occurrences or original
+slices, repair lexical joins and return separate artifacts with exact mappings.
+Condition retention and input topology are independent. Output is bounded during
+collection/emission. Source/view/options/version identity invalidates every result;
+configured views and indexes are initially rebuilt in full.
+
+`runProjectPipeline` composes the public snapshot, view, analysis and export
+operations without persistent state. The legacy parser/serializer remains
+isolated because static whitelisting, broad conditional recognition and Separate
+file scope do not exactly map to source interpretation. Both boundaries reject
+mixed legacy/new settings; [migration guidance](./migration-0.3.md) documents the
+differences. CLI inventory/analysis use only the public entry point and own their
+filesystem reads and JSON error mapping.
+
+There is no plugin runtime or backend. Website changes follow the verified
+registry release. [Package verification and handoff](./website-handoff.md)
+describes the TypeScript 4.9/ES2020 consumer and public fixture checks.
+
 ## Purpose and scope
 
 PrepTeX Core is a source-preserving structural parser and transformer for a
@@ -257,6 +307,15 @@ size depends on the input graph and repeated inclusions.
   still require parsing and deletions require constructing a new snapshot.
 
 ## Stability and release boundaries
+
+The project model's node extension keeps immutable data contracts in
+`core/src/node-types.ts`. Source environment matching/context, selection lookup,
+interval indexing, node-action planning and projected emission are separate
+modules under `core/src/lib/project/`. They share the existing scanner and range
+conventions. Canonical source proposals are recomputed before application;
+configured artifact edits operate on the original selected token stream after
+condition/input resolution. Generated wrapper and replacement text has synthetic
+provenance. See [node operations](./node-operations.md) for the public contract.
 
 The explicit exports from `core/src/index.ts` are the compatibility boundary.
 Public functions, named types, enums, readonly fields, error codes, defaults,

@@ -2,6 +2,57 @@
 
 All notable changes to this project will be documented here.
 
+## [0.3.0] - Unreleased
+
+### Added
+
+- C5a revision-bound node locations, exact environment delimiter/body metadata,
+  source environment inventories and immutable interval/line indexes for source lookup.
+- C7a selected-node removal, named-environment removal, precise environment renaming
+  and wrapping, with checked source previews or independent inclusion artifacts.
+  Added explicit comment-environment suppression, pipeline options, shared-source
+  conflict checks, synthetic provenance and bounds for inserted wrappers.
+
+- C1–C5 source snapshots, atomic source changes, lossless syntax inventories,
+  normalized boolean policies, operation requirements and edit precondition/range
+  validation.
+- Bounded condition/input interpretation with local/global boolean state,
+  repeated inclusion identities, explicit incomplete/blocked results, and
+  configured structures with disjoint original-source provenance.
+- Public declaration tests, source/view regression fixtures, CLI compatibility
+  verification and a runnable public-import project-model example.
+- C6 independent reference analysis and configured indexes with reached targets,
+  duplicates, informational forward references, unresolved keys and partial coverage.
+- Conservative command-use evidence for direct, body, self-recursive and ambiguous
+  definitions. Candidates do not establish non-use or authorize deletion.
+- C7 exact identity/comment previews, atomic checked edit application, configured
+  materialization and independent condition/input export policies. Results include
+  source mappings, entry identity, remaining dependencies and structured failures.
+- C8 reuse of unchanged scans, scan-setting updates, transport reconstruction,
+  complete view/index invalidation and deterministic output limits. Added a fixed
+  performance corpus, regression budgets and public operation/type tests.
+- C9 `runProjectPipeline`, composing immutable snapshot/view/ordered analysis/export
+  results, plus independent CLI `inventory` and `analyze` commands with JSON results
+  and structured failures. Added public compatibility and CLI regression tests.
+- C10 isolated tarball installation, TypeScript 4.9.5/ES2020 consumer tests,
+  public acceptance/CLI checks against packed packages, integrity evidence and CI
+  verification. Added migration mappings and the website handoff checklist.
+
+### Compatibility
+
+- Views now retain their immutable source snapshot. Analysis locations may have
+  no inclusion ID for source-only evidence; operation requests/results and public
+  error codes expand the contracts within this same unreleased 0.3.0 version.
+  Recreate snapshots/views from earlier development stages using source strings.
+- Keep the legacy parser, `AstNode`, static condition whitelist and all-supplied
+  Separate output behavior unchanged. The new model uses separate entry points.
+- Prepare both package manifests and the CLI's exact core dependency as 0.3.0;
+  all plan stages belong to this release. C9 is implemented; C10 publication and
+  registry consumer verification remain pending. No downstream dependency is changed.
+- Deprecate legacy entry points/options with explicit migration guidance.
+  Reject ambiguous calls mixing legacy fields and new policies with
+  `InvalidArgument`; valid legacy calls retain their behavior.
+
 ## [0.2.1] - Unreleased
 
 ### Fixed

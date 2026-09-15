@@ -246,6 +246,7 @@ function freezeParseResult(result: ParseResult): ParseResult {
  * @returns The immutable tree, declarations, references, and non-fatal diagnostics.
  * @throws {@link PrepTexSyntaxError} When supported syntax is malformed or unbalanced.
  * @throws {@link PrepTexError} When a runtime argument violates the public contract.
+ * @deprecated Retained for legacy file-local AST consumers in 0.3.0. New integrations should use createProjectSnapshot and resolveProjectView; see docs/migration-0.3.md.
  */
 export function parseDocument(source: string, options: ParseOptions = {}): ParseResult {
   if (typeof source !== 'string') {
@@ -316,6 +317,7 @@ function createParsedProject(files: readonly ParsedFile[]): ParsedProject {
  * @returns A transport-safe project containing plain objects and arrays.
  * @throws {@link PrepTexSyntaxError} When any file contains malformed supported syntax.
  * @throws {@link PrepTexError} When a path, source, version, or option is invalid.
+ * @deprecated Retained for legacy file-local AST consumers in 0.3.0. Use createProjectSnapshot and resolveProjectView for new project workflows; see docs/migration-0.3.md.
  */
 export function parseProject(
   files: readonly SourceFile[],
@@ -384,6 +386,7 @@ export function parseProject(
  * @param updates - Incremental files to add or replace.
  * @returns A new immutable project snapshot.
  * @throws {@link PrepTexError} When either snapshot violates the public data contract.
+ * @deprecated Use updateProjectSnapshot for new source workflows, including explicit deletions. Revision conflict rules differ; see docs/migration-0.3.md.
  */
 export function mergeProjects(base: ParsedProject, updates: ParsedProject): ParsedProject {
   const baseFiles = normalizeParsedProjectFiles(base, 'base');
@@ -448,6 +451,7 @@ function createTransformers(
  * @param options - Optional comment and conditional transformations.
  * @returns Serialized LaTeX source.
  * @throws {@link PrepTexError} When the tree or a runtime option is invalid.
+ * @deprecated Retained for legacy AST round trips. Use planTransformation on original source snapshots or configured views for new workflows; see docs/migration-0.3.md.
  */
 export function serializeDocument(root: AstRoot, options: SerializeOptions = {}): string {
   assertOptionsObject(options);
@@ -469,6 +473,7 @@ export function serializeDocument(root: AstRoot, options: SerializeOptions = {})
  * @returns Immutable generated files. `Separate` emits every project file; other modes emit one.
  * @throws {@link PrepTexError} When an argument is invalid, the entry is absent, or
  * an input target is unresolved or circular.
+ * @deprecated Retained with legacy whitelist and input-mode semantics. New integrations should use planTransformation or runProjectPipeline; see docs/migration-0.3.md.
  */
 export function transformProject(
   entryPath: ProjectFilePath,

@@ -8,8 +8,17 @@ readonly syntax trees, structured diagnostics, and typed errors.
 npm install --save-exact @preptex/core@0.2.1
 ```
 
-Version 0.2.0 was published on 2026-09-03. This source tree contains the
-compatible 0.2.1 release, including the documentation bundle listed below.
+This source tree prepares **0.3.0 (unreleased)**. It implements source
+snapshots, inventories, configured views, independent analyses, checked edits
+and exports, plus `runProjectPipeline`, alongside the retained legacy API. The install command above
+describes the existing consumer baseline; use 0.3.0 only after a verified registry
+release. See the bundled migration guide and website handoff for the remaining
+registry gate and reproducible package verification.
+
+The same release adds indexed original-source lookup and selected-node removal,
+environment suppression, renaming and wrapping. See the bundled
+`dist/docs/node-operations.md` for the typed requests, source/artifact choices
+and runnable examples. Comment-environment suppression is an explicit option.
 
 See the
 [integration guide](https://github.com/preptex/preptex-core/blob/main/docs/integration.md)
@@ -23,6 +32,9 @@ This package includes the complete specification files for developers and AI age
 
 - `dist/docs/integration.md`: Compact consumer guide, browser Web Worker model, complete frontend example, and error handling.
 - `dist/docs/architecture.md`: Architectural invariants, AST structures, condition models, and limitations.
+- `dist/docs/project-model.md`: Public contracts, support matrix and examples.
+- `dist/docs/migration-0.3.md`: Legacy mappings, condition semantics and pipeline composition.
+- `dist/docs/website-handoff.md`: Acceptance evidence, TypeScript 4.9 consumer verification and release gate.
 - `dist/docs/api/README.md`: Complete TypeDoc Markdown API reference.
 - `dist/index.d.ts`: Authoritative TypeScript declarations.
 

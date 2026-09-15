@@ -1,5 +1,20 @@
 # PrepTeX integration guide
 
+The project API is documented in [Project model](./project-model.md), including
+source inventories without an entry, condition/input resolution, original-origin
+navigation, independent analyses, checked edits, export mappings/dependencies,
+operation eligibility, and an executable public-import example.
+See [node operations](./node-operations.md) for indexed line/offset lookup,
+source environment inventories, selected-node removal, environment renaming and
+wrapping, and the distinction between shared source edits and per-inclusion output.
+This checkout prepares 0.3.0 without publishing it. The legacy integration below
+remains supported; do not substitute new source-driven policies for its static
+whitelist semantics. See [0.3.0 migration](./migration-0.3.md) for explicit mappings,
+`runProjectPipeline` composition and CLI inventory/analysis access. The
+[website handoff](./website-handoff.md) records isolated package verification and
+the remaining registry publication gate. The examples below describe the retained
+legacy API; new integrations should follow the project model guide.
+
 This guide describes how to consume `@preptex/core` in applications, frontend
 websites, Node.js services, and worker threads. Treat the published package and
 its generated TypeScript declarations (`dist/index.d.ts`) as the integration

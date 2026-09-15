@@ -30,7 +30,7 @@ export interface AstCliOptions {
   workDir?: string;
 }
 
-export type Command = 'transform' | 'ast';
+export type Command = 'transform' | 'ast' | 'inventory' | 'analyze';
 
 export function printGlobalHelp(): void {
   const lines = [
@@ -39,6 +39,8 @@ export function printGlobalHelp(): void {
     'Commands:',
     '  transform   Parse and rewrite LaTeX input using the transformer pipeline',
     '  ast         Parse and print the AST as JSON',
+    '  inventory   Inspect source facts without configuration or generated output',
+    '  analyze     Analyze references or conservative command-use evidence as JSON',
     '',
     'Run `preptex <command> --help` to see command-specific options.',
   ];
@@ -48,7 +50,7 @@ export function printGlobalHelp(): void {
 export function parseCommand(argv: string[]): { command: Command; rest: string[] } | null {
   if (argv.length === 0) return null;
   const [first, ...rest] = argv;
-  if (first === 'transform' || first === 'ast') {
+  if (first === 'transform' || first === 'ast' || first === 'inventory' || first === 'analyze') {
     return { command: first, rest };
   }
   if (first === '--help' || first === '-h') {
@@ -137,6 +139,22 @@ export function parseTransformArgs(argv: string[]): TransformCliOptions {
         break;
       }
       default:
+        if (
+          [
+            '--condition-mode',
+            '--condition',
+            '--initial',
+            '--traversal',
+            '--entry',
+            '--analysis',
+            '--allow-incomplete',
+            '--files',
+            '--kinds',
+          ].includes(a)
+        )
+          throw new Error(
+            `Legacy transform cannot use ${a}; use project-model operations explicitly.`
+          );
         // ignore unknown tokens here; transform handler will validate required fields
         break;
     }

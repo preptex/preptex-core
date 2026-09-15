@@ -1,0 +1,9 @@
+\newif\ifdraft
+% \drafttrue\input{missing}\label{comment}
+\verb|\drafttrue\input{missing}\label{inline}|
+\verb*+\ifdraft\else\fi+
+\begin{verbatim}
+\drafttrue\input{missing}\label{environment}
+\end{verbatim}
+\newcommand{\stored}{\drafttrue\input{missing}\label{body}}
+\ifdraft YES\else NO\fi

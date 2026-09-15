@@ -14,6 +14,7 @@
     "format": "prettier --ignore-path .prettierignore --write .",
     "format:check": "prettier --ignore-path .prettierignore --check .",
     "pack:check": "npm pack --workspace=@preptex/core --dry-run && npm pack --workspace=@preptex/cli --dry-run",
+    "consumer:check": "node scripts/verify-package.mjs",
     "check": "npm run typecheck && npm test && npm run type-test && npm run docs:check && npm run format:check"
   },
   "overrides": {
