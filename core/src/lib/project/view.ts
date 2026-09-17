@@ -216,7 +216,7 @@ export function resolveProjectView(
     stack.push({ file, occurrence, pos: 0, conditions: [], starts: lineStarts(file.source) });
   }
   function append(frame: Frame, start: number, end: number, opaque = false): void {
-    for (let pos = start; pos < end && !failure; ) {
+    for (let pos = start; pos < end && !failure;) {
       const token = lex(frame.file.source, pos, source.scanOptions);
       const until = Math.min(token.end, end);
       const value = frame.file.source.slice(pos, until);

@@ -63,8 +63,7 @@ export interface SourceEnvironment {
   /** Source-only context, not evidence of execution. */ readonly context: FactContext;
   /** Protected region grammar rather than nested environment matching. */ readonly protected: boolean;
   /** Null when matched; explanation of incomplete recognition otherwise. */ readonly reason:
-    | string
-    | null;
+    string | null;
 }
 /** Frozen source environment inventory; no entry or configured view required. */
 export interface EnvironmentInventory {
@@ -111,8 +110,7 @@ export type NodeTransformationRequest =
       /** Batch of configured node actions. */ readonly operation: 'edit-nodes';
       /** Source edits or fully materialized/inlined artifacts. */ readonly options: {
         /** Source previews preserve every unmapped slice; artifact mode specializes occurrences. */ readonly target:
-          | 'selected'
-          | 'artifact';
+          'selected' | 'artifact';
         /** Ordered actions; at most 10000. */ readonly actions: readonly NodeEditAction[];
         /** Total output UTF-16 bound, default 10000000. */ readonly maxOutputCodeUnits?: number;
       };
@@ -121,9 +119,7 @@ export type NodeTransformationRequest =
       /** Remove matching literal environments. */ readonly operation: 'remove-environments';
       /** Explicit physical or selected scope. */ readonly options: {
         /** All source branches or configured selected occurrences. */ readonly target:
-          | 'source'
-          | 'selected'
-          | 'artifact';
+          'source' | 'selected' | 'artifact';
         /** Case-sensitive literal names; nonempty, sorted during normalization. */ readonly names: readonly string[];
         /** Source-only scope, defaults to all files; forbidden for selected/artifact targets. */ readonly scope?: SourceScope;
         /** Total output UTF-16 bound, default 10000000. */ readonly maxOutputCodeUnits?: number;
@@ -167,8 +163,7 @@ export interface SourceLookupFile {
 /** Clone-safe lookup index; reuse only with its exact snapshot/view. */
 export interface ProjectSourceIndex {
   /** Immutable source/view authority used to reconstruct transported indexes. */ readonly model:
-    | ProjectSnapshot
-    | ProjectView;
+    ProjectSnapshot | ProjectView;
   /** Index discriminant. */ readonly kind: 'source-index';
   /** Original snapshot identity. */ readonly snapshotId: string;
   /** Configured identity, null for independent source lookup. */ readonly viewId: string | null;
