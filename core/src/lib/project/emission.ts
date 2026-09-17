@@ -43,7 +43,7 @@ export function synthetic(text: string, reason: string): Segment {
 }
 export function lastToken(text: string, options: NormalizedScanOptions): Lexeme | null {
   let last: Lexeme | null = null;
-  for (let pos = 0; pos < text.length; ) {
+  for (let pos = 0; pos < text.length;) {
     last = lex(text, pos, options);
     pos = last.end;
   }

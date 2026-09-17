@@ -304,7 +304,7 @@ export function scanFile(
   const starts = lineStarts(source);
   const tokens: SourceToken[] = [];
   const issues: ProjectIssue[] = [];
-  for (let pos = 0; pos < source.length; ) {
+  for (let pos = 0; pos < source.length;) {
     const token = lex(source, pos, options);
     const range = rangeAt(starts, pos, token.end - 1);
     tokens.push({ kind: token.kind, value: token.value, range });
@@ -325,7 +325,7 @@ export function scanFile(
     }
     const branches: BranchContext[] = [...context.branches];
     const inheritedBranches = branches.length;
-    for (let pos = from; pos < until; ) {
+    for (let pos = from; pos < until;) {
       const token = lex(source, pos, options);
       pos = token.end;
       if (token.kind !== 'command') continue;

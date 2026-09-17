@@ -739,11 +739,7 @@ export interface OperationDescriptor {
 export interface CapabilityReason {
   /** Stable reason. */
   readonly code:
-    | 'not-implemented'
-    | 'wrong-model'
-    | 'view-not-ready'
-    | 'missing-file'
-    | 'edit-unavailable';
+    'not-implemented' | 'wrong-model' | 'view-not-ready' | 'missing-file' | 'edit-unavailable';
 
   /** Located edit failure when code is edit-unavailable; absent for model requirements. */
   readonly failure?: OperationFailure;
