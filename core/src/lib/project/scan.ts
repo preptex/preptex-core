@@ -15,6 +15,7 @@ import {
   readDefinitionTokens,
   readOptionalBracketTokens,
   skipTriviaTokens,
+  spliceVerbatimMatch,
   tokenizeFile,
   type BracedGroupTokenMatch,
 } from './tokenize.js';
@@ -107,6 +108,7 @@ export function scanFile(
   const source = file.source;
   const starts = lineStarts(source);
   const tokens = tokenizeFile(source);
+  let scanTokens: readonly (typeof tokens)[number][] = tokens;
   const issues: ProjectIssue[] = [];
   const facts: SyntaxFact[] = [];
 
@@ -117,7 +119,7 @@ export function scanFile(
     untilOffset: number,
     context: FactContext,
     depth: number
-  ): void {
+  ): number {
     if (depth > options.maxNesting) {
       issues.push(
         issue('scan-limit', 'Inventory nesting limit reached; the remaining region is retained.', {
@@ -125,17 +127,18 @@ export function scanFile(
           range: rangeAt(starts, fromOffset, untilOffset - 1),
         })
       );
-      return;
+      return 0;
     }
+    let totalDelta = 0;
     const branches: BranchContext[] = [...context.branches];
     const inheritedBranches = branches.length;
     for (let idx = fromIndex; idx < untilIndex;) {
-      const token = tokens[idx]!;
+      const token = scanTokens[idx]!;
       idx++;
       if (token.kind !== 'command') continue;
 
       if (token.name === 'verb' || token.name === 'begin') {
-        const verb = matchVerbatimTokens(tokens, token.index, options.verbatimEnvironments);
+        let verb = matchVerbatimTokens(scanTokens, token.index, options.verbatimEnvironments);
         if (verb) {
           if (verb.error) {
             issues.push(
@@ -146,6 +149,14 @@ export function scanFile(
                 'error'
               )
             );
+          } else {
+            const spliced = spliceVerbatimMatch(scanTokens, verb, source, starts);
+            if (spliced) {
+              scanTokens = spliced.tokens;
+              verb = spliced.verb;
+              untilIndex += spliced.delta;
+              totalDelta += spliced.delta;
+            }
           }
           idx = verb.endIndex + 1;
           continue;
@@ -164,7 +175,7 @@ export function scanFile(
       });
 
       if (DEFINITIONS.has(token.name)) {
-        const def = readDefinitionTokens(tokens, token.index, untilIndex);
+        const def = readDefinitionTokens(scanTokens, token.index, untilIndex);
         facts.push({
           ...makeBase(def.endOffset, def.valid ? 'recognized' : 'candidate'),
           kind: 'definition',
@@ -174,24 +185,13 @@ export function scanFile(
           arguments: def.arguments.map((a) => rangeAt(starts, a.innerStart, a.innerEnd)),
           body: def.body ? rangeAt(starts, def.body.innerStart, def.body.innerEnd) : null,
         });
+        let nextIndex = def.body ? def.nextIndex : untilIndex;
         if (def.body) {
-          const bodyRange = rangeAt(starts, def.body.innerStart, def.body.innerEnd);
-          scan(
-            def.body.innerStartIndex,
-            def.body.innerEndIndex + 1,
-            def.body.innerStart,
-            def.body.innerEnd + 1,
-            {
-              ...context,
-              branches: [...branches],
-              definitionBodies: [...context.definitionBodies, bodyRange],
-            },
-            depth + 1
-          );
+          let argShift = 0;
           for (const arg of def.arguments) {
-            scan(
-              arg.innerStartIndex,
-              arg.innerEndIndex + 1,
+            const d = scan(
+              arg.innerStartIndex + argShift,
+              arg.innerEndIndex + 1 + argShift,
               arg.innerStart,
               arg.innerEnd + 1,
               {
@@ -204,7 +204,25 @@ export function scanFile(
               },
               depth + 1
             );
+            argShift += d;
           }
+          const bodyRange = rangeAt(starts, def.body.innerStart, def.body.innerEnd);
+          const bodyDelta = scan(
+            def.body.innerStartIndex + argShift,
+            def.body.innerEndIndex + 1 + argShift,
+            def.body.innerStart,
+            def.body.innerEnd + 1,
+            {
+              ...context,
+              branches: [...branches],
+              definitionBodies: [...context.definitionBodies, bodyRange],
+            },
+            depth + 1
+          );
+          const combined = argShift + bodyDelta;
+          untilIndex += combined;
+          totalDelta += combined;
+          nextIndex += combined;
         }
         if (!def.valid) {
           issues.push(
@@ -223,7 +241,7 @@ export function scanFile(
             )
           );
         }
-        idx = def.body ? def.nextIndex : untilIndex;
+        idx = nextIndex;
         continue;
       }
 
@@ -250,8 +268,8 @@ export function scanFile(
       facts.push({ ...makeBase(), kind: 'command-use', name: token.name });
 
       if (token.name === 'newif') {
-        const nextIdx = skipTriviaTokens(tokens, idx, untilIndex);
-        const target = nextIdx < untilIndex ? tokens[nextIdx]! : null;
+        const nextIdx = skipTriviaTokens(scanTokens, idx, untilIndex);
+        const target = nextIdx < untilIndex ? scanTokens[nextIdx]! : null;
         const name =
           target?.kind === 'command' &&
           /^if[A-Za-z]+$/.test(target.name) &&
@@ -318,7 +336,7 @@ export function scanFile(
         token.name === 'label' ||
         ['ref', 'pageref', 'eqref'].includes(token.name)
       ) {
-        const arg = readBracedGroupTokens(tokens, idx, untilIndex);
+        const arg = readBracedGroupTokens(scanTokens, idx, untilIndex);
         const key = literalFromGroup(arg, starts);
         const base = makeBase(
           arg?.end ?? token.range.end + 1,
@@ -344,16 +362,16 @@ export function scanFile(
       let argCharOffset = 0;
       if (
         argIdx < untilIndex &&
-        tokens[argIdx]!.kind === 'text' &&
-        tokens[argIdx]!.value.startsWith('*')
+        scanTokens[argIdx]!.kind === 'text' &&
+        scanTokens[argIdx]!.value.startsWith('*')
       ) {
-        if (tokens[argIdx]!.value.length === 1) argIdx++;
+        if (scanTokens[argIdx]!.value.length === 1) argIdx++;
         else argCharOffset = 1;
       }
-      const opt = readOptionalBracketTokens(tokens, argIdx, untilIndex, argCharOffset);
+      const opt = readOptionalBracketTokens(scanTokens, argIdx, untilIndex, argCharOffset);
       if (opt) {
         const region = rangeAt(starts, opt.innerStart, opt.innerEnd);
-        scan(
+        const subDelta = scan(
           opt.innerStartIndex,
           opt.innerEndIndex + 1,
           opt.innerStart,
@@ -365,7 +383,9 @@ export function scanFile(
           },
           depth + 1
         );
-        argIdx = opt.nextCharOffset > 0 ? opt.nextIndex + 1 : opt.nextIndex;
+        untilIndex += subDelta;
+        totalDelta += subDelta;
+        argIdx = (opt.nextCharOffset > 0 ? opt.nextIndex + 1 : opt.nextIndex) + subDelta;
       } else if (argCharOffset > 0) {
         argIdx++;
       }
@@ -375,10 +395,10 @@ export function scanFile(
         (sectionLevel(token.name) !== undefined || TEXT_ARGUMENTS.has(token.name) ? 1 : undefined);
       let consumed = 0;
       while (knownCount === undefined || consumed < knownCount) {
-        const arg = readBracedGroupTokens(tokens, argIdx, untilIndex);
+        const arg = readBracedGroupTokens(scanTokens, argIdx, untilIndex);
         if (!arg) break;
         const region = rangeAt(starts, arg.innerStart, arg.innerEnd);
-        scan(
+        const subDelta = scan(
           arg.innerStartIndex,
           arg.innerEndIndex + 1,
           arg.innerStart,
@@ -390,11 +410,14 @@ export function scanFile(
           },
           depth + 1
         );
-        argIdx = arg.nextIndex;
+        untilIndex += subDelta;
+        totalDelta += subDelta;
+        argIdx = arg.nextIndex + subDelta;
         consumed++;
       }
       if (argIdx > idx) idx = argIdx;
     }
+    return totalDelta;
   }
 
   let startTokenIndex = 0;

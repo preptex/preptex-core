@@ -5,7 +5,9 @@ import {
   checkOperationCapability,
   createProjectSnapshot,
   inspectProject,
+  inspectProjectEnvironments,
   isConfiguredContainerNode,
+  planTransformation,
   PrepTexError,
   projectOperations,
   realizeProjectConditions,
@@ -981,5 +983,181 @@ describe('Stage 0, Pipeline B & Pipeline A separation acceptance matrix (V-TOK, 
     ready(v);
     const sections = walkConfiguredNodes(v.root).filter((n) => n.kind === 'section');
     expect(sections.map((s) => s.kind === 'section' && s.name)).toEqual(['Blind']);
+  });
+});
+
+describe('Tokenizer, Pipeline B, and Pipeline A edge cases & pitfall regressions', () => {
+  it('INV-1/INV-2: tokenizeFile emits frozen lossless primitive tokens across CRLF, math, and trailing backslash', () => {
+    const raw = 'a%c\r\n  {b}$x$$$y$$\\(\\)\\[\\]\\\\\\';
+    const tokens = tokenizeFile(raw);
+    expect(Object.isFrozen(tokens)).toBe(true);
+    expect(tokens.every((t) => Object.isFrozen(t) && Object.isFrozen(t.range))).toBe(true);
+    expect(tokens.map((t) => t.value).join('')).toBe(raw);
+    expect(tokens.map((t) => [t.kind, t.name, t.range.line])).toEqual([
+      ['text', '', 1],
+      ['comment', '', 1],
+      ['space', '', 2],
+      ['open', '', 2],
+      ['text', '', 2],
+      ['close', '', 2],
+      ['math', '', 2],
+      ['text', '', 2],
+      ['math', '', 2],
+      ['math', '', 2],
+      ['text', '', 2],
+      ['math', '', 2],
+      ['math', '(', 2],
+      ['math', ')', 2],
+      ['math', '[', 2],
+      ['math', ']', 2],
+      ['command', '\\', 2],
+      ['command', '', 2],
+    ]);
+  });
+
+  it('INV-3: realizeProjectConditions ignores unclosed math, unmatched braces, and CRLF cleanup', () => {
+    const raw =
+      '  \\newif\\ifcam\\camtrue\r\n  \\ifcam\r\nKeep $unclosed } \\begin{a}\\end{b}\r\n  \\else\r\nDrop $$\r\n  \\fi';
+    const snap = snapshot(raw);
+    const res = realizeProjectConditions(snap, { conditions: { mode: 'source' } });
+    expect(res.status).toBe('ready');
+    expect(res.artifacts[0]!.source).toBe('Keep $unclosed } \\begin{a}\\end{b}\r\n');
+    expect(applyProjectEdits(snap, res.editPlan!).files[0]!.source).toBe(
+      'Keep $unclosed } \\begin{a}\\end{b}\r\n'
+    );
+  });
+
+  it('file-only condition realization isolates bindings/state per file and preserves inputs', () => {
+    const snap = createProjectSnapshot([
+      file(String.raw`\newif\ifdraft\drafttrue\ifdraft A\fi\input{part}\input{\dyn}`, 'a.tex'),
+      file(String.raw`\ifdraft B\else C\fi`, 'b.tex'),
+    ]);
+    const isolated = realizeProjectConditions(snap, {
+      traversal: 'file-only',
+      conditions: { mode: 'source' },
+    });
+    expect(isolated.status).toBe('incomplete');
+    expect(isolated.reason?.code).toBe('unknown-condition');
+    expect(isolated.reason?.location?.path).toBe('b.tex');
+
+    const aOnly = realizeProjectConditions(snap, {
+      traversal: 'file-only',
+      scope: { kind: 'files', paths: ['a.tex'] },
+      conditions: { mode: 'source' },
+    });
+    expect(aOnly.status).toBe('ready');
+    expect(aOnly.artifacts).toHaveLength(1);
+    expect(aOnly.artifacts[0]!.source).toBe(String.raw`A\input{part}\input{\dyn}`);
+  });
+
+  it('project condition realization supports inline inputs and rejects conflicting shared inputs in preserve mode', () => {
+    const snap = createProjectSnapshot([
+      file(String.raw`\newif\ifdraft\drafttrue\input{part}\draftfalse\input{part}`),
+      file(String.raw`\ifdraft T\else F\fi`, 'part.tex'),
+    ]);
+    expect(() =>
+      realizeProjectConditions(snap, {
+        entryPath: 'main.tex',
+        inputs: 'preserve',
+        conditions: { mode: 'source' },
+      })
+    ).toThrow(
+      expect.objectContaining({ failure: expect.objectContaining({ code: 'edit-conflict' }) })
+    );
+
+    const inlined = realizeProjectConditions(snap, {
+      entryPath: 'main.tex',
+      inputs: 'inline',
+      conditions: { mode: 'source' },
+    });
+    expect(inlined.status).toBe('ready');
+    expect(inlined.editPlan).toBeNull();
+    expect(inlined.artifacts).toHaveLength(1);
+    expect(inlined.artifacts[0]!.source).toBe('TF');
+  });
+
+  it('realizes conditions inside document metadata text (title, author, date, href text) while protecting label keys', () => {
+    const snap = snapshot(
+      String.raw`\newif\ifanon\anontrue
+\title{\ifanon Blind\else Named\fi}
+\author{\ifanon Anonymous\else Alice\fi}
+\date{\ifanon Hidden\else 2026\fi}
+\href{https://example.com}{\ifanon Masked\else Link\fi}
+\label{\anontrue}`
+    );
+    const res = realizeProjectConditions(snap, { conditions: { mode: 'source' } });
+    expect(res.status).toBe('ready');
+    expect(res.artifacts[0]!.source).toBe(
+      String.raw`\title{Blind}
+\author{Anonymous}
+\date{Hidden}
+\href{https://example.com}{Masked}
+\label{\anontrue}`
+    );
+  });
+
+  it('handles \\verb with % delimiter, trailing text, and % \\end{verbatim} cleanly across scan, conditions, AST, and environments', () => {
+    const raw =
+      '\\textbf{\\verb%x%}\n' +
+      '\\verb%y%\\iftrue A\\else B\\fi\n' +
+      '\\verb%z% % trailing comment\n' +
+      '\\verb|p|tail\\label{after}\n' +
+      '\\begin{verbatim}\n% \\end{verbatim}\\iftrue OK\\fi';
+    const snap = snapshot(raw);
+    expect(inspectProject(snap, { kinds: ['label'] }).facts.map((f) => f.range.line)).toEqual([4]);
+    const envs = inspectProjectEnvironments(snap);
+    expect(envs.environments).toHaveLength(1);
+    expect(envs.environments[0]!.status).toBe('matched');
+    expect(envs.environments[0]!.name).toBe('verbatim');
+
+    const v = resolveProjectView(snap, { entryPath: 'main.tex', conditions: { mode: 'source' } });
+    ready(v);
+    const envNodes = walkConfiguredNodes(v.root).filter((n) => n.kind === 'environment');
+    expect(envNodes).toHaveLength(1);
+    expect(envNodes[0]!.kind === 'environment' && envNodes[0]!.syntax.closing?.name).toBe(
+      'verbatim'
+    );
+
+    const exported = planTransformation(v, {
+      operation: 'export-project',
+      options: { inputs: 'inline', suppressComments: true },
+    });
+    expect(exported.artifacts[0]!.source).toBe(
+      '\\textbf{\\verb%x%}\n' +
+        '\\verb%y%A\n' +
+        '\\verb%z% \\verb|p|tail\\label{after}\n' +
+        '\\begin{verbatim}\n% \\end{verbatim}OK'
+    );
+  });
+
+  it('INV-4: mode none rejects \\newif, \\else, \\fi, \\ifnum, declared setters, and included conditionals, while allowing verbatim/comments/definitions', () => {
+    for (const [src, expectedLine] of [
+      ['\\newif\\ifx', 1],
+      ['text\n\\ifnum 1=1 A\\fi', 2],
+      ['\\else', 1],
+      ['\\fi', 1],
+      ['\\newif\\ifdraft\n\\drafttrue', 1],
+    ] as const) {
+      const v = resolve(src, { mode: 'none' });
+      failure(v, 'blocked', 'unrealized-condition');
+      if (v.status !== 'ready') expect(v.reason.location?.range.line).toBe(expectedLine);
+    }
+
+    const nested = resolveProjectView(
+      createProjectSnapshot([file('Intro\\input{part}'), file('Body\n\\iftrue X\\fi', 'part.tex')]),
+      { entryPath: 'main.tex', conditions: { mode: 'none' } }
+    );
+    failure(nested, 'blocked', 'unrealized-condition');
+    if (nested.status !== 'ready') {
+      expect(nested.reason.location?.path).toBe('part.tex');
+      expect(nested.reason.location?.range.line).toBe(2);
+      expect(nested.reason.inputChain).toEqual(['i0', 'i1']);
+    }
+
+    const clean = resolve(
+      '\\verb|\\iftrue|\n\\begin{verbatim}\n\\ifdraft\n\\end{verbatim}\n% \\iftrue\n\\newcommand{\\m}[1]{\\ifmmode #1\\fi}',
+      { mode: 'none' }
+    );
+    ready(clean);
   });
 });

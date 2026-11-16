@@ -113,7 +113,14 @@ export function parseConfiguredStructure(
     if (!first || !last || first.path !== last.path || first.occurrenceId !== last.occurrenceId)
       return null;
     const file = files.get(first.path)!;
-    const value = readDelimiter(file, first.range.start, snapshot);
+    const value =
+      readDelimiter(file, first.range.start, snapshot) ??
+      readDelimiter(
+        file,
+        first.range.start,
+        snapshot,
+        tokens.slice(start, end + 1).map((s) => s.token)
+      );
     if (!value || value.range.end !== last.range.end) return null;
     let expected = first.range.start;
     for (let i = start; i <= end; i++) {

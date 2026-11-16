@@ -19,6 +19,7 @@ export interface Segment {
   text: string;
   origin: AnalysisLocation | null;
   reason: string;
+  verbatim?: boolean;
 }
 export function sourceCopier(snapshot: ProjectSnapshot) {
   const lines = new Map<string, readonly number[]>();
@@ -126,7 +127,15 @@ export function emit(
         )
       );
     append(segment);
-    tail = lastToken(segment.text, snapshot.scanOptions);
+    tail = segment.verbatim
+      ? {
+          index: 0,
+          kind: 'text',
+          value: segment.text,
+          name: '',
+          range: { start: 0, end: segment.text.length - 1, line: 1 },
+        }
+      : lastToken(segment.text, snapshot.scanOptions);
     previous = segment;
   }
   const source = text.join('');

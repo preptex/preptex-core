@@ -401,6 +401,116 @@ export function matchVerbatimTokens(
 }
 
 /**
+ * Split `tokens[verb.endIndex]` when a closed `\verb` or `\begin{verbatim}` ends
+ * before the end of that token (or inside a `comment` token), re-tokenizing the
+ * trailing characters with exact source offsets and line numbers.
+ */
+export function spliceVerbatimMatch(
+  tokens: readonly SourceToken[],
+  verb: VerbatimTokenMatch,
+  source: string,
+  starts: readonly number[]
+): {
+  readonly tokens: SourceToken[];
+  readonly verb: VerbatimTokenMatch;
+  readonly delta: number;
+} | null {
+  if (!verb.closed) return null;
+  const endTok = tokens[verb.endIndex];
+  if (!endTok) return null;
+  const needsSplit =
+    verb.endOffset < endTok.range.end || (verb.kind === 'environment' && endTok.kind === 'comment');
+  if (!needsSplit) return null;
+
+  const headTokens: SourceToken[] = [];
+  let newCloseStartIndex = verb.closeStartIndex;
+
+  if (verb.kind === 'verb') {
+    const headValue = source.slice(endTok.range.start, verb.endOffset + 1);
+    headTokens.push(
+      Object.freeze({
+        index: 0,
+        kind: 'text',
+        value: headValue,
+        name: '',
+        range: Object.freeze(rangeAt(starts, endTok.range.start, verb.endOffset)),
+      })
+    );
+  } else {
+    const closingLen = 5 + (verb.envName?.length ?? 0) + 1;
+    const closeStartOffset = verb.endOffset - closingLen + 1;
+    if (closeStartOffset > endTok.range.start) {
+      headTokens.push(
+        Object.freeze({
+          index: 0,
+          kind: 'text',
+          value: source.slice(endTok.range.start, closeStartOffset),
+          name: '',
+          range: Object.freeze(rangeAt(starts, endTok.range.start, closeStartOffset - 1)),
+        })
+      );
+    }
+    newCloseStartIndex = verb.endIndex + headTokens.length;
+    const closingToks = tokenizeFile(source.slice(closeStartOffset, verb.endOffset + 1));
+    for (const t of closingToks) {
+      headTokens.push(
+        Object.freeze({
+          index: 0,
+          kind: t.kind,
+          value: t.value,
+          name: t.name,
+          range: Object.freeze(
+            rangeAt(starts, t.range.start + closeStartOffset, t.range.end + closeStartOffset)
+          ),
+        })
+      );
+    }
+  }
+
+  const tailTokens: SourceToken[] = [];
+  if (verb.endOffset < endTok.range.end) {
+    const tailOffset = verb.endOffset + 1;
+    const rawTail = tokenizeFile(source.slice(tailOffset, endTok.range.end + 1));
+    for (const t of rawTail) {
+      tailTokens.push(
+        Object.freeze({
+          index: 0,
+          kind: t.kind,
+          value: t.value,
+          name: t.name,
+          range: Object.freeze(
+            rangeAt(starts, t.range.start + tailOffset, t.range.end + tailOffset)
+          ),
+        })
+      );
+    }
+  }
+
+  const replacement = [...headTokens, ...tailTokens];
+  const updated: SourceToken[] = [
+    ...tokens.slice(0, verb.endIndex),
+    ...replacement,
+    ...tokens.slice(verb.endIndex + 1),
+  ];
+  for (let i = verb.endIndex; i < updated.length; i++) {
+    const tok = updated[i]!;
+    if (tok.index !== i) {
+      updated[i] = Object.freeze({ ...tok, index: i });
+    }
+  }
+  const newEndIndex = verb.endIndex + headTokens.length - 1;
+  return {
+    tokens: updated,
+    verb: {
+      ...verb,
+      endIndex: newEndIndex,
+      ...(newCloseStartIndex !== undefined ? { closeStartIndex: newCloseStartIndex } : {}),
+    },
+    delta: replacement.length - 1,
+  };
+}
+
+/**
  * Read a `\newcommand[*]`, `\renewcommand[*]`, `\providecommand[*]`, or `\def`
  * declaration header and body over the token array.
  */

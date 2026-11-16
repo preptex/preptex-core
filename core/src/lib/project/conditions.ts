@@ -24,13 +24,7 @@ import { normalizeProjectFilePath } from '../validation.js';
 import { normalizeConditionPolicy, normalizeViewLimits } from './configuration.js';
 import { dependencies, emit, sourceCopier, type Segment } from './emission.js';
 import { reject } from './fail.js';
-import {
-  DEFINITIONS,
-  literalFromGroup,
-  scanFile,
-  storedArgumentCount,
-  UNSUPPORTED_DEFINITIONS,
-} from './scan.js';
+import { DEFINITIONS, literalFromGroup, scanFile, UNSUPPORTED_DEFINITIONS } from './scan.js';
 import {
   bounded,
   coverage,
@@ -53,7 +47,25 @@ import {
   readDefinitionTokens,
   readOptionalBracketTokens,
   skipTriviaTokens,
+  spliceVerbatimMatch,
 } from './tokenize.js';
+
+const OPAQUE_KEY_ARGUMENTS: Readonly<Record<string, number>> = {
+  label: 1,
+  ref: 1,
+  pageref: 1,
+  eqref: 1,
+  input: 1,
+  documentclass: 1,
+  usepackage: 1,
+  RequirePackage: 1,
+  cite: 1,
+  citep: 1,
+  citet: 1,
+  url: 1,
+  href: 1,
+  includegraphics: 1,
+};
 
 type Binding =
   | { readonly kind: 'test'; readonly flag: string }
@@ -79,6 +91,7 @@ export interface RawRemovalItem {
 export interface OccurrenceTrace {
   readonly occurrence: InputOccurrence;
   readonly file: ScannedFile;
+  tokens: readonly SourceToken[];
   readonly starts: readonly number[];
   readonly conditionRemovals: RawRemovalItem[];
   readonly scaffoldingRemovals: RawRemovalItem[];
@@ -88,11 +101,11 @@ export interface OccurrenceTrace {
     number,
     { readonly endTokenIndex: number; readonly endOffset: number; readonly childTraceIndex: number }
   >;
-  readonly postVerbatimComments: Map<number, number>;
 }
 
 interface EvalFrame {
   readonly file: ScannedFile;
+  tokens: readonly SourceToken[];
   readonly occurrence: InputOccurrence;
   readonly trace: OccurrenceTrace;
   readonly traceIndex: number;
@@ -307,8 +320,13 @@ export function evaluateConditionStream(
     bindings.set(`${name}true`, { kind: 'setter', flag: name, value: true });
     bindings.set(`${name}false`, { kind: 'setter', flag: name, value: false });
   }
-  for (const name of new Set([...Object.keys(overrides), ...Object.keys(seeds)])) bindFlag(name);
-  for (const [name, value] of Object.entries(seeds)) state.set(name, value);
+  function resetEntryState(): void {
+    bindings.clear();
+    state.clear();
+    for (const name of new Set([...Object.keys(overrides), ...Object.keys(seeds)])) bindFlag(name);
+    for (const [name, value] of Object.entries(seeds)) state.set(name, value);
+  }
+  resetEntryState();
 
   function origin(frame: EvalFrame, start: number, end: number): SourceOrigin {
     return {
@@ -359,19 +377,20 @@ export function evaluateConditionStream(
     const trace: OccurrenceTrace = {
       occurrence,
       file,
+      tokens: file.tokens,
       starts,
       conditionRemovals: [],
       scaffoldingRemovals: [],
       activeTokens: new Set<number>(),
       tokenInterpretations: new Map<number, 'structure' | 'opaque' | 'verbatim'>(),
       activeInputExpansions: new Map(),
-      postVerbatimComments: new Map(),
     };
     const traceIndex = traces.length;
     occurrences.push(occurrence);
     traces.push(trace);
     stack.push({
       file,
+      tokens: file.tokens,
       occurrence,
       trace,
       traceIndex,
@@ -421,12 +440,13 @@ export function evaluateConditionStream(
 
   for (const entryFile of config.entryFiles) {
     if (failure) break;
+    resetEntryState();
     const rootIdx = pushFrame(entryFile, null);
     if (rootIdx !== null) rootTraceIndices.push(rootIdx);
 
     while (stack.length > 0 && !failure) {
       const frame = stack[stack.length - 1]!;
-      const tokens = frame.file.tokens;
+      let tokens = frame.tokens;
       if (frame.tokenIndex >= tokens.length) {
         if (frame.conditions.length > 0) {
           const hasBoundary = stack.length > 1 || occurrences.length > 1;
@@ -640,7 +660,7 @@ export function evaluateConditionStream(
 
       // Active verbatim (\verb or \begin{<verbatimEnv>})
       if (token.name === 'verb' || token.name === 'begin') {
-        const verb = matchVerbatimTokens(
+        let verb = matchVerbatimTokens(
           tokens,
           token.index,
           snapshot.scanOptions.verbatimEnvironments
@@ -656,15 +676,14 @@ export function evaluateConditionStream(
             );
             continue;
           }
-          markActive(frame, verb.startIndex, verb.endIndex, 'verbatim');
-          const endTok = tokens[verb.endIndex]!;
-          if (
-            verb.kind === 'verb' &&
-            endTok.kind === 'comment' &&
-            verb.endOffset < endTok.range.end
-          ) {
-            frame.trace.postVerbatimComments.set(verb.endIndex, verb.endOffset);
+          const spliced = spliceVerbatimMatch(tokens, verb, frame.file.source, frame.starts);
+          if (spliced) {
+            tokens = spliced.tokens;
+            frame.tokens = tokens;
+            frame.trace.tokens = tokens;
+            verb = spliced.verb;
           }
+          markActive(frame, verb.startIndex, verb.endIndex, 'verbatim');
           frame.tokenIndex = verb.endIndex + 1;
           continue;
         }
@@ -849,7 +868,9 @@ export function evaluateConditionStream(
       }
 
       // Stored key/metadata arguments (e.g., \label{...}, \ref{...}, \cite{...})
-      const storedCount = storedArgumentCount(token.name);
+      const storedCount = Object.prototype.hasOwnProperty.call(OPAQUE_KEY_ARGUMENTS, token.name)
+        ? OPAQUE_KEY_ARGUMENTS[token.name]
+        : undefined;
       if (storedCount !== undefined && token.name !== 'begin' && token.name !== 'end') {
         let cursor = frame.tokenIndex;
         const opt = readOptionalBracketTokens(tokens, cursor);
@@ -957,7 +978,7 @@ export function evaluateConditionStream(
         ? [...trace.conditionRemovals, ...trace.scaffoldingRemovals]
         : trace.conditionRemovals;
     const removedIntervals = expandRemovalIntervals(trace.file.source, rawRemovals);
-    const tokens = trace.file.tokens;
+    const tokens = trace.tokens;
 
     for (let tIdx = 0; tIdx < tokens.length; tIdx++) {
       const expansion = trace.activeInputExpansions.get(tIdx);
@@ -969,41 +990,6 @@ export function evaluateConditionStream(
       if (!trace.activeTokens.has(tIdx)) continue;
       const tok = tokens[tIdx]!;
       const interp = trace.tokenInterpretations.get(tIdx) ?? 'structure';
-
-      const verbEndOffset = trace.postVerbatimComments.get(tIdx);
-      if (verbEndOffset !== undefined) {
-        const verbValue = trace.file.source.slice(tok.range.start, verbEndOffset + 1);
-        const verbRange = rangeAt(trace.starts, tok.range.start, verbEndOffset);
-        if (
-          !appendSelectedToken(
-            trace,
-            { index: tok.index, kind: 'text', value: verbValue, name: '', range: verbRange },
-            'verbatim'
-          )
-        ) {
-          return;
-        }
-        const remStart = verbEndOffset + 1;
-        const remEndExcl = tok.range.end + 1;
-        const remValue = trace.file.source.slice(remStart, remEndExcl);
-        const remRange = rangeAt(trace.starts, remStart, remEndExcl - 1);
-        if (
-          !appendSelectedToken(
-            trace,
-            {
-              index: tok.index,
-              kind: remValue.startsWith('%') ? 'comment' : 'text',
-              value: remValue,
-              name: '',
-              range: remRange,
-            },
-            'structure'
-          )
-        ) {
-          return;
-        }
-        continue;
-      }
 
       const keptSlices = subtractIntervals(tok.range.start, tok.range.end + 1, removedIntervals);
       for (const slice of keptSlices) {
@@ -1292,7 +1278,7 @@ export function realizeProjectConditions(
 
       let cursorOffset = 0;
       for (const [cmdIndex, exp] of expansions) {
-        const cmdTok = trace.file.tokens[cmdIndex]!;
+        const cmdTok = trace.tokens[cmdIndex]!;
         const keptBefore = subtractIntervals(cursorOffset, cmdTok.range.start, removedIntervals);
         for (const slice of keptBefore) {
           segments.push(copy(trace.file, slice.start, slice.endExcl, trace.occurrence.id));
