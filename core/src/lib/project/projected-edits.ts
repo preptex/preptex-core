@@ -13,7 +13,11 @@ export function projectedEditor(view: ProjectView, changes: readonly TextChange[
     const original = (from: number, to: number) => {
       const at = Math.max(token.origin.range.start + from - start, keepStart);
       const until = token.origin.range.start + to - start;
-      if (keep && at < until) result.push(copy(file, at, until, token.origin.occurrenceId));
+      if (keep && at < until) {
+        const segment = copy(file, at, until, token.origin.occurrenceId);
+        if (token.interpretation === 'verbatim') segment.verbatim = true;
+        result.push(segment);
+      }
     };
     let low = 0,
       high = changes.length;

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   createProjectSnapshot,
   inspectProjectEnvironments,
+  realizeProjectConditions,
   resolveProjectView,
   walkConfiguredNodes,
   createProjectSourceIndex,
@@ -13,7 +14,7 @@ import {
   runProjectPipeline,
 } from '@preptex/core';
 
-// Source-wide suppression needs no entry or condition values.
+// Standalone condition realization needs no balanced AST structure.
 const original = createProjectSnapshot([
   {
     path: 'main.tex',
@@ -27,12 +28,15 @@ const original = createProjectSnapshot([
   },
 ]);
 assert.equal(inspectProjectEnvironments(original).environments.length, 3);
-const prepass = planTransformation(original, {
-  operation: 'remove-environments',
-  options: { target: 'source', names: ['C'] },
+const realized = realizeProjectConditions(original, {
+  entryPath: 'main.tex',
+  traversal: 'file-only',
+  conditions: { mode: 'source' },
 });
-const snapshot = applyProjectEdits(original, prepass.editPlan);
-const configuration = { entryPath: 'main.tex', conditions: { mode: 'source' } };
+assert.equal(realized.status, 'ready');
+assert.ok(realized.editPlan);
+const snapshot = applyProjectEdits(original, realized.editPlan);
+const configuration = { entryPath: 'main.tex', conditions: { mode: 'none' } };
 const view = resolveProjectView(snapshot, configuration);
 assert.equal(view.status, 'ready');
 const list = walkConfiguredNodes(view.root).find(
@@ -45,7 +49,6 @@ const nodeEdits = [
   { kind: 'wrap-node', selection, name: 'center' },
 ];
 const exportOptions = {
-  conditions: 'materialize',
   inputs: 'inline',
   suppressComments: true,
   suppressCommentEnvironments: true,
@@ -64,10 +67,10 @@ assert.deepEqual(
   result
 );
 const index = createProjectSourceIndex(view),
-  offset = sourceOffsetAt(index, 'main.tex', 3);
+  offset = sourceOffsetAt(index, 'main.tex', 1);
 assert.ok(lookupProjectSource(index, { path: 'main.tex', start: offset, kinds: ['token'] }).length);
 assert.equal(original.files[0].version, 1);
 console.log(
-  'Node selection, rename/wrap, source prepass, source booleans, comments and pipeline verified.'
+  'Node selection, rename/wrap, standalone condition realization, comments and pipeline verified.'
 );
 console.log(result.artifacts[0].source);

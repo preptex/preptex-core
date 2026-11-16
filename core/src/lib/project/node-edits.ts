@@ -1,13 +1,6 @@
-import type {
-  ConfiguredNode,
-  ProjectEdit,
-  ProjectView,
-  ProjectSnapshot,
-  SourceScope,
-} from '../../project-types.js';
+import type { ConfiguredNode, ProjectEdit, ProjectView } from '../../project-types.js';
 import type { NodeEditAction } from '../../node-types.js';
 import { getSelectedNode, nodeMap, selectProjectNode } from './selection.js';
-import { sourceEnvironments } from './environments.js';
 import { reject } from './fail.js';
 import { normalizeChanges, sourceChanges, type TextChange } from './text-edits.js';
 
@@ -247,68 +240,9 @@ export function nodeSourceEdits(
   return sourceChanges(view.snapshot, byPath);
 }
 
-export function environmentSourceEdits(
-  source: ProjectSnapshot,
-  names: readonly string[],
-  scope?: SourceScope
-): ProjectEdit[] {
-  const unknown = source.files
-    .filter((f) => scope?.kind !== 'files' || scope.paths.includes(f.path))
-    .flatMap((f) => f.coverage.issues)
-    .find((i) => i.code === 'scan-limit' || i.code === 'opaque-region');
-  if (unknown)
-    reject(
-      'unavailable',
-      'Source environment coverage is incomplete; a complete named suppression cannot be established.',
-      unknown.location ? [{ ...unknown.location, snapshotId: source.id, occurrenceId: null }] : []
-    );
-  const matches = sourceEnvironments(source).filter(
-    (e) =>
-      (scope?.kind !== 'files' || scope.paths.includes(e.path)) &&
-      (e.name === null || names.includes(e.name))
-  );
-  const invalid = matches.find((e) => e.status === 'candidate');
-  if (invalid)
-    reject('edit-conflict', invalid.reason ?? 'Incomplete environment.', [
-      { path: invalid.path, range: invalid.range, snapshotId: source.id, occurrenceId: null },
-    ]);
-  const byPath = new Map<string, TextChange[]>();
-  for (const e of matches) {
-    if (
-      matches.some(
-        (other) =>
-          other !== e &&
-          other.path === e.path &&
-          other.range.start < e.range.start &&
-          other.range.end >= e.range.end
-      )
-    )
-      continue;
-    const bucket = byPath.get(e.path) ?? [];
-    bucket.push({ start: e.range.start, end: e.range.end + 1, text: '' });
-    byPath.set(e.path, bucket);
-  }
-  return sourceChanges(source, byPath);
-}
 export function environmentActions(view: ProjectView, names: readonly string[]): NodeEditAction[] {
-  const structural = new Set(
-    view.selectedTokens
-      .filter((t) => t.interpretation === 'structure')
-      .map((t) => t.projectedRange.start)
-  );
   return [...nodeMap(view).values()]
-    .filter((node) =>
-      node.kind === 'environment'
-        ? names.includes(node.name)
-        : node.kind === 'token' &&
-          structural.has(node.projectedRange.start) &&
-          node.token.kind === 'verbatim' &&
-          names.some((name) =>
-            new RegExp(
-              '^\\\\begin\\s*\\{' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\}'
-            ).test(node.token.value)
-          )
-    )
+    .filter((node) => node.kind === 'environment' && names.includes(node.name))
     .map((node) => ({
       kind: 'remove-node',
       selection: selectProjectNode(view, node.occurrenceKey),

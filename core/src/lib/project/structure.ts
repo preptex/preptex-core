@@ -3,6 +3,7 @@ import type {
   ConfiguredContainerNode,
   ConfiguredNode,
   ProjectIssue,
+  ProjectIssueCode,
   SelectedToken,
   SourceOrigin,
   ViewId,
@@ -10,7 +11,7 @@ import type {
 } from '../../project-types.js';
 import type { NodeLocation, ConfiguredEnvironmentDelimiter } from '../../node-types.js';
 import { readDelimiter, hasEnvironmentArguments, fileLines } from './environments.js';
-import { issue, rangeAt } from './shared.js';
+import { issue, rangeAt, testKind } from './shared.js';
 import { sectionLevel } from './scan.js';
 
 interface Container {
@@ -53,15 +54,20 @@ export function parseConfiguredStructure(
   const stack: Container[] = [root];
   let error: ProjectIssue | undefined;
   const files = new Map(snapshot.files.map((f) => [f.path, f]));
-  function fail(message: string, index: number): void {
+  const declaredSetters = new Set<string>();
+  for (const file of snapshot.files) {
+    for (const fact of file.facts) {
+      if (fact.kind === 'condition-declaration' && fact.name) {
+        declaredSetters.add(`${fact.name}true`);
+        declaredSetters.add(`${fact.name}false`);
+      }
+    }
+  }
+
+  function fail(message: string, index: number, code: ProjectIssueCode = 'structural-error'): void {
     const at = tokens[index]?.origin ?? tokens[tokens.length - 1]?.origin;
     error = {
-      ...issue(
-        'structural-error',
-        message,
-        at ? { path: at.path, range: at.range } : null,
-        'error'
-      ),
+      ...issue(code, message, at ? { path: at.path, range: at.range } : null, 'error'),
       inputChain: at ? [at.occurrenceId] : [],
     };
   }
@@ -107,7 +113,14 @@ export function parseConfiguredStructure(
     if (!first || !last || first.path !== last.path || first.occurrenceId !== last.occurrenceId)
       return null;
     const file = files.get(first.path)!;
-    const value = readDelimiter(file, first.range.start, snapshot);
+    const value =
+      readDelimiter(file, first.range.start, snapshot) ??
+      readDelimiter(
+        file,
+        first.range.start,
+        snapshot,
+        tokens.slice(start, end + 1).map((s) => s.token)
+      );
     if (!value || value.range.end !== last.range.end) return null;
     let expected = first.range.start;
     for (let i = start; i <= end; i++) {
@@ -219,6 +232,7 @@ export function parseConfiguredStructure(
     }
     return null;
   }
+
   for (let i = 0; i < tokens.length && !error; i++) {
     const selected = tokens[i]!;
     const token = selected.token;
@@ -226,7 +240,62 @@ export function parseConfiguredStructure(
       leaf(i);
       continue;
     }
-    const command = token.kind === 'command' ? token.value.slice(1) : '';
+    if (selected.interpretation === 'verbatim') {
+      if (token.kind === 'command' && token.name === 'begin') {
+        const env = heading(i);
+        if (env && snapshot.scanOptions.verbatimEnvironments.includes(env.name)) {
+          let closeStart = -1;
+          let closeEnd = -1;
+          for (let j = env.end + 1; j < tokens.length; j++) {
+            if (tokens[j]!.interpretation !== 'verbatim') break;
+            if (tokens[j]!.token.kind === 'command' && tokens[j]!.token.name === 'end') {
+              const endEnv = heading(j);
+              if (endEnv && endEnv.name === env.name) {
+                closeStart = j;
+                closeEnd = endEnv.end;
+                break;
+              }
+            }
+          }
+          if (closeStart !== -1) {
+            const frame = container('environment', i);
+            frame.name = env.name;
+            frame.openingEnd = env.end;
+            frame.closingStart = closeStart;
+            stack.push(frame);
+            if (stack.length > maxNesting + 1) {
+              fail('Configured structural nesting limit reached.', i);
+              break;
+            }
+            for (let k = env.end + 1; k < closeStart; k++) {
+              leaf(k);
+            }
+            close(closeEnd);
+            i = closeEnd;
+            continue;
+          }
+        }
+      }
+      leaf(i);
+      continue;
+    }
+
+    const command = token.kind === 'command' ? token.name || token.value.slice(1) : '';
+    if (
+      command === 'newif' ||
+      command === 'else' ||
+      command === 'fi' ||
+      testKind(command) !== null ||
+      declaredSetters.has(command)
+    ) {
+      fail(
+        `Unrealized conditional command \\${command} encountered in structural parser. Realize conditions before building the AST.`,
+        i,
+        'unrealized-condition'
+      );
+      break;
+    }
+
     const section = sectionLevel(command);
     if (section !== undefined) {
       const title = heading(i);
@@ -248,7 +317,7 @@ export function parseConfiguredStructure(
       i = title.end;
     } else if (command === 'begin' || command === 'end') {
       const env = heading(i);
-      if (!env) {
+      if (!env || !/^[A-Za-z][A-Za-z0-9@*-]{0,127}$/.test(env.name)) {
         fail('Malformed selected environment delimiter.', i);
         break;
       }

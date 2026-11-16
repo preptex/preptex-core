@@ -2,6 +2,7 @@ import type {
   BooleanValues,
   ConditionPolicy,
   NormalizedViewConfiguration,
+  ViewLimits,
 } from '../../project-types.js';
 import { normalizeProjectFilePath } from '../validation.js';
 import { bounded, fields, invalid, record, testKind } from './shared.js';
@@ -24,7 +25,10 @@ function values(value: unknown): BooleanValues {
   return result;
 }
 
-function policy(value: unknown = { mode: 'source' }): ConditionPolicy {
+export function normalizeConditionPolicy(
+  value: unknown = { mode: 'source' },
+  allowNone = true
+): ConditionPolicy {
   const input = record(value, 'condition policy');
   if (input['mode'] === 'source') {
     fields(input, ['mode', 'initialValues'], 'source policy');
@@ -45,7 +49,31 @@ function policy(value: unknown = { mode: 'source' }): ConditionPolicy {
       initialValues: values(input['initialValues'] === undefined ? {} : input['initialValues']),
     };
   }
+  if (allowNone && input['mode'] === 'none') {
+    fields(input, ['mode'], 'none policy');
+    return { mode: 'none' };
+  }
   return invalid('Invalid condition policy mode.');
+}
+
+export function normalizeViewLimits(value: unknown): Required<ViewLimits> {
+  const limits = record(value === undefined ? {} : value, 'view limits');
+  fields(
+    limits,
+    ['maxInputDepth', 'maxOccurrences', 'maxNesting', 'maxSelectedCodeUnits'],
+    'view limits'
+  );
+  return {
+    maxInputDepth: bounded(limits['maxInputDepth'], 64, 256, 'maxInputDepth'),
+    maxOccurrences: bounded(limits['maxOccurrences'], 10000, 1000000, 'maxOccurrences'),
+    maxNesting: bounded(limits['maxNesting'], 256, 512, 'maxNesting'),
+    maxSelectedCodeUnits: bounded(
+      limits['maxSelectedCodeUnits'],
+      10000000,
+      100000000,
+      'maxSelectedCodeUnits'
+    ),
+  };
 }
 
 export function normalizeConfiguration(value: unknown): NormalizedViewConfiguration {
@@ -60,27 +88,11 @@ export function normalizeConfiguration(value: unknown): NormalizedViewConfigurat
     invalid('Invalid input traversal mode.');
   const profile = input['profile'] === undefined ? 'direct-latex-v1' : input['profile'];
   if (profile !== 'direct-latex-v1') invalid('Unsupported interpretation profile.');
-  const limits = record(input['limits'] === undefined ? {} : input['limits'], 'view limits');
-  fields(
-    limits,
-    ['maxInputDepth', 'maxOccurrences', 'maxNesting', 'maxSelectedCodeUnits'],
-    'view limits'
-  );
   return {
     entryPath: normalizeProjectFilePath(input['entryPath'], 'entryPath'),
     traversal,
     profile,
-    conditions: policy(input['conditions']),
-    limits: {
-      maxInputDepth: bounded(limits['maxInputDepth'], 64, 256, 'maxInputDepth'),
-      maxOccurrences: bounded(limits['maxOccurrences'], 10000, 1000000, 'maxOccurrences'),
-      maxNesting: bounded(limits['maxNesting'], 256, 512, 'maxNesting'),
-      maxSelectedCodeUnits: bounded(
-        limits['maxSelectedCodeUnits'],
-        10000000,
-        100000000,
-        'maxSelectedCodeUnits'
-      ),
-    },
+    conditions: normalizeConditionPolicy(input['conditions'], true),
+    limits: normalizeViewLimits(input['limits']),
   };
 }

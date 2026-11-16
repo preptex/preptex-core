@@ -1,7 +1,7 @@
 import { safeComment, commentEdit } from './comment-edits.js';
+import { realizeProjectConditions } from './conditions.js';
 import { sourceOperationEdits } from './source-operations.js';
 import { environmentActions, projectionChanges } from './node-edits.js';
-import { getSelectedNode } from './selection.js';
 import { projectedEditor } from './projected-edits.js';
 import type {
   ExportOptions,
@@ -14,7 +14,6 @@ import type {
   ProjectView,
   ScannedFile,
   SelectedToken,
-  SourceScope,
   TransformationRequest,
   TransformationResult,
 } from '../../project-types.js';
@@ -23,17 +22,10 @@ import { updateProjectSnapshot, validateSnapshot } from './snapshot.js';
 import { validateView } from './view.js';
 import { requireCapability, validateOperation, validateProjectEditPlan } from './operations.js';
 import { sourceCopier, dependencies, emit, synthetic, type Segment } from './emission.js';
-import { coverage, freeze, identity, invalid, issue, record } from './shared.js';
+import { coverage, freeze, identity, invalid, record } from './shared.js';
 import { eligibleToken } from './safety.js';
 import { reject } from './fail.js';
 import { virtualDirname } from '../virtual-path.js';
-
-function selectedFiles(
-  source: ProjectSnapshot,
-  scope: SourceScope | undefined
-): readonly ScannedFile[] {
-  return source.files.filter((f) => scope?.kind !== 'files' || scope.paths.includes(f.path));
-}
 
 function editedSegments(
   source: ProjectSnapshot,
@@ -103,9 +95,9 @@ export function applyProjectEdits(
 }
 
 /**
- * Plan identity/comment edits or generate a configured export without changing sources.
- * @param model - Source snapshot for source-local work, configured view for selected work/exports.
- * @param request - Operation, independent retention/topology policies, and resource limits.
+ * Plan condition realization, comment/node source edits, or a configured export without changing sources.
+ * @param model - Source snapshot for condition realization, configured view for structural edits/exports.
+ * @param request - Operation, retention/topology policies, and resource limits.
  * @returns Frozen edits, exact preview artifacts and mappings, dependency metadata and coverage.
  * @throws {@link ProjectOperationError} for unavailable models, incompatible shared-file contexts or output limits.
  * @throws {@link PrepTexError} with InvalidArgument for malformed options or stale transports.
@@ -125,6 +117,42 @@ export function planTransformation(
   )
     invalid('Expected a transformation operation.');
   requireCapability(normalized, operation);
+  if (operation.operation === 'realize-conditions') {
+    if (normalized.kind !== 'snapshot') invalid('Condition realization requires a snapshot.');
+    const realized = realizeProjectConditions(normalized, operation.options);
+    if (realized.status !== 'ready') {
+      reject(
+        'unavailable',
+        realized.reason?.message ?? 'Condition realization could not complete.',
+        realized.reason?.location
+          ? [
+              {
+                snapshotId: normalized.id,
+                occurrenceId:
+                  realized.reason.inputChain[realized.reason.inputChain.length - 1] ?? null,
+                path: realized.reason.location.path,
+                range: realized.reason.location.range,
+              },
+            ]
+          : []
+      );
+    }
+    const resultId = identity('transformation', realized.provenance);
+    return freeze({
+      kind: 'transformation',
+      resultId,
+      provenance: realized.provenance,
+      editPlan: realized.editPlan,
+      artifacts: realized.artifacts,
+      entryPath:
+        realized.provenance.request.operation === 'realize-conditions' &&
+        realized.provenance.request.options.inputs === 'inline'
+          ? (realized.artifacts[0]?.path ?? null)
+          : null,
+      dependencies: realized.dependencies,
+      coverage: realized.coverage,
+    });
+  }
   const source = normalized.kind === 'snapshot' ? normalized : normalized.snapshot;
   const provenance: OperationProvenance = {
     snapshotId: source.id,
@@ -134,20 +162,16 @@ export function planTransformation(
   };
   const resultId = identity('transformation', provenance);
   if (
-    operation.operation === 'identity' ||
     operation.operation === 'suppress-comments' ||
     ((operation.operation === 'edit-nodes' || operation.operation === 'remove-environments') &&
       operation.options.target !== 'artifact')
   ) {
-    const files = selectedFiles(
-      source,
-      'scope' in operation.options ? operation.options.scope : undefined
-    );
-    const view = normalized.kind === 'view' ? normalized : undefined;
-    const edits = sourceOperationEdits(source, operation, view);
+    if (normalized.kind !== 'view') invalid('Structural source edits require a configured view.');
+    const files = source.files;
+    const edits = sourceOperationEdits(source, operation, normalized);
     const plan = freeze({ kind: 'edits' as const, provenance, edits });
-    validateProjectEditPlan(source, plan, view);
-    let remaining = operation.options.maxOutputCodeUnits ?? 10000000;
+    validateProjectEditPlan(source, plan, normalized);
+    let remaining = operation.options?.maxOutputCodeUnits ?? 10000000;
     const artifacts = files.map((file) => {
       const artifact = emit(
         file.path,
@@ -168,12 +192,11 @@ export function planTransformation(
       artifacts,
       entryPath: null,
       dependencies: dependencies(artifacts, source.scanOptions),
-      coverage: view?.coverage ?? coverage(files.flatMap((f) => f.coverage.issues)),
+      coverage: normalized.coverage,
     });
   }
   if (normalized.kind !== 'view') invalid('Configured exports require a view.');
   if (
-    operation.operation !== 'materialize' &&
     operation.operation !== 'export-project' &&
     operation.operation !== 'edit-nodes' &&
     operation.operation !== 'remove-environments'
@@ -182,7 +205,6 @@ export function planTransformation(
   const options: ExportOptions =
     operation.operation === 'edit-nodes' || operation.operation === 'remove-environments'
       ? {
-          conditions: 'materialize',
           inputs: 'inline',
           nodeEdits:
             operation.operation === 'edit-nodes'
@@ -190,9 +212,7 @@ export function planTransformation(
               : environmentActions(normalized, operation.options.names),
           maxOutputCodeUnits: operation.options.maxOutputCodeUnits ?? 10000000,
         }
-      : operation.operation === 'materialize'
-        ? { ...operation.options, conditions: 'materialize' }
-        : operation.options;
+      : operation.options;
   const exported = exportView(normalized, options, provenance);
   return freeze({ kind: 'transformation', resultId, provenance, editPlan: null, ...exported });
 }
@@ -218,7 +238,6 @@ function exportView(
     view,
     projectionChanges(view, [...nodeActions, ...commentActions])
   );
-  const commentNodes = commentActions.map((a) => getSelectedNode(view, a.selection));
   const issues: ProjectIssue[] = [...view.coverage.issues];
   const selectedByOccurrence = new Map<string, SelectedToken[]>();
   for (const token of view.selectedTokens) {
@@ -226,83 +245,6 @@ function exportView(
     bucket.push(token);
     selectedByOccurrence.set(token.origin.occurrenceId, bucket);
   }
-  const knownScaffolding = new Map<string, { start: number; end: number }[]>();
-  const allowed = new Set([
-    'newif',
-    'global',
-    'label',
-    'ref',
-    'eqref',
-    'pageref',
-    'begin',
-    'end',
-    'input',
-    'section',
-    'subsection',
-    'subsubsection',
-    'paragraph',
-    'subparagraph',
-    'item',
-    'relax',
-    'par',
-  ]);
-  const booleanCommands = new Set(
-    view.reachedFacts.flatMap((e) =>
-      e.fact.kind === 'condition-declaration' && e.fact.name
-        ? [`if${e.fact.name}`, `${e.fact.name}true`, `${e.fact.name}false`]
-        : []
-    )
-  );
-  const canRemove =
-    options.conditions === 'materialize' &&
-    view.reachedFacts.every(
-      (e) =>
-        e.fact.kind !== 'definition' &&
-        (e.fact.kind !== 'command-use' ||
-          allowed.has(e.fact.name) ||
-          booleanCommands.has(e.fact.name) ||
-          e.fact.name === 'iftrue' ||
-          e.fact.name === 'iffalse')
-    ) &&
-    source.files.every(
-      (file) =>
-        !file.facts.some(
-          (f) =>
-            f.context.definitionBodies.length ||
-            (f.kind === 'command-use' &&
-              f.context.opaqueArguments.length &&
-              booleanCommands.has(f.name))
-        )
-    );
-  if (
-    options.conditions === 'materialize' &&
-    !canRemove &&
-    view.reachedFacts.some(
-      (e) => e.fact.kind === 'condition-declaration' || e.fact.kind === 'condition-assignment'
-    )
-  )
-    issues.push(
-      issue(
-        'opaque-region',
-        'Boolean scaffolding retained because opaque or external consumers may still require it.',
-        null
-      )
-    );
-  if (canRemove)
-    for (const reached of view.reachedFacts) {
-      if (
-        reached.fact.kind !== 'condition-declaration' &&
-        reached.fact.kind !== 'condition-assignment' &&
-        !(
-          reached.fact.kind === 'command-use' &&
-          (reached.fact.name === 'global' || booleanCommands.has(reached.fact.name))
-        )
-      )
-        continue;
-      const bucket = knownScaffolding.get(reached.origin.occurrenceId) ?? [];
-      bucket.push(reached.origin.range);
-      knownScaffolding.set(reached.origin.occurrenceId, bucket);
-    }
   const children = new Map<string, (typeof view.occurrences)[number][]>();
   for (const occurrence of view.occurrences)
     if (occurrence.parentId !== null) {
@@ -326,89 +268,40 @@ function exportView(
         reject('output-limit', 'An expanded occurrence exceeds the configured output size limit.');
       pieces.push(segment);
     };
-    if (options.conditions === 'materialize') {
-      const events: { start: number; pieces: Segment[] }[] = [];
-      let omittedIndentUntil = -1;
-      for (const token of tokens) {
-        let keep = !knownScaffolding
-          .get(occurrence.id)
-          ?.some((r) => r.start <= token.origin.range.start && r.end >= token.origin.range.end);
-        if (
-          options.suppressComments &&
-          eligibleToken(token) &&
-          token.token.kind === 'comment' &&
-          safeComment(source, file, token.origin.range.start, token.origin.range.end)
-        ) {
-          const edit = commentEdit(source, file, token.origin.range.start, token.origin.range.end);
-          if (edit.kind === 'replace') omittedIndentUntil = edit.range.end + 1;
-          keep = false;
-        }
-        const start = Math.max(token.origin.range.start, omittedIndentUntil);
-        events.push({ start: token.origin.range.start, pieces: project(token, file, keep, start) });
+    const events: { start: number; pieces: Segment[] }[] = [];
+    let omittedIndentUntil = -1;
+    for (const token of tokens) {
+      let keep = true;
+      if (
+        options.suppressComments &&
+        eligibleToken(token) &&
+        token.token.kind === 'comment' &&
+        safeComment(source, file, token.origin.range.start, token.origin.range.end)
+      ) {
+        const edit = commentEdit(source, file, token.origin.range.start, token.origin.range.end);
+        if (edit.kind === 'replace') omittedIndentUntil = edit.range.end + 1;
+        keep = false;
       }
-      for (const child of ownChildren)
-        events.push({
-          start: child.reference!.range.start,
-          pieces:
-            options.inputs === 'inline'
-              ? rendered.get(child.id)!
-              : [
-                  copied(
-                    file,
-                    child.reference!.range.start,
-                    child.reference!.range.end + 1,
-                    occurrence.id
-                  ),
-                ],
-        });
-      for (const event of events.sort((a, b) => a.start - b.start))
-        for (const segment of event.pieces) collect(segment);
-    } else {
-      const edits: { start: number; end: number; pieces: Segment[] }[] = [];
-      for (const node of commentNodes) {
-        if (node.location.kind !== 'single')
-          reject(
-            'edit-conflict',
-            'Preserved output requires a contiguous comment environment.',
-            node.origins
-          );
-        const origin = node.location.primary;
-        if (origin.occurrenceId === occurrence.id)
-          edits.push({ start: origin.range.start, end: origin.range.end + 1, pieces: [] });
-      }
-      if (options.suppressComments)
-        for (const token of tokens)
-          if (
-            eligibleToken(token) &&
-            token.token.kind === 'comment' &&
-            safeComment(source, file, token.origin.range.start, token.origin.range.end)
-          ) {
-            const edit = commentEdit(
-              source,
-              file,
-              token.origin.range.start,
-              token.origin.range.end
-            );
-            if (edit.kind === 'replace')
-              edits.push({ start: edit.range.start, end: edit.range.end + 1, pieces: [] });
-          }
-      if (options.inputs === 'inline')
-        for (const child of ownChildren)
-          edits.push({
-            start: child.reference!.range.start,
-            end: child.reference!.range.end + 1,
-            pieces: rendered.get(child.id)!,
-          });
-      let pos = 0;
-      for (const edit of edits.sort((a, b) => a.start - b.start || b.end - a.end)) {
-        if (edit.end <= pos) continue;
-        if (edit.start < pos) reject('edit-conflict', 'Overlapping preserved output edits.');
-        collect(copied(file, pos, edit.start, occurrence.id));
-        for (const segment of edit.pieces) collect(segment);
-        pos = edit.end;
-      }
-      collect(copied(file, pos, file.source.length, occurrence.id));
+      const start = Math.max(token.origin.range.start, omittedIndentUntil);
+      events.push({ start: token.origin.range.start, pieces: project(token, file, keep, start) });
     }
+    for (const child of ownChildren)
+      events.push({
+        start: child.reference!.range.start,
+        pieces:
+          options.inputs === 'inline'
+            ? rendered.get(child.id)!
+            : [
+                copied(
+                  file,
+                  child.reference!.range.start,
+                  child.reference!.range.end + 1,
+                  occurrence.id
+                ),
+              ],
+      });
+    for (const event of events.sort((a, b) => a.start - b.start))
+      for (const segment of event.pieces) collect(segment);
     rendered.set(occurrence.id, pieces);
   }
   const artifacts: GeneratedArtifact[] = [];
@@ -429,7 +322,7 @@ function exportView(
       )
         reject(
           'edit-conflict',
-          'Inlining would relocate a retained input to a different directory. Preserve input topology or materialize the remaining conditions first.',
+          'Inlining would relocate a retained input to a different directory.',
           [origin]
         );
     }
@@ -474,27 +367,13 @@ function exportView(
         });
       }
     }
-    if (options.conditions === 'preserve')
-      for (const file of source.files)
-        if (!unique.has(file.path)) {
-          const artifact = emit(
-            file.path,
-            [copied(file, 0, file.source.length, null)],
-            source,
-            provenance,
-            'preserved-project',
-            remaining
-          );
-          unique.set(file.path, artifact);
-          remaining -= artifact.source.length;
-        }
     artifacts.push(
       ...[...unique.values()].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
     );
   }
   const refs = dependencies(artifacts, source.scanOptions);
   const final = artifacts.map((artifact) =>
-    options.inputs === 'inline' && options.conditions === 'materialize' && refs.length === 0
+    options.inputs === 'inline' && refs.length === 0
       ? { ...artifact, topology: 'self-contained-profile' as const }
       : artifact
   );

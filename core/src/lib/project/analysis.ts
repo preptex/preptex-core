@@ -13,18 +13,18 @@ import type {
   SyntaxFact,
 } from '../../project-types.js';
 import { coverage, freeze, identity, issue, invalid, record } from './shared.js';
-import { validateSnapshot, inspectProject } from './snapshot.js';
+import { validateSnapshot } from './snapshot.js';
 import { validateView } from './view.js';
 import { requireCapability, validateOperation } from './operations.js';
 import { walkConfiguredNodes } from '../../project-types.js';
 
-function scopedDefinitions(model: ProjectSnapshot | ProjectView): Set<string> {
+function scopedDefinitions(view: ProjectView): Set<string> {
   const scoped = new Set<string>();
   const key = (path: string, start: number) => `${path}:${start}`;
-  if (model.kind === 'view' && model.status === 'ready') {
-    for (const node of walkConfiguredNodes(model.root)) {
+  if (view.status === 'ready') {
+    for (const node of walkConfiguredNodes(view.root)) {
       if (node.kind !== 'group' && node.kind !== 'environment' && node.kind !== 'math') continue;
-      for (const entry of model.reachedFacts)
+      for (const entry of view.reachedFacts)
         if (
           entry.fact.kind === 'definition' &&
           node.origins.some(
@@ -38,8 +38,7 @@ function scopedDefinitions(model: ProjectSnapshot | ProjectView): Set<string> {
           scoped.add(key(entry.fact.path, entry.fact.range.start));
     }
   } else {
-    const source = model.kind === 'snapshot' ? model : model.snapshot;
-    for (const file of source.files) {
+    for (const file of view.snapshot.files) {
       let depth = 0;
       const definitions = new Set(
         file.facts.filter((f) => f.kind === 'definition').map((f) => f.range.start)
@@ -103,9 +102,9 @@ export function indexProjectView(view: ProjectView): ConfiguredIndex {
 }
 
 /**
- * Analyze recognized references or conservative command-use evidence independently.
- * @param model - A view for references; source snapshot or view for command-use candidates.
- * @param request - Analysis and options; incomplete views require allowIncomplete explicitly.
+ * Analyze recognized references or conservative command-use evidence over a realized ProjectView.
+ * @param model - Configured view; incomplete views require allowIncomplete explicitly.
+ * @param request - Analysis and options.
  * @returns Frozen qualified findings, detailed observations and exact operation identity; no artifacts.
  * @throws {@link ProjectOperationError} when the model does not meet operation requirements.
  * @throws {@link PrepTexError} with InvalidArgument for malformed requests or stale transports.
@@ -120,10 +119,11 @@ export function runAnalysis(
   if (operation.operation !== 'references' && operation.operation !== 'unused-commands')
     invalid('Expected an analysis request.');
   requireCapability(normalized, operation);
-  const source = normalized.kind === 'snapshot' ? normalized : normalized.snapshot;
+  if (normalized.kind !== 'view') invalid('Analyses require a configured view.');
+  const source = normalized.snapshot;
   const provenance = {
     snapshotId: source.id,
-    viewId: normalized.kind === 'view' ? normalized.id : null,
+    viewId: normalized.id,
     request: operation,
     operationVersion: 1 as const,
   };
@@ -132,7 +132,6 @@ export function runAnalysis(
   const commands: CommandUsage[] = [];
   let resultCoverage: Coverage;
   if (operation.operation === 'references') {
-    if (normalized.kind !== 'view') invalid('References require a configured view.');
     const index = indexProjectView(normalized);
     resultCoverage = index.coverage;
     const labels = new Map<string, { origin: SourceOrigin; order: number }[]>();
@@ -217,32 +216,22 @@ export function runAnalysis(
       fact: SyntaxFact;
       location: AnalysisLocation;
     }
-    let located: Located[];
-    if (normalized.kind === 'snapshot') {
-      const inventory = inspectProject(
-        source,
-        operation.options?.scope ? { scope: operation.options.scope } : {}
-      );
-      resultCoverage = inventory.coverage;
-      located = inventory.facts.map((fact) => ({
-        fact,
-        location: { path: fact.path, range: fact.range, snapshotId: source.id, occurrenceId: null },
-      }));
-    } else {
-      resultCoverage = indexCoverage(normalized);
-      located = normalized.reachedFacts.map((e) => ({ fact: e.fact, location: e.origin }));
-      for (const reached of normalized.reachedFacts) {
-        if (reached.fact.kind !== 'definition' || !reached.fact.body) continue;
-        const def = reached.fact;
-        const file = source.files.find((f) => f.path === def.path)!;
-        for (const fact of file.facts)
-          if (
-            fact.context.definitionBodies.some(
-              (r) => r.start === def.body!.start && r.end === def.body!.end
-            )
+    resultCoverage = indexCoverage(normalized);
+    let located: Located[] = normalized.reachedFacts.map((e) => ({
+      fact: e.fact,
+      location: e.origin,
+    }));
+    for (const reached of normalized.reachedFacts) {
+      if (reached.fact.kind !== 'definition' || !reached.fact.body) continue;
+      const def = reached.fact;
+      const file = source.files.find((f) => f.path === def.path)!;
+      for (const fact of file.facts)
+        if (
+          fact.context.definitionBodies.some(
+            (r) => r.start === def.body!.start && r.end === def.body!.end
           )
-            located.push({ fact, location: { ...reached.origin, range: fact.range } });
-      }
+        )
+          located.push({ fact, location: { ...reached.origin, range: fact.range } });
     }
     located = [
       ...new Map(
@@ -276,6 +265,7 @@ export function runAnalysis(
       const bodyReferences = matching
         .filter((e) => e.fact.context.definitionBodies.length && !own(e))
         .map((e) => e.location);
+      const defOrder = located.indexOf(definition);
       const ambiguous =
         definitions.filter((e) => e.fact.kind === 'definition' && e.fact.name === def.name).length >
           1 ||
@@ -285,9 +275,7 @@ export function runAnalysis(
         matching.some(
           (e) =>
             e.fact.context.opaqueArguments.length > 0 ||
-            (normalized.kind === 'snapshot' &&
-              (e.fact.path !== def.path ||
-                (!e.fact.context.definitionBodies.length && e.fact.range.start < def.range.start)))
+            (!e.fact.context.definitionBodies.length && located.indexOf(e) < defOrder)
         );
       const classification = ambiguous
         ? 'ambiguous-binding'

@@ -1,67 +1,32 @@
 # Project model performance and bounds
 
-Measured 2026-09-08 on Windows x64, Intel Core i5-10210U CPU at 1.60 GHz,
-Node.js 22.16.0, TypeScript 5.9.3. These are local reference measurements, not
-deadlines promised by the synchronous core.
+These measurements verify the synchronous performance and deterministic bounds of `@preptex/core@0.4.0`'s single stateless tokenizer (`tokenizeFile`), condition realization engine (`evaluateConditionStream`), structural parser (`parseConfiguredStructure`), and interval source index (`createProjectSourceIndex`).
 
 ## Reproducible corpus and method
 
-Run `npm run build`, then `node examples/benchmark-project-model.mjs` from the
-repository root. The checked-in script defines the complete corpus: an entry
-with 15 inputs and 15 part files, each repeating the same literal paragraph 120
-times. There are 16 files and exactly 99,214 UTF-16 code units, with labels,
-references, math and percent comments. Line endings are explicit LF and do not
-depend on Git checkout settings. Repeated label keys deliberately exercise
-duplicate-target reference analysis.
+Run `npm run build`, then `node examples/benchmark-project-model.mjs` and `node examples/benchmark-node-lookup.mjs` from the repository root:
 
-Each measurement warms the operation once, then reports the median of three
-runs. Source scanning, view resolution, source inventory and reference analysis
-are measured independently. Inventory/analysis reuse the already created
-canonical immutable source/view. Transport reconstruction has additional costs.
-The script prints its machine/tool versions and fails if a budget is exceeded.
+1. **`examples/benchmark-project-model.mjs`**:
+   - 16 independently versioned files (an entry file with 15 `\input` commands and 15 part files repeating a literal paragraph 120 times each, totaling 99,214 UTF-16 code units with labels, references, math, and percent comments).
+   - Warms each operation once and reports the median of three runs against fixed corpus budgets (`scan: 1500 ms`, `view: 1000 ms`, `inventory: 400 ms`, `references: 400 ms`).
+2. **`examples/benchmark-node-lookup.mjs`**:
+   - 62,024 UTF-16 code units (a 2,000-environment body file included twice via `\input{body}\input{body}`).
+   - Measures fresh `createProjectSourceIndex(view)` construction and 10,000 `lookupProjectSource` point queries against fixed corpus budgets (`buildMs: 2000 ms`, `queriesMs: 1000 ms`).
 
-The warm median budgets below were recorded before accepting C8 reuse changes.
-Run on a comparable idle machine when evaluating regressions; a heavily loaded
-host or instrumentation can affect elapsed times.
+| Benchmark Operation                                      | Warm Median (Apple M4, Node 26) | Corpus Budget |
+| :------------------------------------------------------- | ------------------------------: | ------------: |
+| Create/scan snapshot (`createProjectSnapshot`)           |                           15 ms |      1,500 ms |
+| Resolve complete view (`resolveProjectView`)             |                           36 ms |      1,000 ms |
+| Source inventory (`inspectProject`)                      |                          < 1 ms |        400 ms |
+| Reference analysis (`runAnalysis`)                       |                           61 ms |        400 ms |
+| Build source interval index (`createProjectSourceIndex`) |                           32 ms |      2,000 ms |
+| 10,000 node offset queries (`lookupProjectSource`)       |                           11 ms |      1,000 ms |
 
-| Operation             | C1–C5 baseline (ms) | C1–C8 result (ms) | Budget (ms) |
-| --------------------- | ------------------: | ----------------: | ----------: |
-| Create/scan snapshot  |                  98 |               102 |       1,500 |
-| Resolve complete view |                 263 |               195 |       1,000 |
-| Source inventory      |                  98 |                 2 |         400 |
-| Reference analysis    |     Not implemented |               297 |         400 |
+## Deterministic bounds
 
-The baseline is the 0.3.0 foundation at `c8b2596`; the result is the local
-0.3.0 preparation with C1–C8 implemented. Scanning is substantially unchanged. Recognizing canonical
-frozen snapshots avoids revalidating/rescanning original strings on every
-inventory call. Updates reuse unchanged scans and revision-only updates reuse
-token/fact arrays. No condition state is shared across calls. Views and indexes
-are rebuilt completely for their exact dependencies.
-
-## Deterministic bounds and correctness checks
-
-Scan nesting, active input depth, occurrence count, conditional/scope/structural
-nesting and selected token size have explicit limits. Transformations additionally
-bound total output code units, including synthetic delimiters, and check expanded
-occurrences while collecting segments. Output bounds also apply when validating
-an edited proposal for application.
-
-The public regression suites check limit failures, repeated inclusion, scan-option
-changes, additions/removals, earlier setter invalidation, concurrent independent
-configurations, equivalent option ordering and clean-rebuild equivalence. Hosts
-remain responsible for input byte/file quotas, scheduling, workers, termination
-and wall-clock deadlines. Fine-grained incremental interpretation is deferred.
-
-## C5a lookup measurements (2026-09-10)
-
-`node examples/benchmark-node-lookup.mjs` uses 62,024 UTF-16 units: a 2,000-environment
-body file included twice. It measures fresh index construction after scan/view
-creation, then 10,000 original-offset queries. On the same Windows/Node 22.16.0
-host, warm medians were **280 ms** for construction and **85 ms** for all queries,
-against fixed corpus budgets of 2,000 ms and 1,000 ms respectively. Each inclusion
-is indexed distinctly. Index construction is cached only for canonical immutable
-models; these construction measurements use fresh models for each sample.
-
-The original C8 benchmark also passes after adding node metadata: scan **125 ms**,
-view **254 ms**, inventory **2 ms**, references **203 ms**. These are local corpus
-measurements, not latency guarantees or substitutes for host resource limits.
+- **Stage 0 & Condition Realization**:
+  - `tokenizeFile(source)` scans each file once in $O(N)$ time.
+  - `updateProjectSnapshot` reuses unchanged scanned files when text and normalized `ScanOptions` match; revision-only updates reuse token and fact arrays.
+- **View & Transformation Bounds**:
+  - Defaults: 64 nested source inventory regions, 64 active input levels, 10,000 total inclusion occurrences, 256 conditional/structural nesting levels, 10,000,000 selected UTF-16 code units, and 10,000,000 output UTF-16 code units (configurable up to 100,000,000 via `maxOutputCodeUnits`).
+  - Hosts remain responsible for input file/byte quotas, Web Worker / worker thread isolation, and wall-clock timeouts.

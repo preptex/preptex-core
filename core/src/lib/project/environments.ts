@@ -4,8 +4,18 @@ import type {
   SourceEnvironment,
   EnvironmentSelection,
 } from '../../node-types.js';
-import type { ProjectSnapshot, ScannedFile, SourceScope } from '../../project-types.js';
-import { argument, lex, skipTrivia } from './scan.js';
+import type {
+  ProjectSnapshot,
+  ScannedFile,
+  SourceScope,
+  SourceToken,
+} from '../../project-types.js';
+import {
+  matchVerbatimTokens,
+  readBracedGroupTokens,
+  skipTriviaTokens,
+  spliceVerbatimMatch,
+} from './tokenize.js';
 import { normalizeScope, validateSnapshot } from './snapshot.js';
 import {
   coverage,
@@ -40,19 +50,47 @@ export function environmentName(value: unknown): string {
   return value;
 }
 
+function findTokenAtStart(tokens: readonly SourceToken[], start: number): number {
+  let low = 0;
+  let high = tokens.length - 1;
+  while (low <= high) {
+    const mid = (low + high) >>> 1;
+    const tokStart = tokens[mid]!.range.start;
+    if (tokStart === start) return mid;
+    if (tokStart < start) low = mid + 1;
+    else high = mid - 1;
+  }
+  return -1;
+}
+
+function findTokenStartingFrom(file: ScannedFile, minStart: number): number {
+  const tokens = file.tokens;
+  let low = 0;
+  let high = tokens.length;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if (tokens[mid]!.range.start < minStart) low = mid + 1;
+    else high = mid;
+  }
+  return low < tokens.length ? low : -1;
+}
+
 export function readDelimiter(
   file: ScannedFile,
   start: number,
-  snapshot: ProjectSnapshot
+  _snapshot: ProjectSnapshot,
+  tokens: readonly SourceToken[] = file.tokens
 ): EnvironmentDelimiter | null {
-  const token = lex(file.source, start, snapshot.scanOptions, false);
-  if (token.name !== 'begin' && token.name !== 'end') return null;
-  const arg = argument(file.source, token.end, snapshot.scanOptions);
-  if (!arg || !/^[A-Za-z][A-Za-z0-9@*-]{0,127}$/.test(arg.value)) return null;
+  const tokenIndex = findTokenAtStart(tokens, start);
+  if (tokenIndex < 0) return null;
+  const token = tokens[tokenIndex]!;
+  if (token.kind !== 'command' || (token.name !== 'begin' && token.name !== 'end')) return null;
+  const arg = readBracedGroupTokens(tokens, tokenIndex + 1);
+  if (!arg || !/^[A-Za-z][A-Za-z0-9@*-]{0,127}$/.test(arg.text)) return null;
   const lines = fileLines(file);
   return {
     path: file.path,
-    name: arg.value,
+    name: arg.text,
     range: rangeAt(lines, start, arg.end - 1),
     nameRange: rangeAt(lines, arg.innerStart, arg.innerEnd),
   };
@@ -64,9 +102,10 @@ function scanEnvironments(snapshot: ProjectSnapshot, file: ScannedFile): SourceE
   const stacks = new Map<string, number[]>();
   const contextAt = environmentContext(file);
   const groups = new Map<string, number[]>();
+  let tokens: readonly SourceToken[] = file.tokens;
   function add(start: number, protectedRegion: boolean, closer = false): number {
-    const delimiter = readDelimiter(file, start, snapshot);
-    const token = lex(file.source, start, snapshot.scanOptions, false);
+    const delimiter = readDelimiter(file, start, snapshot, tokens);
+    const token = tokens[findTokenAtStart(tokens, start)]!;
     const context = contextAt(start);
     const index = result.length;
     result.push({
@@ -76,7 +115,7 @@ function scanEnvironments(snapshot: ProjectSnapshot, file: ScannedFile): SourceE
       version: file.version,
       name: delimiter?.name ?? null,
       status: 'candidate',
-      range: delimiter?.range ?? rangeAt(lines, start, token.end - 1),
+      range: delimiter?.range ?? rangeAt(lines, start, token.range.end),
       opening: closer ? null : delimiter,
       closing: closer ? delimiter : null,
       body: null,
@@ -102,7 +141,8 @@ function scanEnvironments(snapshot: ProjectSnapshot, file: ScannedFile): SourceE
       .filter((f) => f.kind === 'command-use' && (f.name === 'begin' || f.name === 'end'))
       .map((f) => f.range.start)
   );
-  for (const token of file.tokens) {
+  for (let tIdx = 0; tIdx < tokens.length; tIdx++) {
+    const token = tokens[tIdx]!;
     if (token.kind === 'open' || token.kind === 'close') {
       const key = JSON.stringify(contextAt(token.range.start)),
         group = groups.get(key) ?? [];
@@ -111,21 +151,31 @@ function scanEnvironments(snapshot: ProjectSnapshot, file: ScannedFile): SourceE
       groups.set(key, group);
       continue;
     }
-    if (token.kind === 'verbatim' && token.value.startsWith('\\begin')) {
-      const index = add(token.range.start, true);
-      const opening = result[index]!.opening;
-      if (opening) {
-        const spelling = `\\end{${opening.name}}`;
-        const start = token.range.end + 1 - spelling.length;
-        if (
-          start > opening.range.end &&
-          file.source.slice(start, token.range.end + 1) === spelling
-        ) {
-          const closing = readDelimiter(file, start, snapshot);
-          if (closing) pair(index, closing);
+    if (token.kind === 'command' && (token.name === 'verb' || token.name === 'begin')) {
+      let verb = matchVerbatimTokens(tokens, tIdx, snapshot.scanOptions.verbatimEnvironments);
+      if (verb) {
+        const spliced = spliceVerbatimMatch(tokens, verb, file.source, lines);
+        if (spliced) {
+          tokens = spliced.tokens;
+          verb = spliced.verb;
         }
+        if (verb.kind === 'environment') {
+          const index = add(token.range.start, true);
+          const opening = result[index]!.opening;
+          if (
+            opening &&
+            verb.closed &&
+            verb.closeStartIndex !== null &&
+            verb.closeStartIndex !== undefined
+          ) {
+            const closeTok = tokens[verb.closeStartIndex]!;
+            const closing = readDelimiter(file, closeTok.range.start, snapshot, tokens);
+            if (closing) pair(index, closing);
+          }
+        }
+        tIdx = verb.endIndex;
+        continue;
       }
-      continue;
     }
     if (token.kind !== 'command' || !recognized.has(token.range.start)) continue;
     const closer = token.value === '\\end';
@@ -152,6 +202,7 @@ function scanEnvironments(snapshot: ProjectSnapshot, file: ScannedFile): SourceE
     .sort((a, b) => a.range.start - b.range.start)
     .map((e, i) => ({ ...e, id: `${file.path}:e${i}` }));
 }
+
 const cache = new WeakMap<ProjectSnapshot, readonly SourceEnvironment[]>();
 export function sourceEnvironments(snapshot: ProjectSnapshot): readonly SourceEnvironment[] {
   let result = cache.get(snapshot);
@@ -224,8 +275,13 @@ export function getSelectedEnvironment(
 export function hasEnvironmentArguments(
   file: ScannedFile,
   opening: EnvironmentDelimiter,
-  snapshot: ProjectSnapshot
+  _snapshot: ProjectSnapshot
 ): boolean {
-  const pos = skipTrivia(file.source, opening.range.end + 1, snapshot.scanOptions);
-  return file.source[pos] === '[' || file.source[pos] === '{';
+  const nextOffset = opening.range.end + 1;
+  const idx = findTokenStartingFrom(file, nextOffset);
+  if (idx < 0) return false;
+  const afterTrivia = skipTriviaTokens(file.tokens, idx);
+  const tok = file.tokens[afterTrivia];
+  if (!tok) return false;
+  return tok.kind === 'open' || (tok.kind === 'text' && tok.value.startsWith('['));
 }

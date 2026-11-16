@@ -1,6 +1,7 @@
 import {
   createProjectSnapshot,
   inspectProject,
+  realizeProjectConditions,
   resolveProjectView,
   updateProjectSnapshot,
   checkOperationCapability,
@@ -13,6 +14,8 @@ import {
   applyProjectEdits,
   ProjectOperationError,
   runProjectPipeline,
+  type ConditionRealizationRequest,
+  type ConditionRealizationResult,
   type ConfiguredNode,
   type SyntaxFact,
   type ProjectSnapshot,
@@ -20,11 +23,27 @@ import {
   type ProjectEditPlan,
   type GeneratedArtifact,
   type AnalysisFinding,
+  type SourceToken,
+  type SourceTokenKind,
 } from '@preptex/core';
 
 const sourceFiles = [{ path: 'main.tex', source: '\\label{x}', version: 1 }] as const;
 const snapshot: ProjectSnapshot = createProjectSnapshot(sourceFiles);
+const firstToken: SourceToken | undefined = snapshot.files[0]!.tokens[0];
+const firstKind: SourceTokenKind | undefined = firstToken?.kind;
+void firstKind;
 const inventory = inspectProject(snapshot, { scope: { kind: 'all-files' } });
+const realizationReq: ConditionRealizationRequest = {
+  entryPath: 'main.tex',
+  traversal: 'project',
+  conditions: { mode: 'source' },
+  inputs: 'preserve',
+  stripDeclarationsAndSetters: true,
+};
+const realization: ConditionRealizationResult = realizeProjectConditions(snapshot, realizationReq);
+if (realization.status === 'ready' && realization.editPlan) {
+  applyProjectEdits(snapshot, realization.editPlan);
+}
 const view: ProjectView = resolveProjectView(snapshot, {
   entryPath: 'main.tex',
   conditions: {
@@ -33,6 +52,11 @@ const view: ProjectView = resolveProjectView(snapshot, {
     initialValues: { draft: true },
   },
 });
+const noneView: ProjectView = resolveProjectView(snapshot, {
+  entryPath: 'main.tex',
+  conditions: { mode: 'none' },
+});
+void noneView;
 const available: boolean = checkOperationCapability(view, { operation: 'references' }).eligible;
 const newSnapshot = updateProjectSnapshot(snapshot, [
   { kind: 'upsert', file: { path: 'main.tex', source: '', version: 2 } },
@@ -125,18 +149,18 @@ function reviewResults(
 }
 const index = indexProjectView(view);
 const references = runAnalysis(view, { operation: 'references' });
-const usage = runAnalysis(snapshot, { operation: 'unused-commands' });
-const preview = planTransformation(snapshot, {
+const usage = runAnalysis(view, { operation: 'unused-commands' });
+const preview = planTransformation(view, {
   operation: 'suppress-comments',
-  options: { target: 'source', maxOutputCodeUnits: 1000 },
+  options: { target: 'selected', maxOutputCodeUnits: 1000 },
 });
-if (preview.editPlan) applyProjectEdits(snapshot, preview.editPlan);
+if (preview.editPlan) applyProjectEdits(snapshot, preview.editPlan, view);
 const generated = planTransformation(view, {
   operation: 'export-project',
-  options: { inputs: 'inline', conditions: 'materialize' },
+  options: { inputs: 'inline' },
 });
 // @ts-expect-error Analysis cannot accidentally generate a source artifact.
-runAnalysis(view, { operation: 'materialize', options: { inputs: 'inline' } });
+runAnalysis(view, { operation: 'export-project', options: { inputs: 'inline' } });
 // @ts-expect-error Transformation APIs cannot invoke analyses.
 planTransformation(view, { operation: 'references' });
 // @ts-expect-error View source authority is immutable.
@@ -150,7 +174,7 @@ usage.commands[0]!.directUses.push(usage.commands[0]!.definition);
 // @ts-expect-error Output mappings are readonly.
 generated.artifacts[0]!.origins.pop();
 try {
-  applyProjectEdits(snapshot, preview.editPlan!);
+  applyProjectEdits(snapshot, preview.editPlan!, view);
 } catch (error: unknown) {
   if (error instanceof ProjectOperationError) {
     const locations: readonly string[] = error.failure.locations.map((location) => location.path);
@@ -161,7 +185,7 @@ void [newSnapshot, available, factName, reviewResults];
 const pipeline = runProjectPipeline(sourceFiles, {
   configuration: { entryPath: 'main.tex' },
   analyses: [{ operation: 'references' }],
-  exportOptions: { conditions: 'materialize', inputs: 'inline' },
+  exportOptions: { inputs: 'inline' },
 });
 // @ts-expect-error Pipeline analysis results are readonly.
 pipeline.analyses.pop();
@@ -169,7 +193,7 @@ pipeline.analyses.pop();
 runProjectPipeline(sourceFiles, { configuration: { entryPath: 'main.tex' } });
 runProjectPipeline(sourceFiles, {
   configuration: { entryPath: 'main.tex' },
-  exportOptions: { conditions: 'preserve', inputs: 'preserve' },
+  exportOptions: { inputs: 'preserve' },
   // @ts-expect-error Static legacy condition whitelists are not pipeline settings.
   enabledConditions: [],
 });

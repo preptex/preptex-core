@@ -1,239 +1,19 @@
-**@preptex/core v0.3.0**
+**@preptex/core v0.4.0**
 
 ***
 
-# @preptex/core v0.3.0
+# @preptex/core v0.4.0
 
 PrepTeX's environment-neutral public API for parsing and transforming virtual
 LaTeX projects.
 
 ## Enumerations
 
-### CommentKind
-
-Identifies the syntax used to write a comment.
-
-#### Enumeration Members
-
-##### Environment
-
-> **Environment**: `"environment"`
-
-A `comment` environment.
-
-##### Line
-
-> **Line**: `"line"`
-
-A percent comment that continues through its line ending.
-
-***
-
-### ConditionBranchKind
-
-Identifies a conditional branch.
-
-#### Enumeration Members
-
-##### Else
-
-> **Else**: `"Else"`
-
-The optional branch between `\else` and `\fi`.
-
-##### If
-
-> **If**: `"If"`
-
-The branch between `\if...` and `\else` or `\fi`.
-
-***
-
-### DiagnosticCode
-
-Stable machine-readable categories for PrepTeX diagnostics.
-
-#### Enumeration Members
-
-##### IntersectingConstructs
-
-> **IntersectingConstructs**: `"intersecting-constructs"`
-
-Supported grouping constructs close in an intersecting order.
-
-##### SectionReclassified
-
-> **SectionReclassified**: `"section-reclassified"`
-
-A section command was treated as a plain command to preserve nesting.
-
-##### SyntaxError
-
-> **SyntaxError**: `"syntax-error"`
-
-The source contains malformed or unbalanced supported syntax.
-
-##### TokenizationAdjusted
-
-> **TokenizationAdjusted**: `"tokenization-adjusted"`
-
-Tokenization was narrowed because two supported constructs intersect.
-
-##### UnmatchedClosing
-
-> **UnmatchedClosing**: `"unmatched-closing"`
-
-A closing construct has no corresponding opener.
-
-***
-
-### DiagnosticSeverity
-
-The severity assigned to a parse diagnostic.
-
-#### Enumeration Members
-
-##### Error
-
-> **Error**: `"error"`
-
-The source could not be parsed safely.
-
-##### Warning
-
-> **Warning**: `"warning"`
-
-Parsing succeeded after a documented fallback or reclassification.
-
-***
-
-### ~~InputHandlingMode~~
-
-Controls how `\input` nodes are handled while transforming a legacy project.
-
-#### Deprecated
-
-New workflows separate ViewConfiguration.traversal from ExportOptions.inputs; see docs/migration-0.3.md.
-
-#### Enumeration Members
-
-##### ~~Flatten~~
-
-> **Flatten**: `"flatten"`
-
-Emit the entry file with reachable `\input` targets inlined.
-
-##### ~~Preserve~~
-
-> **Preserve**: `"preserve"`
-
-Emit the entry file and preserve each `\input` command literally.
-
-##### ~~Separate~~
-
-> **Separate**: `"separate"`
-
-Emit every parsed project file separately without inlining.
-
-***
-
-### NodeType
-
-Identifies every node shape in a PrepTeX syntax tree.
-
-#### Enumeration Members
-
-##### Command
-
-> **Command**: `"Command"`
-
-A LaTeX control sequence.
-
-##### Comment
-
-> **Comment**: `"Comment"`
-
-A percent comment or `comment` environment.
-
-##### Condition
-
-> **Condition**: `"Condition"`
-
-A complete `\if...\fi` conditional.
-
-##### ConditionBranch
-
-> **ConditionBranch**: `"ConditionBranch"`
-
-The selected or alternative branch of a conditional.
-
-##### ConditionDeclaration
-
-> **ConditionDeclaration**: `"ConditionDeclaration"`
-
-A `\newif` declaration.
-
-##### Environment
-
-> **Environment**: `"Environment"`
-
-A `\begin`/`\end` environment pair.
-
-##### Group
-
-> **Group**: `"Group"`
-
-A brace-delimited group.
-
-##### Input
-
-> **Input**: `"Input"`
-
-An `\input` command.
-
-##### Math
-
-> **Math**: `"Math"`
-
-A delimited inline or display math region.
-
-##### NewLine
-
-> **NewLine**: `"NewLine"`
-
-A line-feed, carriage-return, or CRLF sequence.
-
-##### Root
-
-> **Root**: `"Root"`
-
-The synthetic root of one parsed source file.
-
-##### Section
-
-> **Section**: `"Section"`
-
-A section command or the `document` environment.
-
-##### Text
-
-> **Text**: `"Text"`
-
-Literal source text that was not classified more specifically.
-
-***
-
 ### PrepTexErrorCode
 
 Stable machine-readable categories for exceptions thrown by PrepTeX.
 
 #### Enumeration Members
-
-##### CircularInput
-
-> **CircularInput**: `"circular-input"`
-
-Flattening would revisit a file that is already active.
 
 ##### EditConflict
 
@@ -253,18 +33,6 @@ A runtime value does not satisfy the documented public input type.
 
 Source edit ranges or preconditions are invalid.
 
-##### MissingEntry
-
-> **MissingEntry**: `"missing-entry"`
-
-The requested project entry path is absent.
-
-##### MissingInput
-
-> **MissingInput**: `"missing-input"`
-
-A flattened `\input` target cannot be resolved.
-
 ##### OperationUnavailable
 
 > **OperationUnavailable**: `"operation-unavailable"`
@@ -283,86 +51,6 @@ Emission exceeded the caller's configured output bound.
 
 Source or configured identity no longer matches the proposal.
 
-##### SyntaxError
-
-> **SyntaxError**: `"syntax-error"`
-
-Supported LaTeX syntax is malformed or unbalanced.
-
-***
-
-### TokenType
-
-Identifies token categories that can be enabled during parsing.
-
-#### Enumeration Members
-
-##### Brace
-
-> **Brace**: `"Brace"`
-
-Opening and closing brace tokens.
-
-##### Command
-
-> **Command**: `"Command"`
-
-General control-sequence tokens.
-
-##### Comment
-
-> **Comment**: `"Comment"`
-
-Percent-comment and `comment`-environment tokens.
-
-##### Condition
-
-> **Condition**: `"Condition"`
-
-`\if...`, `\else`, and `\fi` tokens.
-
-##### ConditionDeclaration
-
-> **ConditionDeclaration**: `"ConditionDeclaration"`
-
-`\newif` tokens.
-
-##### Environment
-
-> **Environment**: `"Environment"`
-
-`\begin` and `\end` tokens.
-
-##### Input
-
-> **Input**: `"Input"`
-
-`\input` tokens.
-
-##### MathDelim
-
-> **MathDelim**: `"MathDelim"`
-
-Dollar and control-sequence math delimiters.
-
-##### NewLine
-
-> **NewLine**: `"NewLine"`
-
-Line-ending tokens.
-
-##### Section
-
-> **Section**: `"Section"`
-
-Supported section-command tokens.
-
-##### Text
-
-> **Text**: `"Text"`
-
-Text not classified as another enabled token type.
-
 ## Classes
 
 ### PrepTexError
@@ -375,7 +63,6 @@ Base class for expected PrepTeX failures.
 
 #### Extended by
 
-- [`PrepTexSyntaxError`](#preptexsyntaxerror)
 - [`ProjectOperationError`](#projectoperationerror)
 
 #### Constructors
@@ -439,88 +126,6 @@ Stable category suitable for programmatic error handling.
 ###### Inherited from
 
 `Error.stack`
-
-***
-
-### PrepTexSyntaxError
-
-Error thrown when supported LaTeX syntax cannot be parsed safely.
-
-#### Extends
-
-- [`PrepTexError`](#preptexerror)
-
-#### Constructors
-
-##### Constructor
-
-> **new PrepTexSyntaxError**(`message`, `diagnostic`): [`PrepTexSyntaxError`](#preptexsyntaxerror)
-
-Creates a syntax error from a structured diagnostic.
-
-###### Parameters
-
-###### message
-
-`string`
-
-Human-readable parse failure description.
-
-###### diagnostic
-
-[`SyntaxDiagnostic`](#syntaxdiagnostic)
-
-Structured error location and code.
-
-###### Returns
-
-[`PrepTexSyntaxError`](#preptexsyntaxerror)
-
-###### Overrides
-
-[`PrepTexError`](#preptexerror).[`constructor`](#constructor)
-
-#### Properties
-
-##### code
-
-> `readonly` **code**: [`SyntaxError`](#syntaxerror-1)
-
-Literal syntax-error category for exhaustive error handling.
-
-###### Overrides
-
-[`PrepTexError`](#preptexerror).[`code`](#code)
-
-##### diagnostic
-
-> `readonly` **diagnostic**: [`SyntaxDiagnostic`](#syntaxdiagnostic)
-
-Structured error diagnostic containing the source and location.
-
-##### message
-
-> **message**: `string`
-
-###### Inherited from
-
-[`PrepTexError`](#preptexerror).[`message`](#message)
-
-##### name
-
-> **name**: `string`
-
-###### Inherited from
-
-[`PrepTexError`](#preptexerror).[`name`](#name)
-
-##### stack?
-
-> `optional` **stack?**: `string`
-
-###### Inherited from
-
-[`PrepTexError`](#preptexerror).[`stack`](#stack)
 
 ***
 
@@ -662,7 +267,7 @@ Normalized project-relative source path.
 
 ###### Inherited from
 
-[`SourceLocation`](#sourcelocation).[`path`](#path-12)
+[`SourceLocation`](#sourcelocation).[`path`](#path-9)
 
 ##### range
 
@@ -684,7 +289,7 @@ Exact source identity.
 
 ### AnalysisOptions
 
-Options shared by independently runnable analyses.
+Options shared by independently runnable configured analyses.
 
 #### Properties
 
@@ -693,12 +298,6 @@ Options shared by independently runnable analyses.
 > `readonly` `optional` **allowIncomplete?**: `boolean`
 
 Accept observations up to the view's failure boundary; default false.
-
-##### scope?
-
-> `readonly` `optional` **scope?**: [`SourceScope`](#sourcescope)
-
-Snapshot-only source scope; default all-files.
 
 ***
 
@@ -716,7 +315,7 @@ Command evidence, empty for reference analysis.
 
 ##### coverage
 
-> `readonly` **coverage**: [`Coverage`](#coverage-2)
+> `readonly` **coverage**: [`Coverage`](#coverage-3)
 
 Explicit recognized coverage; an empty partial list does not establish absence.
 
@@ -790,98 +389,6 @@ Resolved artifact path, null when unresolved/missing/ambiguous.
 
 ***
 
-### AstRoot
-
-The synthetic root for one parsed source file.
-
-#### Extends
-
-- [`ContainerNodeBase`](#containernodebase)\<[`Root`](#root)\>
-
-#### Properties
-
-##### children
-
-> `readonly` **children**: readonly [`AstNode`](#astnode)[]
-
-Child nodes in source order.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`children`](#children-3)
-
-##### end
-
-> `readonly` **end**: `number`
-
-Zero-based offset of the last included UTF-16 code unit.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`end`](#end-6)
-
-##### id
-
-> `readonly` **id**: `number`
-
-Identifier unique within the containing parsed file, starting at zero.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`id`](#id-6)
-
-##### line
-
-> `readonly` **line**: `number`
-
-One-based line containing `start`.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`line`](#line-7)
-
-##### prefix
-
-> `readonly` **prefix**: `string`
-
-Original source text emitted before the children.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`prefix`](#prefix-3)
-
-##### start
-
-> `readonly` **start**: `number`
-
-Zero-based offset of the first included UTF-16 code unit.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`start`](#start-6)
-
-##### suffix
-
-> `readonly` **suffix**: `string`
-
-Original source text emitted after the children.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`suffix`](#suffix-3)
-
-##### type
-
-> `readonly` **type**: [`Root`](#root)
-
-Discriminant used to narrow the [AstNode](#astnode) union.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`type`](#type-6)
-
-***
-
 ### BranchContext
 
 Syntactic branch membership does not establish execution.
@@ -925,86 +432,6 @@ Located edit failure when code is edit-unavailable; absent for model requirement
 > `readonly` **message**: `string`
 
 Display explanation.
-
-***
-
-### CommandNode
-
-A general LaTeX control sequence.
-
-#### Extends
-
-- [`NodeBase`](#nodebase)\<[`Command`](#command)\>
-
-#### Properties
-
-##### end
-
-> `readonly` **end**: `number`
-
-Zero-based offset of the last included UTF-16 code unit.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`end`](#end-12)
-
-##### id
-
-> `readonly` **id**: `number`
-
-Identifier unique within the containing parsed file, starting at zero.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`id`](#id-13)
-
-##### line
-
-> `readonly` **line**: `number`
-
-One-based line containing `start`.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`line`](#line-13)
-
-##### name
-
-> `readonly` **name**: `string`
-
-Control-sequence name without the leading backslash or star.
-
-##### starred
-
-> `readonly` **starred**: `boolean`
-
-Whether a star immediately followed the control-sequence name.
-
-##### start
-
-> `readonly` **start**: `number`
-
-Zero-based offset of the first included UTF-16 code unit.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`start`](#start-12)
-
-##### type
-
-> `readonly` **type**: [`Command`](#command)
-
-Discriminant used to narrow the [AstNode](#astnode) union.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`type`](#type-12)
-
-##### value
-
-> `readonly` **value**: `string`
-
-Exact source spelling, including consumed delimiter whitespace.
 
 ***
 
@@ -1052,184 +479,6 @@ Self references are listed separately and are not root uses.
 
 ***
 
-### CommentNode
-
-A percent comment or `comment` environment.
-
-#### Extends
-
-- [`NodeBase`](#nodebase)\<[`Comment`](#comment)\>
-
-#### Properties
-
-##### end
-
-> `readonly` **end**: `number`
-
-Zero-based offset of the last included UTF-16 code unit.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`end`](#end-12)
-
-##### id
-
-> `readonly` **id**: `number`
-
-Identifier unique within the containing parsed file, starting at zero.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`id`](#id-13)
-
-##### kind
-
-> `readonly` **kind**: [`CommentKind`](#commentkind)
-
-The comment syntax recognized by the lexer.
-
-##### line
-
-> `readonly` **line**: `number`
-
-One-based line containing `start`.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`line`](#line-13)
-
-##### start
-
-> `readonly` **start**: `number`
-
-Zero-based offset of the first included UTF-16 code unit.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`start`](#start-12)
-
-##### type
-
-> `readonly` **type**: [`Comment`](#comment)
-
-Discriminant used to narrow the [AstNode](#astnode) union.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`type`](#type-12)
-
-##### value
-
-> `readonly` **value**: `string`
-
-The exact source text covered by this comment.
-
-***
-
-### ConditionBranchNode
-
-One branch of a LaTeX conditional.
-
-#### Extends
-
-- [`ContainerNodeBase`](#containernodebase)\<[`ConditionBranch`](#conditionbranch)\>
-
-#### Properties
-
-##### branch
-
-> `readonly` **branch**: [`ConditionBranchKind`](#conditionbranchkind)
-
-Whether this is the `if` or `else` branch.
-
-##### children
-
-> `readonly` **children**: readonly [`AstNode`](#astnode)[]
-
-Child nodes in source order.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`children`](#children-3)
-
-##### end
-
-> `readonly` **end**: `number`
-
-Zero-based offset of the last included UTF-16 code unit.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`end`](#end-6)
-
-##### id
-
-> `readonly` **id**: `number`
-
-Identifier unique within the containing parsed file, starting at zero.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`id`](#id-6)
-
-##### line
-
-> `readonly` **line**: `number`
-
-One-based line containing `start`.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`line`](#line-7)
-
-##### name
-
-> `readonly` **name**: `string`
-
-Name of the containing condition.
-
-##### prefix
-
-> `readonly` **prefix**: `string`
-
-Original source text emitted before the children.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`prefix`](#prefix-3)
-
-##### start
-
-> `readonly` **start**: `number`
-
-Zero-based offset of the first included UTF-16 code unit.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`start`](#start-6)
-
-##### suffix
-
-> `readonly` **suffix**: `string`
-
-Original source text emitted after the children.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`suffix`](#suffix-3)
-
-##### type
-
-> `readonly` **type**: [`ConditionBranch`](#conditionbranch)
-
-Discriminant used to narrow the [AstNode](#astnode) union.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`type`](#type-6)
-
-***
-
 ### ConditionDecision
 
 One evaluated or skipped test. Unknown is distinct from false and not-reached.
@@ -1268,175 +517,139 @@ Source state at this point; null means unknown or not reached.
 
 ***
 
-### ConditionDeclarationNode
+### ConditionRealizationRequest
 
-A `\newif` condition declaration.
-
-#### Extends
-
-- [`NodeBase`](#nodebase)\<[`ConditionDeclaration`](#conditiondeclaration)\>
+Request for condition-only source realization without structural AST construction.
 
 #### Properties
 
-##### end
+##### conditions?
 
-> `readonly` **end**: `number`
+> `readonly` `optional` **conditions?**: [`ConditionPolicy`](#conditionpolicy)
 
-Zero-based offset of the last included UTF-16 code unit.
+Boolean condition evaluation policy; default { mode: 'source' }.
 
-###### Inherited from
+##### entryPath?
 
-[`NodeBase`](#nodebase).[`end`](#end-12)
+> `readonly` `optional` **entryPath?**: `string`
 
-##### id
+Entry virtual path; optional when snapshot has a single file, main.tex, or traversal is file-only.
 
-> `readonly` **id**: `number`
+##### inputs?
 
-Identifier unique within the containing parsed file, starting at zero.
+> `readonly` `optional` **inputs?**: `"preserve"` \| `"inline"`
 
-###### Inherited from
+Preserve active \input{...} commands across separate realized files, or inline active inputs into the entry artifact; default 'preserve'.
 
-[`NodeBase`](#nodebase).[`id`](#id-13)
+##### limits?
 
-##### line
+> `readonly` `optional` **limits?**: [`ViewLimits`](#viewlimits)
 
-> `readonly` **line**: `number`
+Optional interpretation resource bounds.
 
-One-based line containing `start`.
+##### maxOutputCodeUnits?
 
-###### Inherited from
+> `readonly` `optional` **maxOutputCodeUnits?**: `number`
 
-[`NodeBase`](#nodebase).[`line`](#line-13)
+Maximum total output size in UTF-16 code units; default 10,000,000, maximum 100,000,000.
 
-##### name
+##### scope?
 
-> `readonly` **name**: `string`
+> `readonly` `optional` **scope?**: [`SourceScope`](#sourcescope)
 
-Declared condition name without the leading `if`.
+Target files when traversal is 'file-only'; defaults to all files, or [entryPath] when entryPath is provided.
 
-##### start
+##### stripDeclarationsAndSetters?
 
-> `readonly` **start**: `number`
+> `readonly` `optional` **stripDeclarationsAndSetters?**: `boolean`
 
-Zero-based offset of the first included UTF-16 code unit.
+Strip \newif\ifX and reached [\global]\Xtrue/\Xfalse assignments along with \if.../\else/\fi; default true.
 
-###### Inherited from
+##### traversal?
 
-[`NodeBase`](#nodebase).[`start`](#start-12)
+> `readonly` `optional` **traversal?**: `"project"` \| `"file-only"`
 
-##### type
-
-> `readonly` **type**: [`ConditionDeclaration`](#conditiondeclaration)
-
-Discriminant used to narrow the [AstNode](#astnode) union.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`type`](#type-12)
-
-##### value
-
-> `readonly` **value**: `string`
-
-Exact source spelling of the declaration.
+Follow active literal inputs across project files, or evaluate files independently; default 'project'.
 
 ***
 
-### ConditionNode
+### ConditionRealizationResult
 
-A complete LaTeX conditional.
-
-#### Extends
-
-- [`ContainerNodeBase`](#containernodebase)\<[`Condition`](#condition)\>
+Condition-realized source output with edit plans, artifacts, and condition decisions.
 
 #### Properties
 
-##### children
+##### artifacts
 
-> `readonly` **children**: readonly [`AstNode`](#astnode)[]
+> `readonly` **artifacts**: readonly [`GeneratedArtifact`](#generatedartifact)[]
 
-Child nodes in source order.
+Realized LaTeX artifacts in deterministic path order when status === 'ready'; empty on failure.
 
-###### Inherited from
+##### coverage
 
-[`ContainerNodeBase`](#containernodebase).[`children`](#children-3)
+> `readonly` **coverage**: [`Coverage`](#coverage-3)
 
-##### end
+Coverage and encountered issues.
 
-> `readonly` **end**: `number`
+##### decisions
 
-Zero-based offset of the last included UTF-16 code unit.
+> `readonly` **decisions**: readonly [`ConditionDecision`](#conditiondecision)[]
 
-###### Inherited from
+Condition decisions in encounter order.
 
-[`ContainerNodeBase`](#containernodebase).[`end`](#end-6)
+##### dependencies
 
-##### id
+> `readonly` **dependencies**: readonly [`ArtifactDependency`](#artifactdependency)[]
 
-> `readonly` **id**: `number`
+Remaining input relationships in emitted artifacts.
 
-Identifier unique within the containing parsed file, starting at zero.
+##### editPlan
 
-###### Inherited from
+> `readonly` **editPlan**: [`ProjectEditPlan`](#projecteditplan) \| `null`
 
-[`ContainerNodeBase`](#containernodebase).[`id`](#id-6)
+Per-file source edit plan when inputs === 'preserve' and status === 'ready'; otherwise null.
 
-##### line
+##### kind
 
-> `readonly` **line**: `number`
+> `readonly` **kind**: `"condition-realization"`
 
-One-based line containing `start`.
+Result discriminant.
 
-###### Inherited from
+##### occurrences
 
-[`ContainerNodeBase`](#containernodebase).[`line`](#line-7)
+> `readonly` **occurrences**: readonly [`InputOccurrence`](#inputoccurrence)[]
 
-##### name
+Inclusion occurrences visited during condition traversal.
 
-> `readonly` **name**: `string`
+##### provenance
 
-Condition name without the leading `if`.
+> `readonly` **provenance**: [`OperationProvenance`](#operationprovenance)
 
-##### prefix
+Exact operation provenance.
 
-> `readonly` **prefix**: `string`
+##### reason
 
-Original source text emitted before the children.
+> `readonly` **reason**: [`ProjectIssue`](#projectissue) \| `null`
 
-###### Inherited from
+First blocking or incomplete issue, or null when status is 'ready'.
 
-[`ContainerNodeBase`](#containernodebase).[`prefix`](#prefix-3)
+##### resultId
 
-##### start
+> `readonly` **resultId**: `string`
 
-> `readonly` **start**: `number`
+Deterministic result identity.
 
-Zero-based offset of the first included UTF-16 code unit.
+##### snapshotId
 
-###### Inherited from
+> `readonly` **snapshotId**: `string`
 
-[`ContainerNodeBase`](#containernodebase).[`start`](#start-6)
+Exact source snapshot identity.
 
-##### suffix
+##### status
 
-> `readonly` **suffix**: `string`
+> `readonly` **status**: `"ready"` \| `"incomplete"` \| `"blocked"`
 
-Original source text emitted after the children.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`suffix`](#suffix-3)
-
-##### type
-
-> `readonly` **type**: [`Condition`](#condition)
-
-Discriminant used to narrow the [AstNode](#astnode) union.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`type`](#type-6)
+Complete condition realization, or incomplete/blocked when a condition or input could not be resolved.
 
 ***
 
@@ -1458,7 +671,7 @@ Name inside braces, without expansion.
 
 ###### Inherited from
 
-[`EnvironmentDelimiter`](#environmentdelimiter).[`name`](#name-9)
+[`EnvironmentDelimiter`](#environmentdelimiter).[`name`](#name-4)
 
 ##### nameRange
 
@@ -1538,7 +751,7 @@ Reusable configured fact index in execution order.
 
 ##### coverage
 
-> `readonly` **coverage**: [`Coverage`](#coverage-2)
+> `readonly` **coverage**: [`Coverage`](#coverage-3)
 
 Coverage includes the view's stop boundary and possible macro-generated syntax.
 
@@ -1603,102 +816,6 @@ Inclusive range in the virtual selected token tape; empty root ends at -1.
 > `readonly` **viewId**: `string`
 
 Exact configured view identity.
-
-***
-
-### ContainerNodeBase
-
-Shared fields present on nodes that contain other nodes.
-
-#### Extends
-
-- [`NodeBase`](#nodebase)\<`TType`\>
-
-#### Extended by
-
-- [`AstRoot`](#astroot)
-- [`ConditionBranchNode`](#conditionbranchnode)
-- [`ConditionNode`](#conditionnode)
-- [`EnvironmentNode`](#environmentnode)
-- [`GroupNode`](#groupnode)
-- [`MathNode`](#mathnode)
-- [`SectionNode`](#sectionnode)
-
-#### Type Parameters
-
-##### TType
-
-`TType` *extends* [`ContainerNodeType`](#containernodetype)
-
-#### Properties
-
-##### children
-
-> `readonly` **children**: readonly [`AstNode`](#astnode)[]
-
-Child nodes in source order.
-
-##### end
-
-> `readonly` **end**: `number`
-
-Zero-based offset of the last included UTF-16 code unit.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`end`](#end-12)
-
-##### id
-
-> `readonly` **id**: `number`
-
-Identifier unique within the containing parsed file, starting at zero.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`id`](#id-13)
-
-##### line
-
-> `readonly` **line**: `number`
-
-One-based line containing `start`.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`line`](#line-13)
-
-##### prefix
-
-> `readonly` **prefix**: `string`
-
-Original source text emitted before the children.
-
-##### start
-
-> `readonly` **start**: `number`
-
-Zero-based offset of the first included UTF-16 code unit.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`start`](#start-12)
-
-##### suffix
-
-> `readonly` **suffix**: `string`
-
-Original source text emitted after the children.
-
-##### type
-
-> `readonly` **type**: `TType`
-
-Discriminant used to narrow the [AstNode](#astnode) union.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`type`](#type-12)
 
 ***
 
@@ -1768,7 +885,7 @@ Normalized project-relative source path.
 
 ###### Inherited from
 
-[`SourceLocation`](#sourcelocation).[`path`](#path-12)
+[`SourceLocation`](#sourcelocation).[`path`](#path-9)
 
 ##### range
 
@@ -1790,7 +907,7 @@ Frozen source environment inventory; no entry or configured view required.
 
 ##### coverage
 
-> `readonly` **coverage**: [`Coverage`](#coverage-2)
+> `readonly` **coverage**: [`Coverage`](#coverage-3)
 
 Recognition limitations; candidates do not erase healthy results.
 
@@ -1817,104 +934,6 @@ Canonical request/content identity.
 > `readonly` **snapshotId**: `string`
 
 Exact source authority.
-
-***
-
-### EnvironmentNode
-
-A matched LaTeX environment other than `document`.
-
-#### Extends
-
-- [`ContainerNodeBase`](#containernodebase)\<[`Environment`](#environment-1)\>
-
-#### Properties
-
-##### children
-
-> `readonly` **children**: readonly [`AstNode`](#astnode)[]
-
-Child nodes in source order.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`children`](#children-3)
-
-##### end
-
-> `readonly` **end**: `number`
-
-Zero-based offset of the last included UTF-16 code unit.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`end`](#end-6)
-
-##### id
-
-> `readonly` **id**: `number`
-
-Identifier unique within the containing parsed file, starting at zero.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`id`](#id-6)
-
-##### line
-
-> `readonly` **line**: `number`
-
-One-based line containing `start`.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`line`](#line-7)
-
-##### name
-
-> `readonly` **name**: `string`
-
-Environment name between the braces.
-
-##### prefix
-
-> `readonly` **prefix**: `string`
-
-Original source text emitted before the children.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`prefix`](#prefix-3)
-
-##### start
-
-> `readonly` **start**: `number`
-
-Zero-based offset of the first included UTF-16 code unit.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`start`](#start-6)
-
-##### suffix
-
-> `readonly` **suffix**: `string`
-
-Original source text emitted after the children.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`suffix`](#suffix-3)
-
-##### type
-
-> `readonly` **type**: [`Environment`](#environment-1)
-
-Discriminant used to narrow the [AstNode](#astnode) union.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`type`](#type-6)
 
 ***
 
@@ -1962,12 +981,6 @@ Output policies for a configured project. No filename rewriting is performed.
 
 #### Properties
 
-##### conditions
-
-> `readonly` **conditions**: `"materialize"` \| `"preserve"`
-
-Keep wrappers/inactive slices exactly, or export only resolved source.
-
 ##### inputs
 
 > `readonly` **inputs**: `"preserve"` \| `"inline"`
@@ -1984,7 +997,7 @@ Total UTF-16 output limit across artifacts, default 10000000; maximum 100000000.
 
 > `readonly` `optional` **nodeEdits?**: readonly [`NodeEditAction`](#nodeeditaction)[]
 
-Selected-node actions before final export; nonempty actions require materialize/inline output.
+Selected-node actions before final export; nonempty actions require inline output.
 
 ##### suppressCommentEnvironments?
 
@@ -2070,172 +1083,6 @@ Explicit export completeness claim.
 
 ***
 
-### GroupNode
-
-A brace-delimited group.
-
-#### Extends
-
-- [`ContainerNodeBase`](#containernodebase)\<[`Group`](#group)\>
-
-#### Properties
-
-##### children
-
-> `readonly` **children**: readonly [`AstNode`](#astnode)[]
-
-Child nodes in source order.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`children`](#children-3)
-
-##### end
-
-> `readonly` **end**: `number`
-
-Zero-based offset of the last included UTF-16 code unit.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`end`](#end-6)
-
-##### id
-
-> `readonly` **id**: `number`
-
-Identifier unique within the containing parsed file, starting at zero.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`id`](#id-6)
-
-##### line
-
-> `readonly` **line**: `number`
-
-One-based line containing `start`.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`line`](#line-7)
-
-##### prefix
-
-> `readonly` **prefix**: `string`
-
-Original source text emitted before the children.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`prefix`](#prefix-3)
-
-##### start
-
-> `readonly` **start**: `number`
-
-Zero-based offset of the first included UTF-16 code unit.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`start`](#start-6)
-
-##### suffix
-
-> `readonly` **suffix**: `string`
-
-Original source text emitted after the children.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`suffix`](#suffix-3)
-
-##### type
-
-> `readonly` **type**: [`Group`](#group)
-
-Discriminant used to narrow the [AstNode](#astnode) union.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`type`](#type-6)
-
-***
-
-### InputNode
-
-An `\input` command.
-
-#### Extends
-
-- [`NodeBase`](#nodebase)\<[`Input`](#input)\>
-
-#### Properties
-
-##### end
-
-> `readonly` **end**: `number`
-
-Zero-based offset of the last included UTF-16 code unit.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`end`](#end-12)
-
-##### id
-
-> `readonly` **id**: `number`
-
-Identifier unique within the containing parsed file, starting at zero.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`id`](#id-13)
-
-##### line
-
-> `readonly` **line**: `number`
-
-One-based line containing `start`.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`line`](#line-13)
-
-##### path
-
-> `readonly` **path**: `string`
-
-Requested virtual-project path exactly as written inside the command.
-
-##### start
-
-> `readonly` **start**: `number`
-
-Zero-based offset of the first included UTF-16 code unit.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`start`](#start-12)
-
-##### type
-
-> `readonly` **type**: [`Input`](#input)
-
-Discriminant used to narrow the [AstNode](#astnode) union.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`type`](#type-12)
-
-##### value
-
-> `readonly` **value**: `string`
-
-Exact source spelling of the command.
-
-***
-
 ### InputOccurrence
 
 A repeated visit to a source file has its own inclusion identity.
@@ -2296,7 +1143,7 @@ Located source inventory with exact operation/source provenance.
 
 ##### coverage
 
-> `readonly` **coverage**: [`Coverage`](#coverage-2)
+> `readonly` **coverage**: [`Coverage`](#coverage-3)
 
 Coverage of the requested files.
 
@@ -2335,248 +1182,6 @@ Deterministic source/options/operation identity.
 > `readonly` **snapshotId**: `string`
 
 Exact snapshot.
-
-***
-
-### MathNode
-
-A delimited LaTeX math region.
-
-#### Extends
-
-- [`ContainerNodeBase`](#containernodebase)\<[`Math`](#math)\>
-
-#### Properties
-
-##### children
-
-> `readonly` **children**: readonly [`AstNode`](#astnode)[]
-
-Child nodes in source order.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`children`](#children-3)
-
-##### delimiter
-
-> `readonly` **delimiter**: [`MathDelimiter`](#mathdelimiter)
-
-Opening math delimiter; the matching closer is represented by `suffix`.
-
-##### end
-
-> `readonly` **end**: `number`
-
-Zero-based offset of the last included UTF-16 code unit.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`end`](#end-6)
-
-##### id
-
-> `readonly` **id**: `number`
-
-Identifier unique within the containing parsed file, starting at zero.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`id`](#id-6)
-
-##### line
-
-> `readonly` **line**: `number`
-
-One-based line containing `start`.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`line`](#line-7)
-
-##### prefix
-
-> `readonly` **prefix**: `string`
-
-Original source text emitted before the children.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`prefix`](#prefix-3)
-
-##### start
-
-> `readonly` **start**: `number`
-
-Zero-based offset of the first included UTF-16 code unit.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`start`](#start-6)
-
-##### suffix
-
-> `readonly` **suffix**: `string`
-
-Original source text emitted after the children.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`suffix`](#suffix-3)
-
-##### type
-
-> `readonly` **type**: [`Math`](#math)
-
-Discriminant used to narrow the [AstNode](#astnode) union.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`type`](#type-6)
-
-***
-
-### NewLineNode
-
-A source line ending.
-
-#### Extends
-
-- [`NodeBase`](#nodebase)\<[`NewLine`](#newline)\>
-
-#### Properties
-
-##### end
-
-> `readonly` **end**: `number`
-
-Zero-based offset of the last included UTF-16 code unit.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`end`](#end-12)
-
-##### id
-
-> `readonly` **id**: `number`
-
-Identifier unique within the containing parsed file, starting at zero.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`id`](#id-13)
-
-##### line
-
-> `readonly` **line**: `number`
-
-One-based line containing `start`.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`line`](#line-13)
-
-##### originalLineIsWhitespaceOnly
-
-> `readonly` **originalLineIsWhitespaceOnly**: `boolean`
-
-Whether the source line before this ending contained only whitespace.
-
-##### start
-
-> `readonly` **start**: `number`
-
-Zero-based offset of the first included UTF-16 code unit.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`start`](#start-12)
-
-##### type
-
-> `readonly` **type**: [`NewLine`](#newline)
-
-Discriminant used to narrow the [AstNode](#astnode) union.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`type`](#type-12)
-
-##### value
-
-> `readonly` **value**: [`LineEnding`](#lineending)
-
-The exact line-ending sequence: LF, CR, or CRLF.
-
-***
-
-### NodeBase
-
-Shared fields present on every syntax-tree node.
-
-#### Extends
-
-- [`SourceRange`](#sourcerange)
-
-#### Extended by
-
-- [`CommandNode`](#commandnode)
-- [`CommentNode`](#commentnode)
-- [`ConditionDeclarationNode`](#conditiondeclarationnode)
-- [`ContainerNodeBase`](#containernodebase)
-- [`InputNode`](#inputnode)
-- [`NewLineNode`](#newlinenode)
-- [`TextNode`](#textnode)
-
-#### Type Parameters
-
-##### TType
-
-`TType` *extends* [`NodeType`](#nodetype)
-
-#### Properties
-
-##### end
-
-> `readonly` **end**: `number`
-
-Zero-based offset of the last included UTF-16 code unit.
-
-###### Inherited from
-
-[`SourceRange`](#sourcerange).[`end`](#end-15)
-
-##### id
-
-> `readonly` **id**: `number`
-
-Identifier unique within the containing parsed file, starting at zero.
-
-##### line
-
-> `readonly` **line**: `number`
-
-One-based line containing `start`.
-
-###### Inherited from
-
-[`SourceRange`](#sourcerange).[`line`](#line-15)
-
-##### start
-
-> `readonly` **start**: `number`
-
-Zero-based offset of the first included UTF-16 code unit.
-
-###### Inherited from
-
-[`SourceRange`](#sourcerange).[`start`](#start-15)
-
-##### type
-
-> `readonly` **type**: `TType`
-
-Discriminant used to narrow the [AstNode](#astnode) union.
 
 ***
 
@@ -2684,7 +1289,7 @@ Required completeness.
 
 ##### id
 
-> `readonly` **id**: `"edit-nodes"` \| `"remove-environments"` \| `"source-inventory"` \| `"resolve-view"` \| `"references"` \| `"unused-commands"` \| `"suppress-comments"` \| `"identity"` \| `"materialize"` \| `"export-project"`
+> `readonly` **id**: `"edit-nodes"` \| `"remove-environments"` \| `"source-inventory"` \| `"realize-conditions"` \| `"resolve-view"` \| `"references"` \| `"unused-commands"` \| `"suppress-comments"` \| `"export-project"`
 
 Stable operation name.
 
@@ -2696,9 +1301,9 @@ Whether execution is shipped in this release.
 
 ##### representation
 
-> `readonly` **representation**: `"snapshot"` \| `"view"` \| `"either"`
+> `readonly` **representation**: `"snapshot"` \| `"view"`
 
-Required model, allowing a source or selected-path comment operation.
+Required model representation.
 
 ##### resultKind
 
@@ -2778,178 +1383,6 @@ Exact configured identity, null for source-local work.
 
 ***
 
-### ParsedFile
-
-A parsed project file and the caller-owned version associated with it.
-
-#### Extends
-
-- [`ParseResult`](#parseresult)
-
-#### Properties
-
-##### declaredConditions
-
-> `readonly` **declaredConditions**: readonly `string`[]
-
-Distinct declared condition names in ascending code-unit order.
-
-###### Inherited from
-
-[`ParseResult`](#parseresult).[`declaredConditions`](#declaredconditions-2)
-
-##### diagnostics
-
-> `readonly` **diagnostics**: readonly [`WarningDiagnostic`](#warningdiagnostic)[]
-
-Non-fatal parser warnings in ascending source-offset order.
-
-###### Inherited from
-
-[`ParseResult`](#parseresult).[`diagnostics`](#diagnostics-2)
-
-##### path
-
-> `readonly` **path**: `string`
-
-Normalized virtual source path associated with this parse.
-
-###### Inherited from
-
-[`ParseResult`](#parseresult).[`path`](#path-8)
-
-##### referencedFiles
-
-> `readonly` **referencedFiles**: readonly `string`[]
-
-Distinct paths requested by `\input` commands, in first-encounter order.
-
-###### Inherited from
-
-[`ParseResult`](#parseresult).[`referencedFiles`](#referencedfiles-1)
-
-##### root
-
-> `readonly` **root**: [`AstRoot`](#astroot)
-
-Immutable syntax-tree root.
-
-###### Inherited from
-
-[`ParseResult`](#parseresult).[`root`](#root-2)
-
-##### version
-
-> `readonly` **version**: `number`
-
-Version copied from the corresponding [SourceFile](#sourcefile).
-
-***
-
-### ParsedProject
-
-A transport-safe, immutable parsed project.
-
-#### Properties
-
-##### declaredConditions
-
-> `readonly` **declaredConditions**: readonly `string`[]
-
-Distinct condition names in ascending code-unit order.
-
-##### diagnostics
-
-> `readonly` **diagnostics**: readonly [`WarningDiagnostic`](#warningdiagnostic)[]
-
-Diagnostics grouped by deterministic file order, then by source offset.
-
-##### files
-
-> `readonly` **files**: readonly [`ParsedFile`](#parsedfile)[]
-
-Parsed files in deterministic path order.
-
-***
-
-### ~~ParseOptions~~
-
-Options for parsing one legacy LaTeX document.
-
-#### Deprecated
-
-New workflows use ScanOptions and ViewConfiguration with different semantics; see docs/migration-0.3.md.
-
-#### Properties
-
-##### ~~enabledTokens?~~
-
-> `readonly` `optional` **enabledTokens?**: readonly [`TokenType`](#tokentype)[]
-
-Token categories recognized by the lexer.
-
-Omit this field to enable every supported category. Disabled constructs are
-preserved as text where possible.
-
-##### ~~maximumSectionLevel?~~
-
-> `readonly` `optional` **maximumSectionLevel?**: [`SectionLevel`](#sectionlevel)
-
-Deepest section command represented as a section node.
-
-Deeper section commands are represented as ordinary command nodes. Omit this
-field to recognize all supported levels.
-
-##### ~~sourcePath?~~
-
-> `readonly` `optional` **sourcePath?**: `string`
-
-Virtual path attached to diagnostics; defaults to `<input>`.
-
-***
-
-### ParseResult
-
-The immutable result of parsing one LaTeX source string.
-
-#### Extended by
-
-- [`ParsedFile`](#parsedfile)
-
-#### Properties
-
-##### declaredConditions
-
-> `readonly` **declaredConditions**: readonly `string`[]
-
-Distinct declared condition names in ascending code-unit order.
-
-##### diagnostics
-
-> `readonly` **diagnostics**: readonly [`WarningDiagnostic`](#warningdiagnostic)[]
-
-Non-fatal parser warnings in ascending source-offset order.
-
-##### path
-
-> `readonly` **path**: `string`
-
-Normalized virtual source path associated with this parse.
-
-##### referencedFiles
-
-> `readonly` **referencedFiles**: readonly `string`[]
-
-Distinct paths requested by `\input` commands, in first-encounter order.
-
-##### root
-
-> `readonly` **root**: [`AstRoot`](#astroot)
-
-Immutable syntax-tree root.
-
-***
-
 ### ProjectEditPlan
 
 Immutable proposal, not applied source. Equal-offset insertions and insertion/replacement overlap are rejected.
@@ -3011,36 +1444,6 @@ Human-readable explanation.
 > `readonly` **severity**: `"error"` \| `"warning"`
 
 Error blocks required syntax; warning denotes unsupported or uncertain behavior.
-
-***
-
-### ~~ProjectParseOptions~~
-
-Options applied uniformly while parsing a legacy virtual project.
-
-#### Deprecated
-
-New workflows use ScanOptions and ViewConfiguration; see docs/migration-0.3.md.
-
-#### Properties
-
-##### ~~enabledTokens?~~
-
-> `readonly` `optional` **enabledTokens?**: readonly [`TokenType`](#tokentype)[]
-
-Token categories recognized by the lexer.
-
-Omit this field to enable every supported category. Disabled constructs are
-preserved as text where possible.
-
-##### ~~maximumSectionLevel?~~
-
-> `readonly` `optional` **maximumSectionLevel?**: [`SectionLevel`](#sectionlevel)
-
-Deepest section command represented as a section node.
-
-Deeper section commands are represented as ordinary command nodes. Omit this
-field to recognize all supported levels.
 
 ***
 
@@ -3216,7 +1619,7 @@ Canonical semantic settings.
 
 ##### coverage
 
-> `readonly` **coverage**: [`Coverage`](#coverage-2)
+> `readonly` **coverage**: [`Coverage`](#coverage-3)
 
 Supported grammar, assumptions, and limitations.
 
@@ -3340,7 +1743,7 @@ One independently scanned source file; even malformed source remains available.
 
 ##### coverage
 
-> `readonly` **coverage**: [`Coverage`](#coverage-2)
+> `readonly` **coverage**: [`Coverage`](#coverage-3)
 
 Recognized syntax coverage and localized diagnostics.
 
@@ -3358,7 +1761,7 @@ Stable virtual path used by entry selection and `\input` resolution.
 
 ###### Inherited from
 
-[`SourceFile`](#sourcefile).[`path`](#path-11)
+[`SourceFile`](#sourcefile).[`path`](#path-8)
 
 ##### source
 
@@ -3380,11 +1783,11 @@ Lossless ordered lexical partition, empty for empty source.
 
 > `readonly` **version**: `number`
 
-Caller-owned finite number used to resolve incremental merge conflicts.
+Caller-owned finite number used to resolve incremental update conflicts.
 
 ###### Inherited from
 
-[`SourceFile`](#sourcefile).[`version`](#version-5)
+[`SourceFile`](#sourcefile).[`version`](#version-4)
 
 ***
 
@@ -3408,116 +1811,6 @@ Additional literal verbatim environment names; default is an empty list.
 
 ***
 
-### SectionNode
-
-A supported section command or the `document` environment.
-
-#### Extends
-
-- [`ContainerNodeBase`](#containernodebase)\<[`Section`](#section)\>
-
-#### Properties
-
-##### children
-
-> `readonly` **children**: readonly [`AstNode`](#astnode)[]
-
-Child nodes in source order.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`children`](#children-3)
-
-##### end
-
-> `readonly` **end**: `number`
-
-Zero-based offset of the last included UTF-16 code unit.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`end`](#end-6)
-
-##### id
-
-> `readonly` **id**: `number`
-
-Identifier unique within the containing parsed file, starting at zero.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`id`](#id-6)
-
-##### level
-
-> `readonly` **level**: [`SectionLevel`](#sectionlevel)
-
-Section depth; zero is reserved for the `document` environment.
-
-##### line
-
-> `readonly` **line**: `number`
-
-One-based line containing `start`.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`line`](#line-7)
-
-##### name
-
-> `readonly` **name**: `string`
-
-Section title, or `document` for the document environment.
-
-##### prefix
-
-> `readonly` **prefix**: `string`
-
-Original source text emitted before the children.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`prefix`](#prefix-3)
-
-##### starred
-
-> `readonly` **starred**: `boolean`
-
-Whether the section command used its starred form.
-
-##### start
-
-> `readonly` **start**: `number`
-
-Zero-based offset of the first included UTF-16 code unit.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`start`](#start-6)
-
-##### suffix
-
-> `readonly` **suffix**: `string`
-
-Original source text emitted after the children.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`suffix`](#suffix-3)
-
-##### type
-
-> `readonly` **type**: [`Section`](#section)
-
-Discriminant used to narrow the [AstNode](#astnode) union.
-
-###### Inherited from
-
-[`ContainerNodeBase`](#containernodebase).[`type`](#type-6)
-
-***
-
 ### SelectedToken
 
 A selected lexical token with distinct projected and original coordinates.
@@ -3526,9 +1819,9 @@ A selected lexical token with distinct projected and original coordinates.
 
 ##### interpretation
 
-> `readonly` **interpretation**: `"opaque"` \| `"structure"`
+> `readonly` **interpretation**: `"opaque"` \| `"structure"` \| `"verbatim"`
 
-Opaque stored syntax is a leaf; structural delimiters there never execute.
+Opaque stored syntax or active verbatim region is a leaf; structural delimiters there never execute.
 
 ##### origin
 
@@ -3547,43 +1840,6 @@ Inclusive offsets in the virtual token tape; not an emitted LaTeX string.
 > `readonly` **token**: [`SourceToken`](#sourcetoken)
 
 Lexical source token, keeping its original offsets.
-
-***
-
-### ~~SerializeOptions~~
-
-Options for serializing one legacy parsed syntax tree.
-
-#### Deprecated
-
-Use typed OperationRequest/ExportOptions for new workflows; condition omission and whitelists do not map to source evaluation. See docs/migration-0.3.md.
-
-#### Extended by
-
-- [`TransformOptions`](#transformoptions)
-
-#### Properties
-
-##### ~~enabledConditions?~~
-
-> `readonly` `optional` **enabledConditions?**: readonly `string`[]
-
-Conditions whose `if` branch is retained.
-
-Omit this field to preserve conditional syntax. Pass an empty array to resolve
-every recognized condition to its `else` branch. Resolving conditions also
-removes recognized `\newif` declarations and their generated toggle commands.
-Names are compared case-sensitively.
-
-###### Deprecated
-
-Retained as a static legacy whitelist. Select an explicit ConditionPolicy for new workflows; see docs/migration-0.3.md.
-
-##### ~~suppressComments?~~
-
-> `readonly` `optional` **suppressComments?**: `boolean`
-
-Replace recognized comments and newly empty comment lines; defaults to `false`.
 
 ***
 
@@ -3675,7 +1931,7 @@ Caller-owned original revision.
 
 ### SourceFile
 
-One versioned source file supplied to [parseProject](#parseproject).
+One versioned source file supplied to [createProjectSnapshot](#createprojectsnapshot).
 
 #### Extended by
 
@@ -3699,7 +1955,7 @@ LaTeX source text.
 
 > `readonly` **version**: `number`
 
-Caller-owned finite number used to resolve incremental merge conflicts.
+Caller-owned finite number used to resolve incremental update conflicts.
 
 ***
 
@@ -3814,7 +2070,7 @@ Inclusive end; omission performs a point lookup.
 
 ##### kinds?
 
-> `readonly` `optional` **kinds?**: readonly (`"environment"` \| `"node"` \| `"token"`)[]
+> `readonly` `optional` **kinds?**: readonly (`"node"` \| `"token"` \| `"environment"`)[]
 
 Categories to return; omission returns all, empty returns none.
 
@@ -3866,7 +2122,7 @@ Normalized project-relative source path.
 
 ###### Inherited from
 
-[`SourceLocation`](#sourcelocation).[`path`](#path-12)
+[`SourceLocation`](#sourcelocation).[`path`](#path-9)
 
 ##### range
 
@@ -3892,10 +2148,6 @@ An inclusive source range in the original JavaScript string.
 
 Offsets count UTF-16 code units and `line` is one-based. For an empty document,
 the root range is `start = 0`, `end = -1`, and `line = 1`.
-
-#### Extended by
-
-- [`NodeBase`](#nodebase)
 
 #### Properties
 
@@ -3925,11 +2177,23 @@ A lossless lexical segment. Concatenating values reproduces the source exactly.
 
 #### Properties
 
+##### index
+
+> `readonly` **index**: `number`
+
+Zero-based index in the owning file's token stream.
+
 ##### kind
 
-> `readonly` **kind**: `"text"` \| `"space"` \| `"command"` \| `"comment"` \| `"verbatim"` \| `"open"` \| `"close"` \| `"math"`
+> `readonly` **kind**: [`SourceTokenKind`](#sourcetokenkind-1)
 
-Lexical category; commands in protected text are not separate tokens.
+Lexical category; tokenizes raw source unconditionally without macro/verbatim state.
+
+##### name
+
+> `readonly` **name**: `string`
+
+Command name without leading `\`, or `""` when `kind !== 'command'`.
 
 ##### range
 
@@ -3942,44 +2206,6 @@ Inclusive original range.
 > `readonly` **value**: `string`
 
 Exact source substring.
-
-***
-
-### SyntaxDiagnostic
-
-A fatal parser diagnostic attached to [PrepTexSyntaxError](#preptexsyntaxerror).
-
-#### Properties
-
-##### code
-
-> `readonly` **code**: [`SyntaxError`](#syntaxerror)
-
-Literal code used to discriminate fatal syntax diagnostics.
-
-##### message
-
-> `readonly` **message**: `string`
-
-Human-readable explanation intended for display or logs.
-
-##### path
-
-> `readonly` **path**: `string`
-
-Virtual path of the source that could not be parsed.
-
-##### range
-
-> `readonly` **range**: [`SourceRange`](#sourcerange)
-
-Inclusive range in the original source.
-
-##### severity
-
-> `readonly` **severity**: [`Error`](#error)
-
-Literal severity used to discriminate fatal syntax diagnostics.
 
 ***
 
@@ -4013,7 +2239,7 @@ Normalized project-relative source path.
 
 ###### Inherited from
 
-[`SourceLocation`](#sourcelocation).[`path`](#path-12)
+[`SourceLocation`](#sourcelocation).[`path`](#path-9)
 
 ##### range
 
@@ -4033,74 +2259,6 @@ Whether this construct is recognized or retained as an unresolved candidate.
 
 ***
 
-### TextNode
-
-Literal source text.
-
-#### Extends
-
-- [`NodeBase`](#nodebase)\<[`Text`](#text)\>
-
-#### Properties
-
-##### end
-
-> `readonly` **end**: `number`
-
-Zero-based offset of the last included UTF-16 code unit.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`end`](#end-12)
-
-##### id
-
-> `readonly` **id**: `number`
-
-Identifier unique within the containing parsed file, starting at zero.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`id`](#id-13)
-
-##### line
-
-> `readonly` **line**: `number`
-
-One-based line containing `start`.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`line`](#line-13)
-
-##### start
-
-> `readonly` **start**: `number`
-
-Zero-based offset of the first included UTF-16 code unit.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`start`](#start-12)
-
-##### type
-
-> `readonly` **type**: [`Text`](#text)
-
-Discriminant used to narrow the [AstNode](#astnode) union.
-
-###### Inherited from
-
-[`NodeBase`](#nodebase).[`type`](#type-12)
-
-##### value
-
-> `readonly` **value**: `string`
-
-The exact source text covered by this node.
-
-***
-
 ### TransformationResult
 
 Successful transformation preview/export, with sources unchanged.
@@ -4115,7 +2273,7 @@ Preview/export files, in deterministic path order.
 
 ##### coverage
 
-> `readonly` **coverage**: [`Coverage`](#coverage-2)
+> `readonly` **coverage**: [`Coverage`](#coverage-3)
 
 Explicit source/view coverage and limited simplification.
 
@@ -4157,94 +2315,6 @@ Exact operation/source/configuration result identity.
 
 ***
 
-### TransformedFile
-
-One transformed LaTeX output file.
-
-#### Properties
-
-##### path
-
-> `readonly` **path**: `string`
-
-Virtual output path.
-
-##### source
-
-> `readonly` **source**: `string`
-
-Serialized LaTeX source.
-
-***
-
-### ~~TransformOptions~~
-
-Options for transforming a legacy parsed project.
-
-#### Deprecated
-
-Use ViewConfiguration and ExportOptions independently; see docs/migration-0.3.md.
-
-#### Extends
-
-- [`SerializeOptions`](#serializeoptions)
-
-#### Properties
-
-##### ~~enabledConditions?~~
-
-> `readonly` `optional` **enabledConditions?**: readonly `string`[]
-
-Conditions whose `if` branch is retained.
-
-Omit this field to preserve conditional syntax. Pass an empty array to resolve
-every recognized condition to its `else` branch. Resolving conditions also
-removes recognized `\newif` declarations and their generated toggle commands.
-Names are compared case-sensitively.
-
-###### Deprecated
-
-Retained as a static legacy whitelist. Select an explicit ConditionPolicy for new workflows; see docs/migration-0.3.md.
-
-###### Inherited from
-
-[`SerializeOptions`](#serializeoptions).[`enabledConditions`](#enabledconditions)
-
-##### ~~inputHandling?~~
-
-> `readonly` `optional` **inputHandling?**: [`InputHandlingMode`](#inputhandlingmode)
-
-How `\input` commands affect the generated file set; defaults to `Preserve`.
-
-##### ~~suppressComments?~~
-
-> `readonly` `optional` **suppressComments?**: `boolean`
-
-Replace recognized comments and newly empty comment lines; defaults to `false`.
-
-###### Inherited from
-
-[`SerializeOptions`](#serializeoptions).[`suppressComments`](#suppresscomments-1)
-
-***
-
-### TransformResult
-
-The immutable output of [transformProject](#transformproject).
-
-#### Properties
-
-##### files
-
-> `readonly` **files**: readonly [`TransformedFile`](#transformedfile)[]
-
-Generated files.
-
-Preserve and flatten modes return only the entry file. Separate mode returns
-every project file in deterministic path order.
-
-***
-
 ### VersionedSourceOrigin
 
 Original selected span with its caller-owned file revision.
@@ -4273,7 +2343,7 @@ Normalized project-relative source path.
 
 ###### Inherited from
 
-[`SourceOrigin`](#sourceorigin).[`path`](#path-15)
+[`SourceOrigin`](#sourceorigin).[`path`](#path-12)
 
 ##### range
 
@@ -4293,7 +2363,7 @@ Exact source snapshot identity.
 
 ###### Inherited from
 
-[`SourceOrigin`](#sourceorigin).[`snapshotId`](#snapshotid-10)
+[`SourceOrigin`](#sourceorigin).[`snapshotId`](#snapshotid-11)
 
 ##### version
 
@@ -4371,44 +2441,6 @@ Total inclusions including entry, default 10000.
 
 Selected UTF-16 code units, default 10000000. This is not a wall-clock bound.
 
-***
-
-### WarningDiagnostic
-
-A non-fatal parser message with a stable code and exact source location.
-
-#### Properties
-
-##### code
-
-> `readonly` **code**: [`WarningDiagnosticCode`](#warningdiagnosticcode-1)
-
-Stable machine-readable warning category.
-
-##### message
-
-> `readonly` **message**: `string`
-
-Human-readable explanation intended for display or logs.
-
-##### path
-
-> `readonly` **path**: `string`
-
-Virtual source path, or the `sourcePath` supplied to [parseDocument](#parsedocument).
-
-##### range
-
-> `readonly` **range**: [`SourceRange`](#sourcerange)
-
-Inclusive range in the original source.
-
-##### severity
-
-> `readonly` **severity**: [`Warning`](#warning)
-
-Literal severity used to discriminate warning diagnostics.
-
 ## Type Aliases
 
 ### AnalysisRequest
@@ -4475,14 +2507,6 @@ Why this text exists.
 
 ***
 
-### AstNode
-
-> **AstNode** = [`TextNode`](#textnode) \| [`NewLineNode`](#newlinenode) \| [`CommentNode`](#commentnode) \| [`CommandNode`](#commandnode) \| [`ConditionDeclarationNode`](#conditiondeclarationnode) \| [`EnvironmentNode`](#environmentnode) \| [`ConditionNode`](#conditionnode) \| [`ConditionBranchNode`](#conditionbranchnode) \| [`MathNode`](#mathnode) \| [`GroupNode`](#groupnode) \| [`SectionNode`](#sectionnode) \| [`InputNode`](#inputnode) \| [`AstRoot`](#astroot)
-
-The exhaustive discriminated union of public PrepTeX syntax-tree nodes.
-
-***
-
 ### BooleanValues
 
 > **BooleanValues** = `Readonly`\<`Record`\<`string`, `boolean`\>\>
@@ -4491,19 +2515,11 @@ Named values, case-sensitive; names exclude the if prefix and primitives.
 
 ***
 
-### ConditionName
-
-> **ConditionName** = `string`
-
-The name of a boolean condition declared with LaTeX's `\newif`.
-
-***
-
 ### ConditionPolicy
 
-> **ConditionPolicy** = \{ `initialValues?`: [`BooleanValues`](#booleanvalues); `mode`: `"source"`; \} \| \{ `mode`: `"manual"`; `values`: [`BooleanValues`](#booleanvalues); \} \| \{ `initialValues?`: [`BooleanValues`](#booleanvalues); `mode`: `"source-with-overrides"`; `overrides`: [`BooleanValues`](#booleanvalues); \}
+> **ConditionPolicy** = \{ `initialValues?`: [`BooleanValues`](#booleanvalues); `mode`: `"source"`; \} \| \{ `mode`: `"manual"`; `values`: [`BooleanValues`](#booleanvalues); \} \| \{ `initialValues?`: [`BooleanValues`](#booleanvalues); `mode`: `"source-with-overrides"`; `overrides`: [`BooleanValues`](#booleanvalues); \} \| \{ `mode`: `"none"`; \}
 
-Source tracking, permanent manual forcing, and initial seeds have distinct semantics.
+Source tracking, permanent manual forcing, initial seeds, and condition-free assertions have distinct semantics.
 
 #### Union Members
 
@@ -4567,6 +2583,18 @@ Permanent per-test overrides.
 
 ***
 
+##### Type Literal
+
+\{ `mode`: `"none"`; \}
+
+###### mode
+
+> `readonly` **mode**: `"none"`
+
+Assert no conditionals exist in the reached source; any conditional syntax stops with unrealized-condition.
+
+***
+
 ### ConfiguredContainerNode
 
 > **ConfiguredContainerNode** = [`ConfiguredNodeBase`](#configurednodebase) & \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"root"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"environment"`; `name`: `string`; `syntax`: [`ConfiguredEnvironmentSyntax`](#configuredenvironmentsyntax); \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"group"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `delimiter`: [`MathDelimiter`](#mathdelimiter); `kind`: `"math"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"section"`; `level`: `1` \| `2` \| `3` \| `4` \| `5`; `name`: `string`; `starred`: `boolean`; \}
@@ -4583,54 +2611,11 @@ Exhaustive configured structure. Leaf tokens are never re-lexed across source jo
 
 ***
 
-### ContainerNode
-
-> **ContainerNode** = [`AstRoot`](#astroot) \| [`EnvironmentNode`](#environmentnode) \| [`ConditionNode`](#conditionnode) \| [`ConditionBranchNode`](#conditionbranchnode) \| [`MathNode`](#mathnode) \| [`GroupNode`](#groupnode) \| [`SectionNode`](#sectionnode)
-
-Any syntax-tree node that owns an ordered child list.
-
-***
-
-### ContainerNodeType
-
-> **ContainerNodeType** = [`Root`](#root) \| [`Environment`](#environment-1) \| [`Condition`](#condition) \| [`ConditionBranch`](#conditionbranch) \| [`Math`](#math) \| [`Group`](#group) \| [`Section`](#section)
-
-The node types that contain child nodes.
-
-***
-
-### Diagnostic
-
-> **Diagnostic** = [`WarningDiagnostic`](#warningdiagnostic) \| [`SyntaxDiagnostic`](#syntaxdiagnostic)
-
-Any structured warning or fatal syntax diagnostic emitted by PrepTeX.
-
-***
-
-### InputReferencePath
-
-> **InputReferencePath** = `string`
-
-A non-empty path written inside a braced `\input` command.
-
-It retains the source spelling and is interpreted relative to the including
-file only when a project is flattened.
-
-***
-
 ### InterpretationProfile
 
 > **InterpretationProfile** = `"direct-latex-v1"`
 
 Supported source/interpretation grammar, not a promise of TeX equivalence.
-
-***
-
-### LineEnding
-
-> **LineEnding** = "\n" \| "\r" \| "\r\n"
-
-An exact source line-ending sequence.
 
 ***
 
@@ -4772,14 +2757,6 @@ Selected construct.
 
 ***
 
-### NodeId
-
-> **NodeId** = `number`
-
-A node identifier that is unique within one parsed file.
-
-***
-
 ### NodeLocation
 
 > **NodeLocation** = \{ `kind`: `"none"`; `primary`: `null`; `spans`: readonly \[\]; \} \| \{ `kind`: `"single"`; `primary`: [`VersionedSourceOrigin`](#versionedsourceorigin); `spans`: readonly \[[`VersionedSourceOrigin`](#versionedsourceorigin)\]; \} \| \{ `kind`: `"multiple"`; `primary`: [`VersionedSourceOrigin`](#versionedsourceorigin); `spans`: readonly [`VersionedSourceOrigin`](#versionedsourceorigin)[]; \}
@@ -4862,9 +2839,9 @@ Every contributing extent in encounter order.
 
 ### NodeTransformationRequest
 
-> **NodeTransformationRequest** = \{ `operation`: `"edit-nodes"`; `options`: \{ `actions`: readonly [`NodeEditAction`](#nodeeditaction)[]; `maxOutputCodeUnits?`: `number`; `target`: `"selected"` \| `"artifact"`; \}; \} \| \{ `operation`: `"remove-environments"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `names`: readonly `string`[]; `scope?`: [`SourceScope`](#sourcescope); `target`: `"source"` \| `"selected"` \| `"artifact"`; \}; \}
+> **NodeTransformationRequest** = \{ `operation`: `"edit-nodes"`; `options`: \{ `actions`: readonly [`NodeEditAction`](#nodeeditaction)[]; `maxOutputCodeUnits?`: `number`; `target`: `"selected"` \| `"artifact"`; \}; \} \| \{ `operation`: `"remove-environments"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `names`: readonly `string`[]; `target`: `"selected"` \| `"artifact"`; \}; \}
 
-Additional transformations using source environments or configured nodes.
+Additional transformations using configured nodes over a realized ProjectView.
 
 #### Union Members
 
@@ -4906,19 +2883,19 @@ Source previews preserve every unmapped slice; artifact mode specializes occurre
 
 ##### Type Literal
 
-\{ `operation`: `"remove-environments"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `names`: readonly `string`[]; `scope?`: [`SourceScope`](#sourcescope); `target`: `"source"` \| `"selected"` \| `"artifact"`; \}; \}
+\{ `operation`: `"remove-environments"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `names`: readonly `string`[]; `target`: `"selected"` \| `"artifact"`; \}; \}
 
 ###### operation
 
 > `readonly` **operation**: `"remove-environments"`
 
-Remove matching literal environments.
+Remove matching literal environments from the realized view.
 
 ###### options
 
 > `readonly` **options**: `object`
 
-Explicit physical or selected scope.
+Explicit selected or artifact scope.
 
 ###### options.maxOutputCodeUnits?
 
@@ -4932,17 +2909,11 @@ Total output UTF-16 bound, default 10000000.
 
 Case-sensitive literal names; nonempty, sorted during normalization.
 
-###### options.scope?
-
-> `readonly` `optional` **scope?**: [`SourceScope`](#sourcescope)
-
-Source-only scope, defaults to all files; forbidden for selected/artifact targets.
-
 ###### options.target
 
-> `readonly` **target**: `"source"` \| `"selected"` \| `"artifact"`
+> `readonly` **target**: `"selected"` \| `"artifact"`
 
-All source branches or configured selected occurrences.
+Configured selected occurrences or artifact export.
 
 ***
 
@@ -5000,9 +2971,9 @@ Ordered reasons.
 
 ### OperationRequest
 
-> **OperationRequest** = [`NodeTransformationRequest`](#nodetransformationrequest) \| \{ `operation`: `"source-inventory"`; `options?`: [`InventoryRequest`](#inventoryrequest); \} \| \{ `operation`: `"resolve-view"`; `options`: [`ViewConfiguration`](#viewconfiguration); \} \| \{ `operation`: `"references"` \| `"unused-commands"`; `options?`: [`AnalysisOptions`](#analysisoptions); \} \| \{ `operation`: `"suppress-comments"` \| `"identity"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `scope?`: [`SourceScope`](#sourcescope); `suppressCommentEnvironments?`: `boolean`; `target`: `"source"` \| `"selected"`; \}; \} \| \{ `operation`: `"materialize"`; `options`: \{ `inputs`: `"preserve"` \| `"inline"`; `maxOutputCodeUnits?`: `number`; `nodeEdits?`: readonly [`NodeEditAction`](#nodeeditaction)[]; `suppressCommentEnvironments?`: `boolean`; `suppressComments?`: `boolean`; \}; \} \| \{ `operation`: `"export-project"`; `options`: [`ExportOptions`](#exportoptions); \}
+> **OperationRequest** = [`NodeTransformationRequest`](#nodetransformationrequest) \| \{ `operation`: `"source-inventory"`; `options?`: [`InventoryRequest`](#inventoryrequest); \} \| \{ `operation`: `"realize-conditions"`; `options`: [`ConditionRealizationRequest`](#conditionrealizationrequest); \} \| \{ `operation`: `"resolve-view"`; `options`: [`ViewConfiguration`](#viewconfiguration); \} \| \{ `operation`: `"references"` \| `"unused-commands"`; `options?`: [`AnalysisOptions`](#analysisoptions); \} \| \{ `operation`: `"suppress-comments"`; `options?`: \{ `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"`; \}; \} \| \{ `operation`: `"export-project"`; `options`: [`ExportOptions`](#exportoptions); \}
 
-Public requests for independent inventory, interpretation, analysis, and transformation.
+Public requests for independent inventory, condition realization, interpretation, analysis, and transformation.
 
 #### Union Members
 
@@ -5025,6 +2996,24 @@ Inventory operation.
 > `readonly` `optional` **options?**: [`InventoryRequest`](#inventoryrequest)
 
 Source options.
+
+***
+
+##### Type Literal
+
+\{ `operation`: `"realize-conditions"`; `options`: [`ConditionRealizationRequest`](#conditionrealizationrequest); \}
+
+###### operation
+
+> `readonly` **operation**: `"realize-conditions"`
+
+Condition-only source realization on a project snapshot.
+
+###### options
+
+> `readonly` **options**: [`ConditionRealizationRequest`](#conditionrealizationrequest)
+
+Condition realization settings.
 
 ***
 
@@ -5054,31 +3043,31 @@ Interpretation settings.
 
 > `readonly` **operation**: `"references"` \| `"unused-commands"`
 
-Independent analysis; unused-command analysis also accepts source snapshots.
+Independent structural analysis over a realized ProjectView.
 
 ###### options?
 
 > `readonly` `optional` **options?**: [`AnalysisOptions`](#analysisoptions)
 
-Partial view observations require explicit opt-in; source scope is for source models only.
+Partial view observations require explicit opt-in.
 
 ***
 
 ##### Type Literal
 
-\{ `operation`: `"suppress-comments"` \| `"identity"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `scope?`: [`SourceScope`](#sourcescope); `suppressCommentEnvironments?`: `boolean`; `target`: `"source"` \| `"selected"`; \}; \}
+\{ `operation`: `"suppress-comments"`; `options?`: \{ `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"`; \}; \}
 
 ###### operation
 
-> `readonly` **operation**: `"suppress-comments"` \| `"identity"`
+> `readonly` **operation**: `"suppress-comments"`
 
-Exact source edit preview.
+Configured comment suppression on a realized ProjectView.
 
-###### options
+###### options?
 
-> `readonly` **options**: `object`
+> `readonly` `optional` **options?**: `object`
 
-Explicit source or selected-path target.
+Selected-path comment suppression options.
 
 ###### options.maxOutputCodeUnits?
 
@@ -5086,71 +3075,17 @@ Explicit source or selected-path target.
 
 Maximum total preview size in UTF-16 code units; default 10,000,000, maximum 100,000,000.
 
-###### options.scope?
-
-> `readonly` `optional` **scope?**: [`SourceScope`](#sourcescope)
-
-Source-only scope; forbidden with a selected-path target.
-
 ###### options.suppressCommentEnvironments?
 
 > `readonly` `optional` **suppressCommentEnvironments?**: `boolean`
 
 Also remove recognized comment environments; default false. Verbatim remains protected.
 
-###### options.target
+###### options.target?
 
-> `readonly` **target**: `"source"` \| `"selected"`
+> `readonly` `optional` **target?**: `"selected"`
 
-Inspect all requested source or only the configured selected path.
-
-***
-
-##### Type Literal
-
-\{ `operation`: `"materialize"`; `options`: \{ `inputs`: `"preserve"` \| `"inline"`; `maxOutputCodeUnits?`: `number`; `nodeEdits?`: readonly [`NodeEditAction`](#nodeeditaction)[]; `suppressCommentEnvironments?`: `boolean`; `suppressComments?`: `boolean`; \}; \}
-
-###### operation
-
-> `readonly` **operation**: `"materialize"`
-
-Configured conditional materialization.
-
-###### options
-
-> `readonly` **options**: `object`
-
-Output topology independent of traversal.
-
-###### options.inputs
-
-> `readonly` **inputs**: `"preserve"` \| `"inline"`
-
-Preserve input commands or expand active inclusion occurrences.
-
-###### options.maxOutputCodeUnits?
-
-> `readonly` `optional` **maxOutputCodeUnits?**: `number`
-
-Maximum total output UTF-16 units; default 10000000.
-
-###### options.nodeEdits?
-
-> `readonly` `optional` **nodeEdits?**: readonly [`NodeEditAction`](#nodeeditaction)[]
-
-Selected-node actions; nonempty actions require inline output.
-
-###### options.suppressCommentEnvironments?
-
-> `readonly` `optional` **suppressCommentEnvironments?**: `boolean`
-
-Remove selected complete comment environments; default false.
-
-###### options.suppressComments?
-
-> `readonly` `optional` **suppressComments?**: `boolean`
-
-Suppress eligible comments during export; default false.
+Inspect only the configured selected path; default 'selected'.
 
 ***
 
@@ -5162,7 +3097,7 @@ Suppress eligible comments during export; default false.
 
 > `readonly` **operation**: `"export-project"`
 
-Export with explicit conditional retention and input arrangement.
+Export a realized ProjectView with explicit input arrangement.
 
 ###### options
 
@@ -5258,7 +3193,7 @@ Public operations reject absolute paths and paths that escape the project root.
 
 ### ProjectIssueCode
 
-> **ProjectIssueCode** = `"malformed-syntax"` \| `"opaque-region"` \| `"scan-limit"` \| `"unknown-condition"` \| `"unsupported-condition"` \| `"unsupported-effect"` \| `"unsupported-assignment"` \| `"binding-redefined"` \| `"dynamic-input"` \| `"file-only-input"` \| `"missing-entry"` \| `"missing-input"` \| `"ambiguous-input"` \| `"invalid-input-path"` \| `"input-cycle"` \| `"cross-file-conditional"` \| `"interpretation-limit"` \| `"structural-error"`
+> **ProjectIssueCode** = `"malformed-syntax"` \| `"opaque-region"` \| `"scan-limit"` \| `"unknown-condition"` \| `"unsupported-condition"` \| `"unsupported-effect"` \| `"unsupported-assignment"` \| `"binding-redefined"` \| `"unrealized-condition"` \| `"dynamic-input"` \| `"file-only-input"` \| `"missing-entry"` \| `"missing-input"` \| `"ambiguous-input"` \| `"invalid-input-path"` \| `"input-cycle"` \| `"cross-file-conditional"` \| `"interpretation-limit"` \| `"structural-error"`
 
 Stable source/view failure and coverage categories.
 
@@ -5313,14 +3248,6 @@ Existing normalized or normalizable path.
 > **ProjectView** = [`ProjectViewBase`](#projectviewbase) & \{ `root`: [`ConfiguredContainerNode`](#configuredcontainernode) & `object`; `status`: `"ready"`; \} \| \{ `reason`: [`ProjectIssue`](#projectissue); `root`: `null`; `status`: `"incomplete"` \| `"blocked"`; \}
 
 A complete structural view or explicit failure with no invented partial AST.
-
-***
-
-### SectionLevel
-
-> **SectionLevel** = `0` \| `1` \| `2` \| `3` \| `4` \| `5`
-
-A supported section depth, where `0` represents the `document` environment.
 
 ***
 
@@ -5462,6 +3389,14 @@ Unique file paths; results use canonical path order.
 
 ***
 
+### SourceTokenKind
+
+> **SourceTokenKind** = `"comment"` \| `"space"` \| `"command"` \| `"open"` \| `"close"` \| `"math"` \| `"text"`
+
+Lexical category of an unconditional source token.
+
+***
+
 ### SyntaxFact
 
 > **SyntaxFact** = [`SyntaxFactBase`](#syntaxfactbase) & \{ `arguments`: readonly [`SourceRange`](#sourcerange)[]; `body`: [`SourceRange`](#sourcerange) \| `null`; `form`: `string`; `kind`: `"definition"`; `name`: `string` \| `null`; `starred`: `boolean`; \} \| \{ `kind`: `"command-use"`; `name`: `string`; \} \| \{ `key`: [`LiteralArgument`](#literalargument); `kind`: `"label"`; \} \| \{ `command`: `"ref"` \| `"pageref"` \| `"eqref"`; `key`: [`LiteralArgument`](#literalargument); `kind`: `"reference"`; \} \| \{ `kind`: `"condition-declaration"`; `name`: `string` \| `null`; \} \| \{ `command`: `string`; `kind`: `"condition-test"`; `testKind`: `"literal"` \| `"primitive"` \| `"named-candidate"`; \} \| \{ `delimiter`: `"else"` \| `"fi"`; `kind`: `"condition-delimiter"`; \} \| \{ `kind`: `"condition-assignment"`; `name`: `string`; `value`: `boolean`; \} \| \{ `kind`: `"input"`; `target`: [`LiteralArgument`](#literalargument); \} \| \{ `command`: `string`; `kind`: `"opaque"`; \}
@@ -5483,14 +3418,6 @@ Executable transformation subset of the public operation union.
 > **ViewId** = `string`
 
 Identity of one snapshot and normalized semantic configuration.
-
-***
-
-### WarningDiagnosticCode
-
-> **WarningDiagnosticCode** = `Exclude`\<[`DiagnosticCode`](#diagnosticcode), [`SyntaxError`](#syntaxerror)\>
-
-A diagnostic code that can be returned after a successful parse.
 
 ## Variables
 
@@ -5807,50 +3734,6 @@ Narrow a configured node to the exhaustive container union.
 
 ***
 
-### isContainerNode()
-
-> **isContainerNode**(`node`): `node is ContainerNode`
-
-Tests whether a syntax-tree node owns child nodes.
-
-#### Parameters
-
-##### node
-
-[`AstNode`](#astnode)
-
-Node to inspect.
-
-#### Returns
-
-`node is ContainerNode`
-
-`true` when `node` is a [ContainerNode](#containernode).
-
-***
-
-### isInputHandlingMode()
-
-> **isInputHandlingMode**(`value`): `value is InputHandlingMode`
-
-Tests whether a runtime value is a supported [InputHandlingMode](#inputhandlingmode).
-
-#### Parameters
-
-##### value
-
-`unknown`
-
-Untrusted runtime value to validate.
-
-#### Returns
-
-`value is InputHandlingMode`
-
-`true` when `value` is a supported mode.
-
-***
-
 ### lookupProjectSource()
 
 > **lookupProjectSource**(`index`, `query`): readonly [`SourceLookupHit`](#sourcelookuphit)[]
@@ -5884,139 +3767,11 @@ A multi-span node contributes each intersecting span. EOF point queries return n
 
 ***
 
-### ~~mergeProjects()~~
-
-> **mergeProjects**(`base`, `updates`): [`ParsedProject`](#parsedproject)
-
-Combines two parsed projects without mutating either input.
-
-A file from `updates` replaces the matching base file when its version is greater
-than or equal to the base version. Canonical, deeply frozen files retain object
-identity when they win; mutable transported files are copied and frozen first.
-
-#### Parameters
-
-##### base
-
-[`ParsedProject`](#parsedproject)
-
-Existing parsed project.
-
-##### updates
-
-[`ParsedProject`](#parsedproject)
-
-Incremental files to add or replace.
-
-#### Returns
-
-[`ParsedProject`](#parsedproject)
-
-A new immutable project snapshot.
-
-#### Throws
-
-[PrepTexError](#preptexerror) When either snapshot violates the public data contract.
-
-#### Deprecated
-
-Use updateProjectSnapshot for new source workflows, including explicit deletions. Revision conflict rules differ; see docs/migration-0.3.md.
-
-***
-
-### ~~parseDocument()~~
-
-> **parseDocument**(`source`, `options?`): [`ParseResult`](#parseresult)
-
-Parses a LaTeX document into a PrepTeX syntax tree.
-
-This function is synchronous, does not mutate `source` or `options`, and returns
-deeply frozen tree data. PrepTeX recognizes a practical structural subset of
-LaTeX; it does not expand macros or run TeX.
-
-#### Parameters
-
-##### source
-
-`string`
-
-Complete LaTeX source text.
-
-##### options?
-
-[`ParseOptions`](#parseoptions) = `{}`
-
-Optional tokenization and source-label settings.
-
-#### Returns
-
-[`ParseResult`](#parseresult)
-
-The immutable tree, declarations, references, and non-fatal diagnostics.
-
-#### Throws
-
-[PrepTexSyntaxError](#preptexsyntaxerror) When supported syntax is malformed or unbalanced.
-
-#### Throws
-
-[PrepTexError](#preptexerror) When a runtime argument violates the public contract.
-
-#### Deprecated
-
-Retained for legacy file-local AST consumers in 0.3.0. New integrations should use createProjectSnapshot and resolveProjectView; see docs/migration-0.3.md.
-
-***
-
-### ~~parseProject()~~
-
-> **parseProject**(`files`, `options?`): [`ParsedProject`](#parsedproject)
-
-Parses a collection of versioned virtual files into an immutable project.
-
-Every supplied file is parsed, including files that are not reachable from a
-later entry point. Paths are normalized to forward-slash project-relative paths.
-The function is synchronous and does not mutate the input array or its entries.
-
-#### Parameters
-
-##### files
-
-readonly [`SourceFile`](#sourcefile)[]
-
-Versioned virtual source files. Paths must be unique after normalization.
-
-##### options?
-
-[`ProjectParseOptions`](#projectparseoptions) = `{}`
-
-Tokenization settings applied to every file.
-
-#### Returns
-
-[`ParsedProject`](#parsedproject)
-
-A transport-safe project containing plain objects and arrays.
-
-#### Throws
-
-[PrepTexSyntaxError](#preptexsyntaxerror) When any file contains malformed supported syntax.
-
-#### Throws
-
-[PrepTexError](#preptexerror) When a path, source, version, or option is invalid.
-
-#### Deprecated
-
-Retained for legacy file-local AST consumers in 0.3.0. Use createProjectSnapshot and resolveProjectView for new project workflows; see docs/migration-0.3.md.
-
-***
-
 ### planTransformation()
 
 > **planTransformation**(`model`, `request`): [`TransformationResult`](#transformationresult)
 
-Plan identity/comment edits or generate a configured export without changing sources.
+Plan condition realization, comment/node source edits, or a configured export without changing sources.
 
 #### Parameters
 
@@ -6024,13 +3779,13 @@ Plan identity/comment edits or generate a configured export without changing sou
 
 [`ProjectSnapshot`](#projectsnapshot) \| [`ProjectView`](#projectview)
 
-Source snapshot for source-local work, configured view for selected work/exports.
+Source snapshot for condition realization, configured view for structural edits/exports.
 
 ##### request
 
 [`TransformationRequest`](#transformationrequest)
 
-Operation, independent retention/topology policies, and resource limits.
+Operation, retention/topology policies, and resource limits.
 
 #### Returns
 
@@ -6048,11 +3803,41 @@ Frozen edits, exact preview artifacts and mappings, dependency metadata and cove
 
 ***
 
+### realizeProjectConditions()
+
+> **realizeProjectConditions**(`snapshot`, `request?`): [`ConditionRealizationResult`](#conditionrealizationresult)
+
+Realize conditional branches and boolean declarations/setters over a project snapshot
+without constructing a structural AST (Pipeline B, INV-3 & INV-5).
+
+#### Parameters
+
+##### snapshot
+
+[`ProjectSnapshot`](#projectsnapshot)
+
+Source authority to evaluate.
+
+##### request?
+
+[`ConditionRealizationRequest`](#conditionrealizationrequest) = `{}`
+
+Condition policy, traversal, input handling, and output limits.
+
+#### Returns
+
+[`ConditionRealizationResult`](#conditionrealizationresult)
+
+Frozen realization result containing decisions, checked editPlan, and realized artifacts.
+
+***
+
 ### resolveProjectView()
 
 > **resolveProjectView**(`snapshot`, `configuration`): [`ProjectView`](#projectview)
 
-Resolve reached boolean tests and active literal inputs, then parse the selected token stream.
+Resolve reached boolean tests and active literal inputs, then parse the selected token stream
+into a condition-free structural AST (Pipeline A Step 1 & Step 2, INV-4 & INV-5).
 
 #### Parameters
 
@@ -6084,7 +3869,7 @@ A deeply frozen ready view or explicit incomplete/blocked trace with no complete
 
 > **runAnalysis**(`model`, `request`): [`AnalysisResult`](#analysisresult)
 
-Analyze recognized references or conservative command-use evidence independently.
+Analyze recognized references or conservative command-use evidence over a realized ProjectView.
 
 #### Parameters
 
@@ -6092,23 +3877,23 @@ Analyze recognized references or conservative command-use evidence independently
 
 [`ProjectSnapshot`](#projectsnapshot) \| [`ProjectView`](#projectview)
 
-A view for references; source snapshot or view for command-use candidates.
+Configured view; incomplete views require allowIncomplete explicitly.
 
 ##### request
 
-Analysis and options; incomplete views require allowIncomplete explicitly.
+Analysis and options.
 
 ###### operation
 
 `"references"` \| `"unused-commands"`
 
-Independent analysis; unused-command analysis also accepts source snapshots.
+Independent structural analysis over a realized ProjectView.
 
 ###### options?
 
 [`AnalysisOptions`](#analysisoptions)
 
-Partial view observations require explicit opt-in; source scope is for source models only.
+Partial view observations require explicit opt-in.
 
 #### Returns
 
@@ -6199,46 +3984,6 @@ A deeply frozen model-bound reference. Root references are inspectable but not e
 
 ***
 
-### ~~serializeDocument()~~
-
-> **serializeDocument**(`root`, `options?`): `string`
-
-Serializes one parsed syntax tree back to LaTeX.
-
-With no options, this preserves the source spelling represented by the tree.
-Transformations are read-only and node objects and IDs retain their identity.
-`\input` commands are always preserved because no project is available here.
-
-#### Parameters
-
-##### root
-
-[`AstRoot`](#astroot)
-
-Immutable tree returned by [parseDocument](#parsedocument) or [parseProject](#parseproject).
-
-##### options?
-
-[`SerializeOptions`](#serializeoptions) = `{}`
-
-Optional comment and conditional transformations.
-
-#### Returns
-
-`string`
-
-Serialized LaTeX source.
-
-#### Throws
-
-[PrepTexError](#preptexerror) When the tree or a runtime option is invalid.
-
-#### Deprecated
-
-Retained for legacy AST round trips. Use planTransformation on original source snapshots or configured views for new workflows; see docs/migration-0.3.md.
-
-***
-
 ### sourceOffsetAt()
 
 > **sourceOffsetAt**(`index`, `path`, `line`, `column?`): `number`
@@ -6283,50 +4028,23 @@ Original offset; the last line permits EOF. No source normalization is performed
 
 ***
 
-### ~~transformProject()~~
+### tokenizeFile()
 
-> **transformProject**(`entryPath`, `project`, `options?`): [`TransformResult`](#transformresult)
+> **tokenizeFile**(`source`): readonly [`SourceToken`](#sourcetoken)[]
 
-Transforms a parsed project into one or more LaTeX output files.
-
-The operation is synchronous and does not mutate the project or its trees.
-Relative `\input` paths are resolved from the including file. Flattening rejects
-missing, ambiguous, and circular inputs with typed errors.
+Stateless whole-file tokenizer (Stage 0, INV-1 & INV-2).
+Scans a raw LaTeX string once from 0 to source.length without any condition,
+input, or environment state.
 
 #### Parameters
 
-##### entryPath
+##### source
 
 `string`
 
-Project-relative path of the entry file.
-
-##### project
-
-[`ParsedProject`](#parsedproject)
-
-Project returned by [parseProject](#parseproject) or [mergeProjects](#mergeprojects).
-
-##### options?
-
-[`TransformOptions`](#transformoptions) = `{}`
-
-Serialization and input-handling settings.
-
 #### Returns
 
-[`TransformResult`](#transformresult)
-
-Immutable generated files. `Separate` emits every project file; other modes emit one.
-
-#### Throws
-
-[PrepTexError](#preptexerror) When an argument is invalid, the entry is absent, or
-an input target is unresolved or circular.
-
-#### Deprecated
-
-Retained with legacy whitelist and input-mode semantics. New integrations should use planTransformation or runProjectPipeline; see docs/migration-0.3.md.
+readonly [`SourceToken`](#sourcetoken)[]
 
 ***
 
@@ -6407,7 +4125,7 @@ Nothing on success. All validation completes before a caller can apply any edit.
 
 #### Throws
 
-[ProjectOperationError](#projectoperationerror) for incompatible occurrence edits, invalid identity edits, or output limits.
+[ProjectOperationError](#projectoperationerror) for incompatible occurrence edits, invalid canonical edits, or output limits.
 
 ***
 

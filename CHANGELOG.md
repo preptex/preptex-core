@@ -2,56 +2,33 @@
 
 All notable changes to this project will be documented here.
 
-## [0.3.0] - Unreleased
+## [0.4.0] - 2026-11-16
 
 ### Added
 
-- C5a revision-bound node locations, exact environment delimiter/body metadata,
-  source environment inventories and immutable interval/line indexes for source lookup.
-- C7a selected-node removal, named-environment removal, precise environment renaming
-  and wrapping, with checked source previews or independent inclusion artifacts.
-  Added explicit comment-environment suppression, pipeline options, shared-source
-  conflict checks, synthetic provenance and bounds for inserted wrappers.
+- **Stage 0 Stateless Whole-File Tokenizer (`tokenizeFile`)**: Scans each `.tex` file once into lossless primitive tokens (`SourceToken[]`: `comment`, `space`, `command`, `open`, `close`, `math`, `text`) without condition or environment coupling (**INV-1**, **INV-2**).
+- **Pipeline B Standalone Condition Realizer (`realizeProjectConditions` and `operation: 'realize-conditions'`)**: Evaluates `\newif`, `\if...`, `\else`, `\fi`, and `[\global]\Xtrue`/`\Xfalse` (with `project` or `file-only` traversal and `preserve` or `inline` inputs) independently of AST construction (**INV-3**, **INV-5**), returning both a checked in-place `ProjectEditPlan` and condition-free `GeneratedArtifact[]` files.
+- **Pipeline A Condition-Free Structural AST & View Preprocessor (`resolveProjectView`)**: Supports `conditions.mode: 'source' | 'source-with-overrides' | 'manual' | 'none'`, delegates condition preprocessing to the shared condition realizer, and rejects any unrealized condition token in the structural parser with `reason.code === 'unrealized-condition'` (**INV-4**).
+- **Source Snapshots, Inventories, and Environment Lookup**: `createProjectSnapshot`, `updateProjectSnapshot`, `inspectProject`, `inspectProjectEnvironments`, `createProjectSourceIndex`, `lookupProjectSource`, `sourceOffsetAt`, `selectProjectNode`, `getSelectedNode`, and `getSelectedEnvironment`.
+- **Realized-Only Analyses and Transformations (**INV-6**)**: `indexProjectView`, `runAnalysis` (`references`, `unused-commands`), `planTransformation` (`suppress-comments`, `remove-environments`, `edit-nodes`, `export-project`, `realize-conditions`), `validateProjectEditPlan`, `applyProjectEdits`, `checkOperationCapability`, `projectOperations`, and `runProjectPipeline`.
 
-- C1–C5 source snapshots, atomic source changes, lossless syntax inventories,
-  normalized boolean policies, operation requirements and edit precondition/range
-  validation.
-- Bounded condition/input interpretation with local/global boolean state,
-  repeated inclusion identities, explicit incomplete/blocked results, and
-  configured structures with disjoint original-source provenance.
-- Public declaration tests, source/view regression fixtures, CLI compatibility
-  verification and a runnable public-import project-model example.
-- C6 independent reference analysis and configured indexes with reached targets,
-  duplicates, informational forward references, unresolved keys and partial coverage.
-- Conservative command-use evidence for direct, body, self-recursive and ambiguous
-  definitions. Candidates do not establish non-use or authorize deletion.
-- C7 exact identity/comment previews, atomic checked edit application, configured
-  materialization and independent condition/input export policies. Results include
-  source mappings, entry identity, remaining dependencies and structured failures.
-- C8 reuse of unchanged scans, scan-setting updates, transport reconstruction,
-  complete view/index invalidation and deterministic output limits. Added a fixed
-  performance corpus, regression budgets and public operation/type tests.
-- C9 `runProjectPipeline`, composing immutable snapshot/view/ordered analysis/export
-  results, plus independent CLI `inventory` and `analyze` commands with JSON results
-  and structured failures. Added public compatibility and CLI regression tests.
-- C10 isolated tarball installation, TypeScript 4.9.5/ES2020 consumer tests,
-  public acceptance/CLI checks against packed packages, integrity evidence and CI
-  verification. Added migration mappings and the website handoff checklist.
+### Fixed
 
-### Compatibility
+- Unified verbatim boundary splicing (`spliceVerbatimMatch`) across tokenization, scanning, environment inventory, and structural parsing so trailing syntax after inline `\verb` and `\end{verbatim}` is consistently processed.
+- Reset entry state across files in `file-only` traversal so file-local condition declarations do not leak across independent files.
+- Evaluated conditions inside textual metadata commands (`\title`, `\author`, `\date`, `\href`) while keeping `\label` keys opaque.
+- Tagged emitted verbatim segments to prevent spurious newline insertion after inline `\verb`.
 
-- Views now retain their immutable source snapshot. Analysis locations may have
-  no inclusion ID for source-only evidence; operation requests/results and public
-  error codes expand the contracts within this same unreleased 0.3.0 version.
-  Recreate snapshots/views from earlier development stages using source strings.
-- Keep the legacy parser, `AstNode`, static condition whitelist and all-supplied
-  Separate output behavior unchanged. The new model uses separate entry points.
-- Prepare both package manifests and the CLI's exact core dependency as 0.3.0;
-  all plan stages belong to this release. C9 is implemented; C10 publication and
-  registry consumer verification remain pending. No downstream dependency is changed.
-- Deprecate legacy entry points/options with explicit migration guidance.
-  Reject ambiguous calls mixing legacy fields and new policies with
-  `InvalidArgument`; valid legacy calls retain their behavior.
+### Breaking
+
+- Removed deprecated `0.2.x` functions, types, and enums (`parseDocument`, `parseProject`, `mergeProjects`, `serializeDocument`, `transformProject`, `InputHandlingMode`, `isInputHandlingMode`, `AstNode`, `NodeType`, `isContainerNode`, `PrepTexSyntaxError`, `DiagnosticCode`, `DiagnosticSeverity`, `TransformedFile`, `ConditionName`, `InputReferencePath`, `LineEnding`).
+- Removed deprecated source-target and condition-preservation shim options (`operation: 'identity'`, `operation: 'materialize'`, `target: 'source'`, `ExportOptions.conditions: 'preserve' | 'materialize'`, and unconfigured snapshot `unused-commands` analysis).
+
+## [0.3.0] - 2026-09-15
+
+### Added
+
+- C1–C10 multi-stage project model (`ProjectSnapshot`, `ProjectView`, `ProjectEditPlan`), node/environment selections and operations (`remove-node`, `rename-environment`, `wrap-node`, `remove-environments`), interval source indexing (`createProjectSourceIndex`, `lookupProjectSource`), reference and conservative command-use analysis, `runProjectPipeline`, and CLI `inventory`/`analyze` commands.
 
 ## [0.2.1] - Unreleased
 
