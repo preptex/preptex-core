@@ -2,6 +2,7 @@ import {
   checkOperationCapability,
   createProjectSnapshot,
   inspectProject,
+  realizeProjectConditions,
   resolveProjectView,
   walkConfiguredNodes,
   runAnalysis,
@@ -28,6 +29,14 @@ const files = [
 ];
 const snapshot = createProjectSnapshot(files);
 const inventory = inspectProject(snapshot, { kinds: ['condition-declaration', 'input', 'label'] });
+const realized = realizeProjectConditions(snapshot, {
+  entryPath: 'main.tex',
+  traversal: 'project',
+  conditions: { mode: 'source' },
+});
+assert.equal(realized.status, 'ready');
+assert.ok(realized.editPlan);
+const realizedSnapshot = applyProjectEdits(snapshot, realized.editPlan);
 const sourceView = resolveProjectView(snapshot, { entryPath: 'main.tex' });
 const forcedView = resolveProjectView(snapshot, {
   entryPath: 'main.tex',
@@ -48,38 +57,39 @@ const references = runAnalysis(sourceView, { operation: 'references' });
 assert.equal(references.references[0].status, 'matched');
 assert.equal(references.references[0].forward, true);
 assert.ok(indexProjectView(sourceView).entries.length > 0);
-const preview = planTransformation(snapshot, {
+const preview = planTransformation(sourceView, {
   operation: 'suppress-comments',
-  options: { target: 'source' },
+  options: { target: 'selected' },
 });
-const edited = applyProjectEdits(snapshot, preview.editPlan);
+const edited = applyProjectEdits(snapshot, preview.editPlan, sourceView);
 assert.notEqual(edited.id, snapshot.id);
 assert.ok(!edited.files[0].source.includes('% Remove'));
-const materialized = planTransformation(sourceView, {
-  operation: 'materialize',
+assert.notEqual(realizedSnapshot.id, snapshot.id);
+const inlined = planTransformation(sourceView, {
+  operation: 'export-project',
   options: { inputs: 'inline', suppressComments: true },
 });
 const reparsed = resolveProjectView(
   createProjectSnapshot(
-    materialized.artifacts.map((artifact) => ({
+    inlined.artifacts.map((artifact) => ({
       path: artifact.path,
       source: artifact.source,
       version: 1,
     }))
   ),
-  { entryPath: materialized.entryPath }
+  { entryPath: inlined.entryPath, conditions: { mode: 'none' } }
 );
 assert.deepEqual(summarize(reparsed).environments, ['itemize']);
-assert.equal(materialized.dependencies.length, 0);
+assert.equal(inlined.dependencies.length, 0);
 const preserved = planTransformation(sourceView, {
   operation: 'export-project',
-  options: { inputs: 'preserve', conditions: 'preserve' },
+  options: { inputs: 'preserve' },
 });
 assert.ok(preserved.dependencies.every((dependency) => dependency.status === 'present'));
 const pipeline = runProjectPipeline(files, {
   configuration: { entryPath: 'main.tex' },
   analyses: [{ operation: 'references' }],
-  exportOptions: { inputs: 'preserve', conditions: 'preserve' },
+  exportOptions: { inputs: 'preserve' },
 });
 assert.deepEqual(pipeline, {
   kind: 'pipeline',
@@ -103,9 +113,9 @@ console.log(
       })),
       editsApplied: preview.editPlan.edits.length,
       export: {
-        entryPath: materialized.entryPath,
-        topology: materialized.artifacts[0].topology,
-        source: materialized.artifacts[0].source,
+        entryPath: inlined.entryPath,
+        topology: inlined.artifacts[0].topology,
+        source: inlined.artifacts[0].source,
       },
     },
     null,

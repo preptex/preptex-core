@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
-import { parseDocument } from '@preptex/core';
+import { createProjectSnapshot, resolveProjectView } from '@preptex/core';
 import { parseAstArgs, printAstHelp } from '../args.js';
 
 export async function handleAst(args: string[]): Promise<void> {
@@ -26,7 +26,9 @@ export async function handleAst(args: string[]): Promise<void> {
     return;
   }
 
-  const baseDirectory = options.workDir ? path.resolve(options.workDir) : process.cwd();
+  const baseDirectory = options.workDir
+    ? path.resolve(options.workDir)
+    : path.dirname(path.resolve(options.input));
   const inputPath = options.workDir
     ? path.resolve(baseDirectory, options.input)
     : path.resolve(options.input);
@@ -36,6 +38,15 @@ export async function handleAst(args: string[]): Promise<void> {
       ? path.basename(inputPath)
       : relativePath;
   const source = await readFile(inputPath, 'utf8');
-  const result = parseDocument(source, { sourcePath });
-  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  const discovered = options.workDir
+    ? await (await import('../io.js')).readAllTexFiles(baseDirectory)
+    : [{ path: sourcePath, source, version: 1 }];
+  const files = discovered.some((f) => f.path === sourcePath)
+    ? discovered
+    : [...discovered, { path: sourcePath, source, version: 1 }];
+  const snapshot = createProjectSnapshot(files);
+  const view = resolveProjectView(snapshot, {
+    entryPath: sourcePath,
+  });
+  process.stdout.write(`${JSON.stringify(view, null, 2)}\n`);
 }

@@ -4,7 +4,6 @@ import {
   resolveProjectView,
   runAnalysis,
   PrepTexError,
-  PrepTexSyntaxError,
   ProjectOperationError,
   type ProjectView,
 } from '@preptex/core';
@@ -30,10 +29,8 @@ export async function handleProjectCommand(
         `${JSON.stringify(inspectProject(snapshot, options.request), null, 2)}\n`
       );
     } else {
-      if (options.configuration) view = resolveProjectView(snapshot, options.configuration);
-      process.stdout.write(
-        `${JSON.stringify(runAnalysis(view ?? snapshot, options.request), null, 2)}\n`
-      );
+      view = resolveProjectView(snapshot, options.configuration!);
+      process.stdout.write(`${JSON.stringify(runAnalysis(view, options.request), null, 2)}\n`);
     }
   } catch (error: unknown) {
     process.stderr.write(
@@ -41,7 +38,6 @@ export async function handleProjectCommand(
         name: error instanceof Error ? error.name : 'Error',
         code: error instanceof PrepTexError ? error.code : 'cli-error',
         message: error instanceof Error ? error.message : String(error),
-        ...(error instanceof PrepTexSyntaxError ? { diagnostic: error.diagnostic } : {}),
         ...(error instanceof ProjectOperationError ? { failure: error.failure } : {}),
         ...(view && view.status !== 'ready' ? { viewIssue: view.reason } : {}),
       })}\n`

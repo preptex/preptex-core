@@ -10,7 +10,8 @@ import type {
 } from '../../project-types.js';
 import { normalizeProjectFilePath } from '../validation.js';
 import { normalizeConfiguration } from './configuration.js';
-import { normalizeInventory, normalizeScope, validateSnapshot } from './snapshot.js';
+import { normalizeConditionRealizationRequest, realizeProjectConditions } from './conditions.js';
+import { normalizeInventory, validateSnapshot } from './snapshot.js';
 import {
   array,
   fields,
@@ -46,9 +47,9 @@ export const projectOperations: readonly OperationDescriptor[] = freeze([
     id: 'remove-environments',
     version: 1,
     implemented: true,
-    representation: 'either',
-    scopes: ['all-files', 'files', 'configured'],
-    coverage: 'recognized',
+    representation: 'view',
+    scopes: ['configured'],
+    coverage: 'ready-view',
     resultKind: 'transformation',
   },
   {
@@ -59,6 +60,15 @@ export const projectOperations: readonly OperationDescriptor[] = freeze([
     scopes: ['all-files', 'files'],
     coverage: 'recognized',
     resultKind: 'inventory',
+  },
+  {
+    id: 'realize-conditions',
+    version: 1,
+    implemented: true,
+    representation: 'snapshot',
+    scopes: ['all-files', 'files', 'configured'],
+    coverage: 'recognized',
+    resultKind: 'transformation',
   },
   {
     id: 'resolve-view',
@@ -82,8 +92,8 @@ export const projectOperations: readonly OperationDescriptor[] = freeze([
     id: 'unused-commands',
     version: 1,
     implemented: true,
-    representation: 'either',
-    scopes: ['all-files', 'files', 'configured'],
+    representation: 'view',
+    scopes: ['configured'],
     coverage: 'ready-view',
     resultKind: 'findings',
   },
@@ -91,27 +101,9 @@ export const projectOperations: readonly OperationDescriptor[] = freeze([
     id: 'suppress-comments',
     version: 1,
     implemented: true,
-    representation: 'either',
-    scopes: ['all-files', 'files', 'configured'],
-    coverage: 'recognized',
-    resultKind: 'edits',
-  },
-  {
-    id: 'materialize',
-    version: 1,
-    implemented: true,
     representation: 'view',
     scopes: ['configured'],
     coverage: 'ready-view',
-    resultKind: 'artifacts',
-  },
-  {
-    id: 'identity',
-    version: 1,
-    implemented: true,
-    representation: 'either',
-    scopes: ['all-files', 'files', 'configured'],
-    coverage: 'recognized',
     resultKind: 'edits',
   },
   {
@@ -133,6 +125,8 @@ export function validateOperation(value: unknown): OperationRequest {
     return normalizeNodeOperation(operation, request['options']);
   if (operation === 'source-inventory')
     return { operation, options: normalizeInventory(request['options']) };
+  if (operation === 'realize-conditions')
+    return { operation, options: normalizeConditionRealizationRequest(request['options']) };
   if (operation === 'resolve-view') {
     const options = request['options'];
     return { operation, options: normalizeConfiguration(options) };
@@ -142,21 +136,20 @@ export function validateOperation(value: unknown): OperationRequest {
     'operation options'
   );
   if (operation === 'references' || operation === 'unused-commands') {
-    fields(options, ['allowIncomplete', 'scope'], 'analysis options');
+    fields(options, ['allowIncomplete'], 'analysis options');
     if (options['allowIncomplete'] !== undefined && typeof options['allowIncomplete'] !== 'boolean')
       invalid('allowIncomplete must be a boolean.');
     return {
       operation,
       options: {
         allowIncomplete: options['allowIncomplete'] === true,
-        ...(options['scope'] === undefined ? {} : { scope: normalizeScope(options['scope']) }),
       },
     };
   }
-  if (operation === 'suppress-comments' || operation === 'identity') {
+  if (operation === 'suppress-comments') {
     fields(
       options,
-      ['target', 'scope', 'maxOutputCodeUnits', 'suppressCommentEnvironments'],
+      ['target', 'maxOutputCodeUnits', 'suppressCommentEnvironments'],
       'source edit options'
     );
     if (
@@ -164,17 +157,12 @@ export function validateOperation(value: unknown): OperationRequest {
       typeof options['suppressCommentEnvironments'] !== 'boolean'
     )
       invalid('suppressCommentEnvironments must be a boolean.');
-    if (operation === 'identity' && options['suppressCommentEnvironments'])
-      invalid('Identity cannot suppress comment environments.');
     const commentOptions =
       options['suppressCommentEnvironments'] === undefined
         ? {}
         : { suppressCommentEnvironments: options['suppressCommentEnvironments'] === true };
-    const target = options['target'];
-    if (target !== 'source' && target !== 'selected')
-      invalid('Invalid comment transformation target.');
-    if (target === 'selected' && options['scope'] !== undefined)
-      invalid('Selected-path transformations cannot take a source file scope.');
+    const target = options['target'] === undefined ? 'selected' : options['target'];
+    if (target !== 'selected') invalid('Invalid comment transformation target.');
     const maxOutputCodeUnits = bounded(
       options['maxOutputCodeUnits'],
       10000000,
@@ -183,36 +171,19 @@ export function validateOperation(value: unknown): OperationRequest {
     );
     return {
       operation,
-      options:
-        target === 'source'
-          ? {
-              target,
-              scope: normalizeScope(options['scope']),
-              maxOutputCodeUnits,
-              ...commentOptions,
-            }
-          : { target, maxOutputCodeUnits, ...commentOptions },
+      options: { target, maxOutputCodeUnits, ...commentOptions },
     };
   }
-  if (operation === 'materialize' || operation === 'export-project') {
+  if (operation === 'export-project') {
     fields(
       options,
-      operation === 'materialize'
-        ? [
-            'inputs',
-            'suppressComments',
-            'suppressCommentEnvironments',
-            'nodeEdits',
-            'maxOutputCodeUnits',
-          ]
-        : [
-            'inputs',
-            'conditions',
-            'suppressComments',
-            'suppressCommentEnvironments',
-            'nodeEdits',
-            'maxOutputCodeUnits',
-          ],
+      [
+        'inputs',
+        'suppressComments',
+        'suppressCommentEnvironments',
+        'nodeEdits',
+        'maxOutputCodeUnits',
+      ],
       'export options'
     );
     const inputs = options['inputs'];
@@ -222,32 +193,30 @@ export function validateOperation(value: unknown): OperationRequest {
       typeof options['suppressComments'] !== 'boolean'
     )
       invalid('suppressComments must be a boolean.');
-    const common = {
-      ...(options['nodeEdits'] === undefined
-        ? {}
-        : { nodeEdits: normalizeNodeActions(options['nodeEdits']) }),
-      ...(options['suppressCommentEnvironments'] === undefined
-        ? {}
-        : { suppressCommentEnvironments: options['suppressCommentEnvironments'] === true }),
-      inputs,
-      suppressComments: options['suppressComments'] === true,
-      maxOutputCodeUnits: bounded(
-        options['maxOutputCodeUnits'],
-        10000000,
-        100000000,
-        'maxOutputCodeUnits'
-      ),
-    } as const;
     if (
       options['suppressCommentEnvironments'] !== undefined &&
       typeof options['suppressCommentEnvironments'] !== 'boolean'
     )
       invalid('suppressCommentEnvironments must be a boolean.');
-    if (operation === 'materialize') return { operation, options: common };
-    const conditions = options['conditions'];
-    if (conditions !== 'preserve' && conditions !== 'materialize')
-      invalid('Invalid conditional output policy.');
-    return { operation, options: { ...common, conditions } };
+    return {
+      operation,
+      options: {
+        ...(options['nodeEdits'] === undefined
+          ? {}
+          : { nodeEdits: normalizeNodeActions(options['nodeEdits']) }),
+        ...(options['suppressCommentEnvironments'] === undefined
+          ? {}
+          : { suppressCommentEnvironments: options['suppressCommentEnvironments'] === true }),
+        inputs,
+        suppressComments: options['suppressComments'] === true,
+        maxOutputCodeUnits: bounded(
+          options['maxOutputCodeUnits'],
+          10000000,
+          100000000,
+          'maxOutputCodeUnits'
+        ),
+      },
+    };
   }
   return invalid('Unknown operation.');
 }
@@ -282,16 +251,11 @@ export function checkOperationCapability(
       code: 'not-implemented',
       message: `${descriptor.id} is reserved for a later implementation phase.`,
     });
-  const representation =
-    operation.operation === 'suppress-comments' ||
-    operation.operation === 'identity' ||
-    operation.operation === 'remove-environments'
-      ? operation.options.target === 'source'
-        ? 'snapshot'
-        : 'view'
-      : descriptor.representation;
-  if (representation !== 'either' && representation !== model.kind)
-    reasons.push({ code: 'wrong-model', message: `This operation requires a ${representation}.` });
+  if (descriptor.representation !== model.kind)
+    reasons.push({
+      code: 'wrong-model',
+      message: `This operation requires a ${descriptor.representation}.`,
+    });
   if (
     model.kind === 'view' &&
     model.status !== 'ready' &&
@@ -299,10 +263,7 @@ export function checkOperationCapability(
       (operation.operation === 'references' || operation.operation === 'unused-commands') &&
       operation.options?.allowIncomplete
     ) &&
-    (descriptor.coverage === 'ready-view' ||
-      operation.operation === 'suppress-comments' ||
-      operation.operation === 'remove-environments' ||
-      operation.operation === 'identity')
+    descriptor.coverage === 'ready-view'
   )
     reasons.push({ code: 'view-not-ready', message: 'A complete configured view is required.' });
   if (snapshot && operation.operation === 'source-inventory') {
@@ -316,30 +277,30 @@ export function checkOperationCapability(
         message: 'The requested source scope contains an absent file.',
       });
   }
-  if (
-    model.kind === 'view' &&
-    (operation.operation === 'references' || operation.operation === 'unused-commands') &&
-    operation.options?.scope !== undefined
-  )
-    reasons.push({
-      code: 'wrong-model',
-      message: 'A configured analysis uses its complete occurrence scope, not a source-file scope.',
-    });
-  const scope =
-    operation.operation === 'unused-commands' ||
-    operation.operation === 'suppress-comments' ||
-    operation.operation === 'remove-environments' ||
-    operation.operation === 'identity'
-      ? operation.options?.scope
-      : undefined;
-  if (
-    snapshot &&
-    scope?.kind === 'files' &&
-    scope.paths.some((p) => !snapshot.files.some((f) => f.path === p))
-  )
-    reasons.push({ code: 'missing-file', message: 'An operation scope requests an absent file.' });
+  if (snapshot && operation.operation === 'realize-conditions') {
+    const scope = operation.options.scope;
+    if (
+      scope?.kind === 'files' &&
+      scope.paths.some((p) => !snapshot.files.some((f) => f.path === p))
+    )
+      reasons.push({
+        code: 'missing-file',
+        message: 'The requested source scope contains an absent file.',
+      });
+    if (
+      operation.options.entryPath !== undefined &&
+      !snapshot.files.some((f) => f.path === operation.options.entryPath)
+    )
+      reasons.push({
+        code: 'missing-file',
+        message: 'The requested entry file is absent from the snapshot.',
+      });
+  }
   if (!reasons.length) {
     try {
+      if (operation.operation === 'realize-conditions' && snapshot) {
+        realizeProjectConditions(snapshot, operation.options);
+      }
       if (operation.operation === 'edit-nodes' || operation.operation === 'remove-environments') {
         if (operation.options.target === 'artifact' && model.kind === 'view')
           projectionChanges(
@@ -355,26 +316,16 @@ export function checkOperationCapability(
             model.kind === 'view' ? model : undefined
           );
       }
-      if (
-        (operation.operation === 'materialize' || operation.operation === 'export-project') &&
-        model.kind === 'view'
-      ) {
+      if (operation.operation === 'export-project' && model.kind === 'view') {
         if (operation.options.nodeEdits?.length) {
-          if (
-            operation.options.inputs !== 'inline' ||
-            (operation.operation === 'export-project' &&
-              operation.options.conditions !== 'materialize')
-          )
-            reject(
-              'unavailable',
-              'Node artifact edits require materialized conditions and inline inputs.'
-            );
+          if (operation.options.inputs !== 'inline')
+            reject('unavailable', 'Node artifact edits require inline inputs.');
           projectionChanges(model, operation.options.nodeEdits);
         }
       }
       if (
         operation.operation === 'suppress-comments' &&
-        operation.options.suppressCommentEnvironments
+        operation.options?.suppressCommentEnvironments
       )
         sourceOperationEdits(
           model.kind === 'snapshot' ? model : model.snapshot,
@@ -398,7 +349,7 @@ export function checkOperationCapability(
  * @param view - Required for a view-dependent proposal; must match its snapshot and view IDs.
  * @returns Nothing on success. All validation completes before a caller can apply any edit.
  * @throws {@link PrepTexError} with InvalidArgument for stale identity, malformed operations, ranges, overlaps, or surrogate-pair splits.
- * @throws {@link ProjectOperationError} for incompatible occurrence edits, invalid identity edits, or output limits.
+ * @throws {@link ProjectOperationError} for incompatible occurrence edits, invalid canonical edits, or output limits.
  */
 export function validateProjectEditPlan(
   snapshot: ProjectSnapshot,
@@ -415,18 +366,25 @@ export function validateProjectEditPlan(
     invalid('Stale edit snapshot or unsupported operation version.');
   const request = validateOperation(provenance['request']);
   if (
+    request.operation !== 'realize-conditions' &&
     request.operation !== 'suppress-comments' &&
-    request.operation !== 'identity' &&
     request.operation !== 'edit-nodes' &&
     request.operation !== 'remove-environments'
   )
     invalid('This operation does not produce source edits.');
-  if (request.options.target === 'artifact')
+  if (
+    (request.operation === 'edit-nodes' || request.operation === 'remove-environments') &&
+    request.options.target === 'artifact'
+  )
     invalid('Artifact operations do not produce source edits.');
-  const scope = 'scope' in request.options ? request.options.scope : undefined;
+  if (request.operation === 'realize-conditions' && request.options.inputs === 'inline')
+    invalid('Inline condition realization produces an artifact, not in-place source edits.');
+  const scope = request.operation === 'realize-conditions' ? request.options.scope : undefined;
   const viewId = provenance['viewId'];
   if (view) view = validateView(view);
-  if (request.options.target === 'selected') {
+  if (request.operation === 'realize-conditions') {
+    if (viewId !== null) invalid('Source-local edits must not depend on a view.');
+  } else {
     if (
       typeof viewId !== 'string' ||
       !view ||
@@ -437,7 +395,7 @@ export function validateProjectEditPlan(
       invalid('Stale or missing configured view precondition.');
     if (view.id !== identity('view', [source.id, normalizeConfiguration(view.configuration)]))
       invalid('Inconsistent configured view identity.');
-  } else if (viewId !== null) invalid('Source-local edits must not depend on a view.');
+  }
   let previousPath = '';
   let previousEnd = -1;
   let previousInsertion = false;
@@ -496,20 +454,19 @@ export function validateProjectEditPlan(
     previousEnd = end;
     previousInsertion = edit['kind'] === 'insert';
   }
-  if (request.operation === 'identity' && plan.edits.length)
-    reject('invalid-edit', 'Identity transformations cannot modify source.');
   let outputSize = source.files
     .filter((file) => scope?.kind !== 'files' || scope.paths.includes(file.path))
     .reduce((total, file) => total + file.source.length, 0);
   for (const edit of plan.edits)
     outputSize +=
       edit.kind === 'insert' ? edit.text.length : edit.replacement.length - edit.expected.length;
-  if (outputSize > (request.options.maxOutputCodeUnits ?? 10000000))
+  if (outputSize > (request.options?.maxOutputCodeUnits ?? 10000000))
     reject('output-limit', 'The planned source output exceeds its configured size limit.');
   if (
+    request.operation === 'realize-conditions' ||
     request.operation === 'edit-nodes' ||
     request.operation === 'remove-environments' ||
-    (request.operation === 'suppress-comments' && request.options.suppressCommentEnvironments)
+    (request.operation === 'suppress-comments' && request.options?.suppressCommentEnvironments)
   ) {
     const expected = sourceOperationEdits(source, request, view);
     const signature = (edits: readonly ProjectEdit[]) =>
@@ -523,10 +480,9 @@ export function validateProjectEditPlan(
     if (signature(expected) !== signature(plan.edits))
       reject(
         'invalid-edit',
-        'Node/environment edits must match their complete canonical proposal.'
+        'Condition, node, or environment edits must match their complete canonical proposal.'
       );
-  } else if (request.options.target === 'selected' && view)
-    validateOccurrenceEdits(view, plan.edits);
+  } else if (view) validateOccurrenceEdits(view, plan.edits);
 }
 
 export function requireCapability(

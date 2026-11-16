@@ -3,7 +3,7 @@ import { reject } from './fail.js';
 import { lineStarts, rangeAt } from './shared.js';
 
 export function eligibleToken(token: SelectedToken): boolean {
-  return token.interpretation === 'structure' && token.token.kind !== 'verbatim';
+  return token.interpretation === 'structure';
 }
 
 export function validateOccurrenceEdits(view: ProjectView, edits: readonly ProjectEdit[]): void {

@@ -8,7 +8,7 @@ import { boundaryDelimiter, lastToken } from './emission.js';
 import { lineStarts, rangeAt } from './shared.js';
 import { eligibleToken, validateOccurrenceEdits } from './safety.js';
 export function safeComment(
-  source: ProjectSnapshot,
+  _source: ProjectSnapshot,
   file: ScannedFile,
   start: number,
   end: number
@@ -17,7 +17,12 @@ export function safeComment(
     !file.coverage.issues.some(
       (i) => i.location && i.location.range.start <= end && i.location.range.end >= start
     ) &&
-    file.tokens.some((t) => t.kind === 'comment' && t.range.start === start && t.range.end === end)
+    file.tokens.some(
+      (t) =>
+        t.kind === 'comment' &&
+        t.range.end === end &&
+        (t.range.start === start || (t.range.start < start && file.source[start] === '%'))
+    )
   );
 }
 
@@ -41,29 +46,20 @@ export function commentEdit(
 export function commentEdits(
   source: ProjectSnapshot,
   files: readonly ScannedFile[],
-  view?: ProjectView
+  view: ProjectView
 ): ProjectEdit[] {
   const candidates: ProjectEdit[] = [];
   const seen = new Set<string>();
-  if (view) {
-    for (const selected of view.selectedTokens) {
-      if (!eligibleToken(selected) || selected.token.kind !== 'comment') continue;
-      const file = source.files.find((f) => f.path === selected.origin.path)!;
-      const { start, end } = selected.origin.range;
-      const key = `${file.path}:${start}:${end}`;
-      if (!seen.has(key) && safeComment(source, file, start, end)) {
-        candidates.push(commentEdit(source, file, start, end));
-        seen.add(key);
-      }
+  for (const selected of view.selectedTokens) {
+    if (!eligibleToken(selected) || selected.token.kind !== 'comment') continue;
+    const file = source.files.find((f) => f.path === selected.origin.path)!;
+    const { start, end } = selected.origin.range;
+    const key = `${file.path}:${start}:${end}`;
+    if (!seen.has(key) && safeComment(source, file, start, end)) {
+      candidates.push(commentEdit(source, file, start, end));
+      seen.add(key);
     }
-  } else
-    for (const file of files)
-      for (const token of file.tokens)
-        if (
-          token.kind === 'comment' &&
-          safeComment(source, file, token.range.start, token.range.end)
-        )
-          candidates.push(commentEdit(source, file, token.range.start, token.range.end));
+  }
   candidates.sort((a, b) =>
     a.path < b.path
       ? -1

@@ -5,7 +5,9 @@ import type {
   TransformationRequest,
 } from '../../project-types.js';
 import { commentEdits } from './comment-edits.js';
-import { environmentActions, environmentSourceEdits, nodeSourceEdits } from './node-edits.js';
+import { realizeProjectConditions } from './conditions.js';
+import { reject } from './fail.js';
+import { environmentActions, nodeSourceEdits } from './node-edits.js';
 import { sourceChanges, type TextChange } from './text-edits.js';
 import { invalid } from './shared.js';
 
@@ -15,28 +17,31 @@ export function sourceOperationEdits(
   request: TransformationRequest,
   view?: ProjectView
 ): ProjectEdit[] {
-  if (request.operation === 'identity') return [];
+  if (request.operation === 'realize-conditions') {
+    const realized = realizeProjectConditions(source, request.options);
+    if (realized.status !== 'ready' || !realized.editPlan) {
+      reject(
+        'unavailable',
+        realized.coverage.issues.map((i) => i.message).join(' ') ||
+          'Condition realization could not complete.'
+      );
+    }
+    return [...realized.editPlan.edits];
+  }
   if (request.operation === 'edit-nodes') {
     if (!view || request.options.target !== 'selected') invalid('Expected selected source edits.');
     return nodeSourceEdits(view, request.options.actions);
   }
   if (request.operation === 'remove-environments') {
-    return request.options.target === 'source'
-      ? environmentSourceEdits(source, request.options.names, request.options.scope)
-      : view
-        ? nodeSourceEdits(view, environmentActions(view, request.options.names))
-        : invalid('Expected a configured view.');
+    if (!view || request.options.target !== 'selected') invalid('Expected selected source edits.');
+    return nodeSourceEdits(view, environmentActions(view, request.options.names));
   }
   if (request.operation !== 'suppress-comments')
     invalid('This operation does not produce source edits.');
-  const files = source.files.filter(
-    (f) => request.options.scope?.kind !== 'files' || request.options.scope.paths.includes(f.path)
-  );
-  const comments = commentEdits(source, files, view);
-  if (!request.options.suppressCommentEnvironments) return comments;
-  const environments = view
-    ? nodeSourceEdits(view, environmentActions(view, ['comment']))
-    : environmentSourceEdits(source, ['comment'], request.options.scope);
+  if (!view) invalid('Expected a configured view.');
+  const comments = commentEdits(source, source.files, view);
+  if (!request.options?.suppressCommentEnvironments) return comments;
+  const environments = nodeSourceEdits(view, environmentActions(view, ['comment']));
   const byPath = new Map<string, TextChange[]>();
   // Recompute lexical joins over the combined removals, including adjacent comments.
   for (const edit of [...comments, ...environments]) {

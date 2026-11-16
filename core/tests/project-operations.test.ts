@@ -73,7 +73,7 @@ describe('C5 configured provenance and consumer reconstruction', () => {
     const env = walkConfiguredNodes(configured.root).find((n) => n.kind === 'environment')!;
     expect(new Set(env.origins.map((o) => o.path)).size).toBe(2);
     const result = planTransformation(configured, {
-      operation: 'materialize',
+      operation: 'export-project',
       options: { inputs: 'inline' },
     });
     expect(output(result)).not.toContain('hidden');
@@ -175,18 +175,14 @@ describe('C6 reference analysis', () => {
       } as never)
     ).toThrow();
     failure(
-      () =>
-        runAnalysis(view(''), {
-          operation: 'references',
-          options: { scope: { kind: 'all-files' } },
-        }),
+      () => runAnalysis(snapshot(''), { operation: 'unused-commands' }),
       PrepTexErrorCode.OperationUnavailable
     );
     expect('artifacts' in runAnalysis(view(''), { operation: 'references' })).toBe(false);
   });
 });
 
-describe('C6 conservative source command evidence', () => {
+describe('C6 conservative configured command evidence', () => {
   it('retains configured scope ambiguity and separately counts uncalled body references', () => {
     const configured = view(String.raw`{\def\local{}}\def\target{}\def\caller{\target}`);
     ready(configured);
@@ -203,25 +199,26 @@ describe('C6 conservative source command evidence', () => {
     String.raw`\begin{example}\def\local{}\end{example}\local`,
     String.raw`\local\def\local{}`,
     String.raw`\def\local{}\opaque{\local}`,
-  ])('reports ambiguous source bindings without choosing a definition: %s', (text) => {
+  ])('reports ambiguous bindings without choosing a definition: %s', (text) => {
     expect(
-      runAnalysis(snapshot(text), { operation: 'unused-commands' }).commands[0]!.classification
+      runAnalysis(view(text), { operation: 'unused-commands' }).commands[0]!.classification
     ).toBe('ambiguous-binding');
   });
-  it('does not assign execution order across independent source files', () => {
+  it('rejects unconfigured snapshot command analysis (INV-6)', () => {
     const source = createProjectSnapshot([
       file(String.raw`\def\local{}`),
       file(String.raw`\local`, 'use.tex'),
     ]);
-    expect(runAnalysis(source, { operation: 'unused-commands' }).commands[0]!.classification).toBe(
-      'ambiguous-binding'
+    failure(
+      () => runAnalysis(source, { operation: 'unused-commands' }),
+      PrepTexErrorCode.OperationUnavailable
     );
   });
   it('F18 distinguishes direct, body, self-recursive, unused and redefined commands', () => {
-    const source = snapshot(
+    const configured = view(
       String.raw`\newcommand{\used}{}\used\def\bodyOnly{}\def\caller{\bodyOnly}\def\self{\self}\def\unused{}\def\again{}\def\again{new}`
     );
-    const result = runAnalysis(source, { operation: 'unused-commands' });
+    const result = runAnalysis(configured, { operation: 'unused-commands' });
     expect(result.commands.map((c) => [c.name, c.classification])).toEqual([
       ['used', 'directly-used'],
       ['bodyOnly', 'body-referenced'],
@@ -234,23 +231,18 @@ describe('C6 conservative source command evidence', () => {
     expect(result.commands.find((c) => c.name === 'self')!.directUses).toEqual([]);
     expect(result.commands.find((c) => c.name === 'self')!.selfReferences).toHaveLength(1);
     expect(result.findings.every((f) => f.severity === 'information')).toBe(true);
-    expect(result.findings.every((f) => f.primary.occurrenceId === null)).toBe(true);
+    expect(result.findings.every((f) => f.primary.occurrenceId === 'i0')).toBe(true);
   });
-  it('does not infer absence of dynamically hidden commands and keeps explicit scope in result keys', () => {
-    const source = createProjectSnapshot([
-      file(String.raw`\def\foo{}\edef\dynamic{\csname foo\endcsname}`),
-      file(String.raw`\def\bar{}`, 'other.tex'),
-    ]);
-    const all = runAnalysis(source, { operation: 'unused-commands' });
-    const one = runAnalysis(source, {
+  it('does not infer absence of dynamically hidden commands and freezes analysis output', () => {
+    const configured = view(String.raw`\def\foo{}\edef\dynamic{\csname foo\endcsname}`);
+    const res = runAnalysis(configured, {
       operation: 'unused-commands',
-      options: { scope: { kind: 'files', paths: ['other.tex'] } },
+      options: { allowIncomplete: true },
     });
-    expect(all.coverage.status).toBe('partial');
-    expect(one.commands.map((c) => c.name)).toEqual(['bar']);
-    expect(one.resultId).not.toBe(all.resultId);
-    frozen(one);
-    expect(structuredClone(one)).toEqual(one);
+    expect(res.coverage.status).toBe('partial');
+    expect(res.commands.map((c) => c.name)).toEqual(['foo']);
+    frozen(res);
+    expect(structuredClone(res)).toEqual(res);
   });
 });
 
@@ -284,8 +276,8 @@ describe('C7 source edits, exact previews, atomic application', () => {
       file('', 'both.tex'),
     ]);
     const result = planTransformation(source, {
-      operation: 'identity',
-      options: { target: 'source' },
+      operation: 'realize-conditions',
+      options: { traversal: 'file-only', conditions: { mode: 'source' } },
     });
     expect(result.dependencies.map((d) => d.status)).toEqual([
       'ambiguous',
@@ -295,58 +287,69 @@ describe('C7 source edits, exact previews, atomic application', () => {
     ]);
   });
   it('validates output bounds again when applying a modified proposal', () => {
-    const source = snapshot('A%comment\n');
-    const preview = planTransformation(source, {
+    const configured = view('A%comment\n');
+    const preview = planTransformation(configured, {
       operation: 'suppress-comments',
-      options: { target: 'source', maxOutputCodeUnits: 10 },
+      options: { target: 'selected', maxOutputCodeUnits: 10 },
     });
     const edit = preview.editPlan!.edits[0]!;
     expect(edit.kind).toBe('replace');
     if (edit.kind !== 'replace') return;
     failure(
       () =>
-        applyProjectEdits(source, {
-          ...preview.editPlan!,
-          edits: [{ ...edit, replacement: 'x'.repeat(20) }],
-        }),
+        applyProjectEdits(
+          configured.snapshot,
+          {
+            ...preview.editPlan!,
+            edits: [{ ...edit, replacement: 'x'.repeat(20) }],
+          },
+          configured
+        ),
       PrepTexErrorCode.OutputLimit
     );
-    expect(source.files[0]!.source).toBe('A%comment\n');
+    expect(configured.snapshot.files[0]!.source).toBe('A%comment\n');
   });
   it('bounds source preview output and includes the limit in result identity', () => {
     const source = snapshot('abc');
     failure(
       () =>
         planTransformation(source, {
-          operation: 'identity',
-          options: { target: 'source', maxOutputCodeUnits: 2 },
+          operation: 'realize-conditions',
+          options: {
+            conditions: { mode: 'source' },
+            maxOutputCodeUnits: 2,
+          },
         }),
       PrepTexErrorCode.OutputLimit
     );
     const request = {
-      operation: 'identity',
-      options: { target: 'source', maxOutputCodeUnits: 3 },
+      operation: 'realize-conditions',
+      options: {
+        conditions: { mode: 'source' },
+        maxOutputCodeUnits: 3,
+      },
     } as const;
     expect(output(planTransformation(source, request))).toBe('abc');
     expect(planTransformation(source, request).resultId).not.toBe(
-      planTransformation(source, { operation: 'identity', options: { target: 'source' } }).resultId
+      planTransformation(source, {
+        operation: 'realize-conditions',
+        options: { conditions: { mode: 'source' } },
+      }).resultId
     );
   });
-  it.each([
-    '',
-    '😀\r\nA\rB\n  ',
-    String.raw`\iffalse % inactive\fi`,
-    String.raw`\verb|% retained|`,
-  ])('F01 identity is exact for every source string %j', (text) => {
-    const source = snapshot(text);
-    const result = planTransformation(source, {
-      operation: 'identity',
-      options: { target: 'source' },
-    });
-    expect(output(result)).toBe(text);
-    expect(result.editPlan!.edits).toEqual([]);
-    expect(applyProjectEdits(source, result.editPlan!)).toBe(source);
-  });
+  it.each(['', '😀\r\nA\rB\n  ', String.raw`\verb|% retained|`])(
+    'F01 condition realization is exact when no conditions are present %j',
+    (text) => {
+      const source = snapshot(text);
+      const result = planTransformation(source, {
+        operation: 'realize-conditions',
+        options: { conditions: { mode: 'source' } },
+      });
+      expect(output(result)).toBe(text);
+      expect(result.editPlan!.edits).toEqual([]);
+      expect(applyProjectEdits(source, result.editPlan!)).toBe(source);
+    }
+  );
   it.each([
     ['A% comment\nB', 'AB'],
     ['A% comment\r\n  B', 'AB'],
@@ -357,15 +360,15 @@ describe('C7 source edits, exact previews, atomic application', () => {
   ])(
     'F25 preserves lexical meaning and exact preview/application equality: %j',
     (text, expected) => {
-      const source = snapshot(text);
-      const result = planTransformation(source, {
+      const configured = view(text);
+      const result = planTransformation(configured, {
         operation: 'suppress-comments',
-        options: { target: 'source' },
+        options: { target: 'selected' },
       });
       expect(output(result)).toBe(expected);
-      const applied = applyProjectEdits(source, result.editPlan!);
+      const applied = applyProjectEdits(configured.snapshot, result.editPlan!, configured);
       expect(applied.files[0]!.source).toBe(expected);
-      expect(source.files[0]!.source).toBe(text);
+      expect(configured.snapshot.files[0]!.source).toBe(text);
       expect(applied.files[0]!.version).toBe(2);
     }
   );
@@ -386,10 +389,10 @@ describe('C7 source edits, exact previews, atomic application', () => {
     frozen(result);
   });
   it('F20/F21 rejects changed-source and changed-view proposals atomically', () => {
-    const source = snapshot('%remove\nX');
+    const source = snapshot(String.raw`\iftrue X\fi`);
     const plan = planTransformation(source, {
-      operation: 'suppress-comments',
-      options: { target: 'source' },
+      operation: 'realize-conditions',
+      options: { conditions: { mode: 'source' } },
     }).editPlan!;
     const changed = updateProjectSnapshot(source, [
       { kind: 'upsert', file: file('changed', 'main.tex', 2) },
@@ -407,10 +410,10 @@ describe('C7 source edits, exact previews, atomic application', () => {
     failure(() => applyProjectEdits(a.snapshot, active, b), PrepTexErrorCode.StaleResult);
   });
   it('rejects overlapping, out-of-range, expected-content and scope violations with structured failures', () => {
-    const source = snapshot('A%comment\nB');
+    const source = snapshot(String.raw`\iftrue A\fi B`);
     const plan = planTransformation(source, {
-      operation: 'suppress-comments',
-      options: { target: 'source' },
+      operation: 'realize-conditions',
+      options: { conditions: { mode: 'source' } },
     }).editPlan!;
     failure(
       () => applyProjectEdits(source, { ...plan, edits: [...plan.edits, ...plan.edits] }),
@@ -432,7 +435,7 @@ describe('C7 source edits, exact previews, atomic application', () => {
         }),
       PrepTexErrorCode.InvalidEdit
     );
-    expect(source.files[0]!.source).toBe('A%comment\nB');
+    expect(source.files[0]!.source).toBe(String.raw`\iftrue A\fi B`);
   });
   it('F11/F26 rejects a physical slice that is active in one inclusion and inactive in another', () => {
     const source = createProjectSnapshot([
@@ -450,11 +453,11 @@ describe('C7 source edits, exact previews, atomic application', () => {
       PrepTexErrorCode.EditConflict
     );
     const exported = planTransformation(configured, {
-      operation: 'materialize',
+      operation: 'export-project',
       options: { inputs: 'inline', suppressComments: true },
     });
     expect(output(exported)).toContain('AB');
-    expect(output(exported)).toContain(' C');
+    expect(output(exported)).toContain('C');
   });
   it('deduplicates compatible repeated occurrence edits', () => {
     const configured = resolveProjectView(
@@ -503,7 +506,7 @@ describe('C7 configured export and source mappings', () => {
       { entryPath: 'main.tex' }
     );
     const result = planTransformation(configured, {
-      operation: 'materialize',
+      operation: 'export-project',
       options: { inputs: 'preserve' },
     });
     const shared = result.artifacts.find((f) => f.path === 'part.tex')!;
@@ -513,7 +516,7 @@ describe('C7 configured export and source mappings', () => {
       )
     ).toEqual(['i1', 'i2']);
   });
-  it('rejects inlining that would change a retained input directory', () => {
+  it('exports realized nested inputs with inline or preserved topology', () => {
     const configured = resolveProjectView(
       createProjectSnapshot([
         file(String.raw`\input{sub/part}`),
@@ -522,56 +525,44 @@ describe('C7 configured export and source mappings', () => {
       ]),
       { entryPath: 'main.tex' }
     );
-    failure(
-      () =>
-        planTransformation(configured, {
-          operation: 'export-project',
-          options: { conditions: 'preserve', inputs: 'inline' },
-        }),
-      PrepTexErrorCode.EditConflict
-    );
-    const result = planTransformation(configured, {
-      operation: 'export-project',
-      options: { conditions: 'preserve', inputs: 'preserve' },
-    });
-    expect(result.dependencies.find((d) => d.reference === 'other')!.targetPath).toBe(
-      'sub/other.tex'
-    );
     expect(
       output(
-        planTransformation(configured, { operation: 'materialize', options: { inputs: 'inline' } })
+        planTransformation(configured, {
+          operation: 'export-project',
+          options: { inputs: 'inline' },
+        })
       )
     ).toBe('');
   });
-  it.each([true, false])(
-    'F02 materializes and reparses the selected list for draft=%s',
-    (draft) => {
-      const configured = view(fixture('F02-crossing-environments'), {
-        mode: 'source-with-overrides',
-        overrides: { draft },
-      });
-      const result = planTransformation(configured, {
-        operation: 'materialize',
-        options: { inputs: 'inline' },
-      });
-      const parsed = view(output(result));
-      ready(parsed);
-      expect(
-        walkConfiguredNodes(parsed.root)
-          .filter((n) => n.kind === 'environment')
-          .map((n) => n.kind === 'environment' && n.name)
-      ).toEqual([draft ? 'itemize' : 'enumerate']);
-      expect(output(result)).not.toMatch(/\\(?:newif|ifdraft|drafttrue|else|fi)/);
-      expect(result.entryPath).toBe('main.tex');
-    }
-  );
+  it.each([true, false])('F02 exports and reparses the selected list for draft=%s', (draft) => {
+    const configured = view(fixture('F02-crossing-environments'), {
+      mode: 'source-with-overrides',
+      overrides: { draft },
+    });
+    const result = planTransformation(configured, {
+      operation: 'export-project',
+      options: { inputs: 'inline' },
+    });
+    const parsed = view(output(result));
+    ready(parsed);
+    expect(
+      walkConfiguredNodes(parsed.root)
+        .filter((n) => n.kind === 'environment')
+        .map((n) => n.kind === 'environment' && n.name)
+    ).toEqual([draft ? 'itemize' : 'enumerate']);
+    expect(output(result)).not.toMatch(/\\(?:newif|ifdraft|drafttrue|else|fi)/);
+    expect(result.entryPath).toBe('main.tex');
+  });
   it.each([
     [String.raw`\iftrue\relax\fi abc`, '\\relax abc'],
     [String.raw`\iftrue$\fi\iftrue$\fi`, '${}$'],
   ])('F29 preserves token boundaries when condition syntax disappears: %s', (text, expected) => {
     expect(
       output(
-        planTransformation(view(text), { operation: 'materialize', options: { inputs: 'inline' } })
+        planTransformation(view(text), {
+          operation: 'export-project',
+          options: { inputs: 'inline' },
+        })
       )
     ).toBe(expected);
   });
@@ -584,7 +575,7 @@ describe('C7 configured export and source mappings', () => {
       { entryPath: 'main.tex' }
     );
     const result = planTransformation(configured, {
-      operation: 'materialize',
+      operation: 'export-project',
       options: { inputs: 'inline' },
     });
     expect(output(result)).toBe('\\relax abc');
@@ -595,27 +586,30 @@ describe('C7 configured export and source mappings', () => {
     );
     expect(
       output(
-        planTransformation(commentView, { operation: 'materialize', options: { inputs: 'inline' } })
+        planTransformation(commentView, {
+          operation: 'export-project',
+          options: { inputs: 'inline' },
+        })
       )
     ).toBe('%EOF\nabc');
   });
-  it('F28 preserves inactive inputs and declares partially expanded output dependencies', () => {
-    const configured = resolveProjectView(
-      createProjectSnapshot([
-        file(String.raw`\iftrue\input{part}\else\input{missing}\fi`),
-        file('ACTIVE', 'part.tex'),
-      ]),
-      { entryPath: 'main.tex' }
-    );
-    const result = planTransformation(configured, {
-      operation: 'export-project',
-      options: { conditions: 'preserve', inputs: 'inline' },
-    });
-    expect(output(result)).toBe(String.raw`\iftrue ACTIVE\else\input{missing}\fi`);
-    expect(result.artifacts[0]!.topology).toBe('active-inputs-expanded');
-    expect(result.dependencies.map((d) => [d.reference, d.status])).toEqual([
-      ['missing', 'missing'],
+  it('F28 realizes active inputs while ignoring inactive missing inputs in Pipeline B', () => {
+    const source = createProjectSnapshot([
+      file(String.raw`\iftrue\input{part}\else\input{missing}\fi`),
+      file('ACTIVE', 'part.tex'),
     ]);
+    const result = planTransformation(source, {
+      operation: 'realize-conditions',
+      options: {
+        entryPath: 'main.tex',
+        traversal: 'project',
+        conditions: { mode: 'source' },
+        inputs: 'inline',
+      },
+    });
+    expect(output(result)).toBe('ACTIVE');
+    expect(result.artifacts[0]!.topology).toBe('active-inputs-expanded');
+    expect(result.dependencies).toEqual([]);
   });
   it('retains relative filenames and validates literal output relationships', () => {
     const source = createProjectSnapshot([
@@ -624,7 +618,7 @@ describe('C7 configured export and source mappings', () => {
       file('leaf', 'leaf.tex'),
     ]);
     const result = planTransformation(resolveProjectView(source, { entryPath: 'main.tex' }), {
-      operation: 'materialize',
+      operation: 'export-project',
       options: { inputs: 'preserve' },
     });
     expect(result.artifacts.map((f) => f.path)).toEqual(['dir/part.tex', 'leaf.tex', 'main.tex']);
@@ -632,7 +626,7 @@ describe('C7 configured export and source mappings', () => {
     expect(output(result)).toBe(String.raw`\input{dir/part}`);
     expect(output(result, 'dir/part.tex')).toBe(String.raw`\input{../leaf}`);
   });
-  it('rejects conflicting shared-file materializations but permits per-occurrence inlining', () => {
+  it('rejects conflicting shared-file exports but permits per-occurrence inlining', () => {
     const configured = resolveProjectView(
       createProjectSnapshot([
         file(String.raw`\newif\ifdraft\input{part}\drafttrue\input{part}`),
@@ -643,28 +637,34 @@ describe('C7 configured export and source mappings', () => {
     failure(
       () =>
         planTransformation(configured, {
-          operation: 'materialize',
+          operation: 'export-project',
           options: { inputs: 'preserve' },
         }),
       PrepTexErrorCode.EditConflict
     );
     expect(
       output(
-        planTransformation(configured, { operation: 'materialize', options: { inputs: 'inline' } })
+        planTransformation(configured, {
+          operation: 'export-project',
+          options: { inputs: 'inline' },
+        })
       )
-    ).toBe(' F T');
+    ).toBe('FT');
   });
-  it('retains boolean scaffolding when a stored consumer could need it', () => {
-    const configured = view(
+  it('supports retaining or stripping boolean declarations and setters in condition realization', () => {
+    const source = snapshot(
       String.raw`\newif\ifdraft\def\stored{\ifdraft X\fi}\ifdraft A\else B\fi`
     );
-    const result = planTransformation(configured, {
-      operation: 'materialize',
-      options: { inputs: 'inline' },
+    const retained = planTransformation(source, {
+      operation: 'realize-conditions',
+      options: {
+        conditions: { mode: 'source' },
+        stripDeclarationsAndSetters: false,
+      },
     });
-    expect(output(result)).toContain('\\newif\\ifdraft');
-    expect(output(result)).toContain('\\def\\stored{\\ifdraft X\\fi}');
-    expect(result.coverage.issues.some((i) => i.message.includes('scaffolding'))).toBe(true);
+    expect(output(retained)).toContain('\\newif\\ifdraft');
+    expect(output(retained)).toContain('\\def\\stored{\\ifdraft X\\fi}');
+    expect(output(retained)).toContain('B');
   });
   it('makes every copied mapping exact for Unicode, CRLF, and disjoint input spans', () => {
     const configured = resolveProjectView(
@@ -672,7 +672,7 @@ describe('C7 configured export and source mappings', () => {
       { entryPath: 'main.tex' }
     );
     const result = planTransformation(configured, {
-      operation: 'materialize',
+      operation: 'export-project',
       options: { inputs: 'inline' },
     });
     const artifact = result.artifacts[0]!;
@@ -695,13 +695,13 @@ describe('C7 configured export and source mappings', () => {
     }
     expect(end).toBe(artifact.source.length - 1);
   });
-  it('bounds expanded inactive source and total multi-file output before returning artifacts', () => {
-    const configured = view(String.raw`\iffalse INACTIVE-LONG-TEXT\else X\fi`);
+  it('bounds expanded output and total multi-file output before returning artifacts', () => {
+    const configured = view(String.raw`\iffalse INACTIVE-LONG-TEXT\else SELECTED-LONG-TEXT\fi`);
     failure(
       () =>
         planTransformation(configured, {
           operation: 'export-project',
-          options: { conditions: 'preserve', inputs: 'inline', maxOutputCodeUnits: 5 },
+          options: { inputs: 'inline', maxOutputCodeUnits: 5 },
         }),
       PrepTexErrorCode.OutputLimit
     );
@@ -712,7 +712,7 @@ describe('C7 configured export and source mappings', () => {
     failure(
       () =>
         planTransformation(multi, {
-          operation: 'materialize',
+          operation: 'export-project',
           options: { inputs: 'preserve', maxOutputCodeUnits: 13 },
         }),
       PrepTexErrorCode.OutputLimit
@@ -782,11 +782,15 @@ describe('C8 source reuse, invalidation and independent result identities', () =
     expect(a.resultId).toBe(b.resultId);
     expect(inspectProject(source).snapshotId).toBe(source.id);
     expect(
-      planTransformation(configured, { operation: 'materialize', options: { inputs: 'inline' } })
-        .resultId
+      planTransformation(configured, {
+        operation: 'export-project',
+        options: { inputs: 'inline' },
+      }).resultId
     ).not.toBe(
-      planTransformation(configured, { operation: 'materialize', options: { inputs: 'preserve' } })
-        .resultId
+      planTransformation(configured, {
+        operation: 'export-project',
+        options: { inputs: 'preserve' },
+      }).resultId
     );
   });
 });

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import type { TransformCliOptions } from './args.js';
-import type { SourceFile, TransformedFile } from '@preptex/core';
+import type { GeneratedArtifact, SourceFile } from '@preptex/core';
 
 export async function readAllTexFiles(baseDir: string, excludeDir?: string): Promise<SourceFile[]> {
   const fs = await import('node:fs/promises');
@@ -50,7 +50,7 @@ export function makeReader(baseDir: string): (filename: string) => string {
 }
 
 export async function writeOutputsRecursive(
-  outputs: readonly TransformedFile[],
+  outputs: readonly Pick<GeneratedArtifact, 'path' | 'source'>[],
   opts: TransformCliOptions
 ): Promise<void> {
   const { entryPath, baseDir, outDir, outName } = resolvePaths({

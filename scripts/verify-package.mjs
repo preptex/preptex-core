@@ -44,20 +44,22 @@ for (const workspace of ['core', 'cli']) {
   const manifest = await json(path.join(root, workspace, 'package.json'));
   assert.equal(manifest.version, '0.3.0', 'All stages share the 0.3.0 release.');
   npm(['run', 'prepack', `--workspace=${manifest.name}`]);
-  const [packed] = JSON.parse(
-    npm(
-      [
-        'pack',
-        `--workspace=${manifest.name}`,
-        '--ignore-scripts',
-        '--pack-destination',
-        release,
-        '--json',
-      ],
-      root,
-      true
-    )
+  const packOutput = npm(
+    [
+      'pack',
+      `--workspace=${manifest.name}`,
+      '--ignore-scripts',
+      '--pack-destination',
+      release,
+      '--json',
+    ],
+    root,
+    true
   );
+  const packJson = JSON.parse(packOutput);
+  const packed = Array.isArray(packJson)
+    ? packJson[0]
+    : (packJson[manifest.name] ?? Object.values(packJson)[0]);
   assert.equal(packed.name, manifest.name);
   assert.equal(packed.version, manifest.version);
   const names = new Set(packed.files.map((file) => file.path));
@@ -118,9 +120,18 @@ try {
       ])
     ),
     devDependencies: { typescript: '4.9.5', vitest: '2.1.9' },
+    overrides: { rollup: '4.53.3' },
   });
   npm(
-    ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false', registry],
+    [
+      'install',
+      '--ignore-scripts',
+      '--no-audit',
+      '--no-fund',
+      '--package-lock=false',
+      '--prefer-offline',
+      registry,
+    ],
     consumer
   );
   assert.equal(

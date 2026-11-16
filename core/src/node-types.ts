@@ -4,7 +4,6 @@ import type {
   FactContext,
   SourceLocation,
   SourceOrigin,
-  SourceScope,
   ProjectSnapshot,
   ProjectView,
 } from './project-types.js';
@@ -104,7 +103,7 @@ export type NodeEditAction =
       /** Selected construct. */ readonly selection: NodeSelection;
       /** Literal argument-free wrapper name. */ readonly name: string;
     };
-/** Additional transformations using source environments or configured nodes. */
+/** Additional transformations using configured nodes over a realized ProjectView. */
 export type NodeTransformationRequest =
   | {
       /** Batch of configured node actions. */ readonly operation: 'edit-nodes';
@@ -116,12 +115,11 @@ export type NodeTransformationRequest =
       };
     }
   | {
-      /** Remove matching literal environments. */ readonly operation: 'remove-environments';
-      /** Explicit physical or selected scope. */ readonly options: {
-        /** All source branches or configured selected occurrences. */ readonly target:
-          'source' | 'selected' | 'artifact';
+      /** Remove matching literal environments from the realized view. */ readonly operation: 'remove-environments';
+      /** Explicit selected or artifact scope. */ readonly options: {
+        /** Configured selected occurrences or artifact export. */ readonly target:
+          'selected' | 'artifact';
         /** Case-sensitive literal names; nonempty, sorted during normalization. */ readonly names: readonly string[];
-        /** Source-only scope, defaults to all files; forbidden for selected/artifact targets. */ readonly scope?: SourceScope;
         /** Total output UTF-16 bound, default 10000000. */ readonly maxOutputCodeUnits?: number;
       };
     };

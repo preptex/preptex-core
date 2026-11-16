@@ -5,73 +5,8 @@
  * @packageDocumentation
  */
 
-export {
-  CommentKind,
-  ConditionBranchKind,
-  DiagnosticCode,
-  DiagnosticSeverity,
-  NodeType,
-  TokenType,
-  isContainerNode,
-} from './api-types.js';
-export type {
-  AstNode,
-  AstRoot,
-  CommandNode,
-  CommentNode,
-  ConditionBranchNode,
-  ConditionDeclarationNode,
-  ConditionName,
-  ConditionNode,
-  ContainerNode,
-  ContainerNodeBase,
-  ContainerNodeType,
-  Diagnostic,
-  EnvironmentNode,
-  GroupNode,
-  InputReferencePath,
-  InputNode,
-  LineEnding,
-  MathDelimiter,
-  MathNode,
-  NewLineNode,
-  NodeBase,
-  NodeId,
-  ParseResult,
-  ParsedFile,
-  ParsedProject,
-  ProjectFilePath,
-  SectionLevel,
-  SectionNode,
-  SourceFile,
-  SourceRange,
-  SyntaxDiagnostic,
-  TextNode,
-  TransformResult,
-  TransformedFile,
-  WarningDiagnostic,
-  WarningDiagnosticCode,
-} from './api-types.js';
-export {
-  PrepTexError,
-  PrepTexErrorCode,
-  PrepTexSyntaxError,
-  ProjectOperationError,
-} from './errors.js';
-export { InputHandlingMode, isInputHandlingMode } from './lib/options.js';
-export type {
-  ParseOptions,
-  ProjectParseOptions,
-  SerializeOptions,
-  TransformOptions,
-} from './lib/options.js';
-export {
-  mergeProjects,
-  parseDocument,
-  parseProject,
-  serializeDocument,
-  transformProject,
-} from './lib/core.js';
+export type { MathDelimiter, ProjectFilePath, SourceFile, SourceRange } from './api-types.js';
+export { PrepTexError, PrepTexErrorCode, ProjectOperationError } from './errors.js';
 
 export { isConfiguredContainerNode, walkConfiguredNodes } from './project-types.js';
 export type {
@@ -83,6 +18,8 @@ export type {
   CapabilityReason,
   ConditionDecision,
   ConditionPolicy,
+  ConditionRealizationRequest,
+  ConditionRealizationResult,
   ConfiguredContainerNode,
   ConfiguredNode,
   ConfiguredNodeBase,
@@ -118,17 +55,20 @@ export type {
   SourceOrigin,
   SourceScope,
   SourceToken,
+  SourceTokenKind,
   SyntaxFact,
   SyntaxFactBase,
   ViewConfiguration,
   ViewId,
   ViewLimits,
 } from './project-types.js';
+export { tokenizeFile } from './lib/project/tokenize.js';
 export {
   createProjectSnapshot,
   updateProjectSnapshot,
   inspectProject,
 } from './lib/project/snapshot.js';
+export { realizeProjectConditions } from './lib/project/conditions.js';
 export { resolveProjectView } from './lib/project/view.js';
 export { indexProjectView, runAnalysis } from './lib/project/analysis.js';
 export { applyProjectEdits, planTransformation } from './lib/project/transformation.js';

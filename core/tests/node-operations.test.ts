@@ -146,7 +146,7 @@ describe('C5a source locations and indexed selections', () => {
   });
 });
 
-describe('C7a environment inventory and source operations', () => {
+describe('C7a environment inventory and configured operations', () => {
   it('finds all branches and stored bodies while protecting literal lookalikes', () => {
     const text = String.raw`\iftrue\begin{C}yes\end{C}\else\begin{C}no\end{C}\fi
 \newcommand{\f}{\begin{C}stored\end{C}}
@@ -168,60 +168,61 @@ describe('C7a environment inventory and source operations', () => {
         environmentId: found.id,
       })
     ).toBe(found);
-    const result = planTransformation(s, {
+    const v = view(text);
+    const result = planTransformation(v, {
       operation: 'remove-environments',
-      options: { target: 'source', names: ['C', 'comment'] },
+      options: { target: 'selected', names: ['C', 'comment'] },
     });
-    expect(output(result)).not.toContain('stored');
+    expect(output(result)).toContain('stored');
     expect(output(result)).not.toContain('ignored');
     expect(output(result)).toContain(String.raw`\verb|\begin{C}literal\end{C}|`);
     expect(output(result)).toContain('% \\begin{C}');
-    expect(applyProjectEdits(s, result.editPlan!).files[0]!.source).toBe(output(result));
+    expect(applyProjectEdits(s, result.editPlan!, v).files[0]!.source).toBe(output(result));
     frozen(inventory);
   });
-  it('collapses nested matching removals and respects a named file scope', () => {
+  it('collapses nested matching removals on the realized view', () => {
     const text = String.raw`A\begin{C}outer\begin{C}inner\end{C}\end{C}Z`;
     const s = createProjectSnapshot([file(text), file(text, 'other.tex')]);
-    const result = planTransformation(s, {
+    const v = resolveProjectView(s, { entryPath: 'main.tex' });
+    const result = planTransformation(v, {
       operation: 'remove-environments',
-      options: { target: 'source', names: ['C'], scope: { kind: 'files', paths: ['main.tex'] } },
+      options: { target: 'selected', names: ['C'] },
     });
     expect(result.editPlan!.edits).toHaveLength(1);
     expect(output(result)).toBe('AZ');
-    expect(applyProjectEdits(s, result.editPlan!).files[1]!.source).toBe(text);
+    expect(applyProjectEdits(s, result.editPlan!, v).files[1]!.source).toBe(text);
   });
   it.each([
     String.raw`\begin{C}oops`,
     String.raw`\end{C}`,
-    String.raw`\begin{C}\iftrue\end{C}\fi`,
     String.raw`\begin{C}\begin{D}\end{C}\end{D}`,
     String.raw`\begin{C}{\end{C}}`,
-  ])('rejects an unproven whole environment: %s', (text) => {
-    const s = snapshot(text),
+  ])('rejects an unbalanced environment in the configured view: %s', (text) => {
+    const v = view(text),
       request = {
         operation: 'remove-environments',
-        options: { target: 'source', names: ['C'] },
+        options: { target: 'selected', names: ['C'] },
       } as const;
-    expect(checkOperationCapability(s, request).eligible).toBe(false);
-    expect(() => planTransformation(s, request)).toThrow(
-      expect.objectContaining({ code: PrepTexErrorCode.EditConflict })
+    expect(checkOperationCapability(v, request).eligible).toBe(false);
+    expect(() => planTransformation(v, request)).toThrow(
+      expect.objectContaining({ code: PrepTexErrorCode.OperationUnavailable })
     );
-    expect(s.files[0]!.source).toBe(text);
+    expect(v.snapshot.files[0]!.source).toBe(text);
   });
   it('suppresses comment environments only when explicitly requested', () => {
-    const text = 'A%gone\r\n  B' + String.raw`\begin{comment}\ifunknown{bad\end{comment}` + 'C';
-    const s = snapshot(text);
+    const text = 'A%gone\r\n  B' + String.raw`\begin{comment}ignored\end{comment}` + 'C';
+    const v = view(text);
     expect(
       output(
-        planTransformation(s, { operation: 'suppress-comments', options: { target: 'source' } })
+        planTransformation(v, { operation: 'suppress-comments', options: { target: 'selected' } })
       )
     ).toContain('\\begin{comment}');
-    const r = planTransformation(s, {
+    const r = planTransformation(v, {
       operation: 'suppress-comments',
-      options: { target: 'source', suppressCommentEnvironments: true },
+      options: { target: 'selected', suppressCommentEnvironments: true },
     });
     expect(output(r)).toBe('ABC');
-    expect(applyProjectEdits(s, r.editPlan!).files[0]!.source).toBe('ABC');
+    expect(applyProjectEdits(v.snapshot, r.editPlan!, v).files[0]!.source).toBe('ABC');
   });
 });
 
@@ -339,20 +340,16 @@ describe('C7a selected-node edit batches', () => {
       String.raw`\begin{outer}\begin{inner}\begin{C}X\end{C}\end{inner}\end{outer}`
     );
   });
-  it('rejects non-inline or preserved-condition node artifact edits', () => {
+  it('rejects non-inline node artifact edits', () => {
     const v = view('{A}'),
       n = nodes(v).find((n) => n.kind === 'group')!,
       actions = [wrap(v, n, 'C')];
-    for (const [conditions, inputs] of [
-      ['preserve', 'inline'],
-      ['materialize', 'preserve'],
-    ] as const)
-      expect(() =>
-        planTransformation(v, {
-          operation: 'export-project',
-          options: { conditions, inputs, nodeEdits: actions },
-        })
-      ).toThrow();
+    expect(() =>
+      planTransformation(v, {
+        operation: 'export-project',
+        options: { inputs: 'preserve', nodeEdits: actions },
+      })
+    ).toThrow();
   });
   it('resolves source booleans first and suppresses active comments/environment content', () => {
     const text =
@@ -364,7 +361,6 @@ describe('C7a selected-node edit batches', () => {
     const r = planTransformation(v, {
       operation: 'export-project',
       options: {
-        conditions: 'materialize',
         inputs: 'inline',
         suppressComments: true,
         suppressCommentEnvironments: true,
@@ -382,7 +378,6 @@ describe('C5a/C7a edge cases and operation ordering', () => {
       v = resolveProjectView(createProjectSnapshot(files), configuration),
       n = env(v, 'C');
     const exportOptions = {
-      conditions: 'materialize',
       inputs: 'inline',
       nodeEdits: [wrap(v, n, 'D')],
     } as const;
@@ -397,36 +392,30 @@ describe('C5a/C7a edge cases and operation ordering', () => {
       runProjectPipeline([file('other', 'main.tex', 2)], { configuration, exportOptions })
     ).toThrow();
   });
-  it.each(['preserve', 'materialize'] as const)(
-    'suppresses active comment environments with %s conditions and retained inputs',
-    (conditions) => {
-      const files = [
-        file(
-          String.raw`\input{x}\iftrue\begin{comment}active\end{comment}\else\begin{comment}inactive\end{comment}\fi`
-        ),
-        file(
-          String.raw`\newcommand{\f}{\begin{comment}stored\end{comment}}\begin{comment}active\end{comment}`,
-          'x.tex'
-        ),
-      ];
-      const s = createProjectSnapshot(files),
-        v = resolveProjectView(s, { entryPath: 'main.tex' });
-      const r = planTransformation(v, {
-        operation: 'export-project',
-        options: { conditions, inputs: 'preserve', suppressCommentEnvironments: true },
-      });
-      expect(r.artifacts.find((a) => a.path === 'main.tex')!.source).not.toContain(
-        '{comment}active'
-      );
-      expect(r.artifacts.find((a) => a.path === 'x.tex')!.source).toContain('{comment}stored');
-      expect(r.artifacts.find((a) => a.path === 'x.tex')!.source).not.toContain('{comment}active');
-      if (conditions === 'preserve') expect(r.artifacts[0]!.source).toContain('{comment}inactive');
-      const stored = nodes(v).find(
-        (n) => n.kind === 'token' && n.token.value.includes('{comment}stored')
-      )!;
-      expect(() => edit(v, [remove(v, stored)])).toThrow();
-    }
-  );
+  it('suppresses active comment environments with realized conditions and retained inputs', () => {
+    const files = [
+      file(
+        String.raw`\input{x}\iftrue\begin{comment}active\end{comment}\else\begin{comment}inactive\end{comment}\fi`
+      ),
+      file(
+        String.raw`\newcommand{\f}{\begin{comment}stored\end{comment}}\begin{comment}active\end{comment}`,
+        'x.tex'
+      ),
+    ];
+    const s = createProjectSnapshot(files),
+      v = resolveProjectView(s, { entryPath: 'main.tex' });
+    const r = planTransformation(v, {
+      operation: 'export-project',
+      options: { inputs: 'preserve', suppressCommentEnvironments: true },
+    });
+    expect(r.artifacts.find((a) => a.path === 'main.tex')!.source).not.toContain('{comment}active');
+    expect(r.artifacts.find((a) => a.path === 'x.tex')!.source).toContain('{comment}stored');
+    expect(r.artifacts.find((a) => a.path === 'x.tex')!.source).not.toContain('{comment}active');
+    const stored = nodes(v).find(
+      (n) => n.kind === 'token' && n.token.value.includes('{comment}stored')
+    )!;
+    expect(() => edit(v, [remove(v, stored)])).toThrow();
+  });
   it('suppresses selected comment environments with a checked, clone-safe source plan', () => {
     const v = view('A%gone\r\n' + String.raw`\begin{comment}hidden\end{comment}` + 'B');
     const r = planTransformation(v, {
@@ -475,14 +464,14 @@ describe('C5a/C7a edge cases and operation ordering', () => {
     ]);
     expect(inv.environments[3]!.context.branches[0]!.arm).toBe('else');
   });
-  it('reports incomplete source coverage rather than claiming every environment was removed', () => {
-    const s = snapshot(String.raw`\gdef\x{\begin{C}stored\end{C}}`);
+  it('rejects environment removal on an incomplete view', () => {
+    const v = view(String.raw`\gdef\x{\begin{C}stored\end{C}}`);
     expect(() =>
-      planTransformation(s, {
+      planTransformation(v, {
         operation: 'remove-environments',
-        options: { target: 'source', names: ['C'] },
+        options: { target: 'selected', names: ['C'] },
       })
-    ).toThrow();
+    ).toThrow(expect.objectContaining({ code: PrepTexErrorCode.OperationUnavailable }));
   });
   it('handles empty source/body and every range boundary', () => {
     const v = view(''),
@@ -551,21 +540,11 @@ describe('C5a/C7a edge cases and operation ordering', () => {
     const stored = nodes(v).find((n) => n.kind === 'token' && n.token.value === 'stored')!;
     expect(() => edit(v, [remove(v, stored)])).toThrow();
   });
-  it('preserves selected-node condition decisions and distinguishes a source prepass', () => {
+  it('preserves selected-node condition decisions during artifact node removal', () => {
     const text = String.raw`\newif\iflong\begin{C}\global\longtrue\end{C}\iflong YES\else NO\fi`,
       v = view(text),
       n = env(v, 'C');
-    expect(output(edit(v, [remove(v, n)], 'artifact'))).toBe(' YES');
-    const r = planTransformation(v.snapshot, {
-      operation: 'remove-environments',
-      options: { target: 'source', names: ['C'] },
-    });
-    const updated = applyProjectEdits(v.snapshot, r.editPlan!),
-      after = resolveProjectView(updated, { entryPath: 'main.tex' });
-    expect(
-      output(planTransformation(after, { operation: 'materialize', options: { inputs: 'inline' } }))
-    ).toBe(' NO');
-    expect(() => edit(after, [remove(v, n)])).toThrow();
+    expect(output(edit(v, [remove(v, n)], 'artifact'))).toBe('YES');
   });
   it('enforces inserted nesting and output bounds before producing output', () => {
     const s = snapshot('{A}'),

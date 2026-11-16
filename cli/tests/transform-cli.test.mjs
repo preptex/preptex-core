@@ -24,7 +24,7 @@ test('transform writes a valid empty output file', async (context) => {
   assert.equal(await readFile(path.join(workspace, 'transform', 'empty.tex'), 'utf8'), '');
 });
 
-test('legacy CLI preserve, flatten, separate and AST commands retain their public behavior', async (context) => {
+test('CLI preserve, flatten, separate and AST commands operate on realized project views', async (context) => {
   const workspace = await mkdtemp(path.join(tmpdir(), 'preptex-cli-project-'));
   context.after(async () => rm(workspace, { recursive: true, force: true }));
   const source = String.raw`\newif\ifdraft\ifdraft A\else B\fi\input{part}`;
@@ -37,7 +37,10 @@ test('legacy CLI preserve, flatten, separate and AST commands retain their publi
     return result;
   };
   run('transform', '--work-dir', workspace, '--input', 'main.tex');
-  assert.equal(await readFile(path.join(workspace, 'transform', 'main.tex'), 'utf8'), source);
+  assert.equal(
+    await readFile(path.join(workspace, 'transform', 'main.tex'), 'utf8'),
+    String.raw`B\input{part}`
+  );
   run(
     'transform',
     '--work-dir',
@@ -48,12 +51,12 @@ test('legacy CLI preserve, flatten, separate and AST commands retain their publi
     '--if-branches',
     'draft'
   );
-  assert.equal(await readFile(path.join(workspace, 'transform', 'main.tex'), 'utf8'), ' APART');
+  assert.equal(await readFile(path.join(workspace, 'transform', 'main.tex'), 'utf8'), 'APART');
   run('transform', '--work-dir', workspace, '--input', 'main.tex', '--recursive');
   assert.equal(await readFile(path.join(workspace, 'transform', 'unused.tex'), 'utf8'), 'UNUSED');
   const ast = run('ast', '--work-dir', workspace, '--input', 'main.tex');
   const parsed = JSON.parse(ast.stdout);
-  assert.equal(parsed.path, 'main.tex');
-  assert.deepEqual(parsed.declaredConditions, ['draft']);
-  assert.equal(parsed.root.type, 'Root');
+  assert.equal(parsed.configuration.entryPath, 'main.tex');
+  assert.equal(parsed.status, 'ready');
+  assert.equal(parsed.root.kind, 'root');
 });

@@ -1,14 +1,13 @@
 import {
-  parseProject,
-  transformProject,
-  InputHandlingMode,
-  type ParsedProject,
-  type TransformOptions,
+  createProjectSnapshot,
+  planTransformation,
+  realizeProjectConditions,
+  resolveProjectView,
+  type ConditionPolicy,
 } from '@preptex/core';
 import { parseTransformArgs, printTransformHelp } from '../args.js';
 import path from 'node:path';
-import { resolvePaths } from '../io.js';
-import { readAllTexFiles, writeOutputsRecursive } from '../io.js';
+import { resolvePaths, readAllTexFiles, writeOutputsRecursive } from '../io.js';
 import type { TransformCliOptions } from '../args.js';
 
 export async function handleTransform(args: string[]): Promise<void> {
@@ -39,15 +38,12 @@ export async function handleTransform(args: string[]): Promise<void> {
     return;
   }
 
-  let project: ParsedProject;
-
-  const coreOptions: TransformOptions = {
-    suppressComments: options.suppressComments,
-    ...(options.inputHandling === undefined ? {} : { inputHandling: options.inputHandling }),
-    ...(options.enabledConditions === undefined
-      ? {}
-      : { enabledConditions: options.enabledConditions }),
-  };
+  const conditions: Exclude<ConditionPolicy, { readonly mode: 'none' }> = options.enabledConditions
+    ? {
+        mode: 'source-with-overrides',
+        overrides: Object.fromEntries(options.enabledConditions.map((name) => [name, true])),
+      }
+    : { mode: 'source' };
 
   try {
     vlog('resolving paths');
@@ -61,7 +57,6 @@ export async function handleTransform(args: string[]): Promise<void> {
     vlog(`baseDir: ${baseDir}`);
     vlog(`entryPath: ${entryPath}`);
 
-    // Load every .tex file in the working directory; core handles parsing.
     vlog('reading .tex files');
     const files = await readAllTexFiles(baseDir, outDir);
     vlog(`discovered ${files.length} .tex file(s)`);
@@ -72,29 +67,43 @@ export async function handleTransform(args: string[]): Promise<void> {
     }
 
     vlog(`entryKey: ${entryKey}`);
-
     vlog('processing project');
-    project = parseProject(files);
-    for (const diagnostic of project.diagnostics) {
-      process.stderr.write(
-        `[${diagnostic.path}:${diagnostic.range.line}] ${diagnostic.code}: ${diagnostic.message}\n`
-      );
+    const snapshot = createProjectSnapshot(files);
+
+    if (options.inputHandling === 'separate') {
+      const realized = realizeProjectConditions(snapshot, {
+        traversal: 'file-only',
+        conditions,
+      });
+      if (realized.status !== 'ready') {
+        throw new Error(realized.reason?.message ?? 'Condition realization failed.');
+      }
+      vlog(`generated ${realized.artifacts.length} output(s)`);
+      vlog('writing outputs recursively');
+      await writeOutputsRecursive(realized.artifacts, { ...options });
+      return;
     }
 
     vlog('transforming');
-    const outputs = transformProject(entryKey, project, coreOptions);
-    vlog(`generated ${outputs.files.length} output(s)`);
-
-    if (options.inputHandling === InputHandlingMode.Separate) {
-      vlog('writing outputs recursively');
-      await writeOutputsRecursive(outputs.files, { ...options });
-      return;
-    }
+    const view = resolveProjectView(snapshot, {
+      entryPath: entryKey,
+      traversal: 'project',
+      conditions,
+    });
+    const transformed = planTransformation(view, {
+      operation: 'export-project',
+      options: {
+        inputs: options.inputHandling === 'flatten' ? 'inline' : 'preserve',
+        suppressComments: options.suppressComments,
+      },
+    });
+    vlog(`generated ${transformed.artifacts.length} output(s)`);
 
     vlog(`outDir: ${outDir}`);
     vlog(`outName: ${outName}`);
 
-    const single = outputs.files[0];
+    const single =
+      transformed.artifacts.find((a) => a.path === entryKey) ?? transformed.artifacts[0];
     if (!single) {
       throw new Error('No output generated from transformation.');
     }

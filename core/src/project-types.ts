@@ -57,6 +57,7 @@ export type ProjectIssueCode =
   | 'unsupported-effect'
   | 'unsupported-assignment'
   | 'binding-redefined'
+  | 'unrealized-condition'
   | 'dynamic-input'
   | 'file-only-input'
   | 'missing-entry'
@@ -98,13 +99,21 @@ export interface Coverage {
   /** Located limitations, in deterministic encounter order. */
   readonly issues: readonly ProjectIssue[];
 }
+/** Lexical category of an unconditional source token. */
+export type SourceTokenKind = 'comment' | 'space' | 'command' | 'open' | 'close' | 'math' | 'text';
 /** A lossless lexical segment. Concatenating values reproduces the source exactly. */
 export interface SourceToken {
-  /** Lexical category; commands in protected text are not separate tokens. */
-  readonly kind: 'text' | 'space' | 'command' | 'comment' | 'verbatim' | 'open' | 'close' | 'math';
+  /** Zero-based index in the owning file's token stream. */
+  readonly index: number;
+
+  /** Lexical category; tokenizes raw source unconditionally without macro/verbatim state. */
+  readonly kind: SourceTokenKind;
 
   /** Exact source substring. */
   readonly value: string;
+
+  /** Command name without leading `\`, or `""` when `kind !== 'command'`. */
+  readonly name: string;
 
   /** Inclusive original range. */
   readonly range: SourceRange;
@@ -282,7 +291,7 @@ export type ProjectSourceChange =
     };
 /** Named values, case-sensitive; names exclude the if prefix and primitives. */
 export type BooleanValues = Readonly<Record<string, boolean>>;
-/** Source tracking, permanent manual forcing, and initial seeds have distinct semantics. */
+/** Source tracking, permanent manual forcing, initial seeds, and condition-free assertions have distinct semantics. */
 export type ConditionPolicy =
   | {
       /** Follow reached declarations and setters. */
@@ -303,6 +312,10 @@ export type ConditionPolicy =
       readonly overrides: BooleanValues;
       /** Initial source state, reset by declarations. */
       readonly initialValues?: BooleanValues;
+    }
+  | {
+      /** Assert no conditionals exist in the reached source; any conditional syntax stops with unrealized-condition. */
+      readonly mode: 'none';
     };
 /** Bounds on synchronous interpretation; hosts still own deadlines and scheduling. */
 export interface ViewLimits {
@@ -317,6 +330,70 @@ export interface ViewLimits {
 
   /** Selected UTF-16 code units, default 10000000. This is not a wall-clock bound. */
   readonly maxSelectedCodeUnits?: number;
+}
+/** Request for condition-only source realization without structural AST construction. */
+export interface ConditionRealizationRequest {
+  /** Entry virtual path; optional when snapshot has a single file, main.tex, or traversal is file-only. */
+  readonly entryPath?: string;
+
+  /** Follow active literal inputs across project files, or evaluate files independently; default 'project'. */
+  readonly traversal?: 'project' | 'file-only';
+
+  /** Target files when traversal is 'file-only'; defaults to all files, or [entryPath] when entryPath is provided. */
+  readonly scope?: SourceScope;
+
+  /** Boolean condition evaluation policy; default { mode: 'source' }. */
+  readonly conditions?: ConditionPolicy;
+
+  /** Preserve active \input{...} commands across separate realized files, or inline active inputs into the entry artifact; default 'preserve'. */
+  readonly inputs?: 'preserve' | 'inline';
+
+  /** Strip \newif\ifX and reached [\global]\Xtrue/\Xfalse assignments along with \if.../\else/\fi; default true. */
+  readonly stripDeclarationsAndSetters?: boolean;
+
+  /** Optional interpretation resource bounds. */
+  readonly limits?: ViewLimits;
+
+  /** Maximum total output size in UTF-16 code units; default 10,000,000, maximum 100,000,000. */
+  readonly maxOutputCodeUnits?: number;
+}
+/** Condition-realized source output with edit plans, artifacts, and condition decisions. */
+export interface ConditionRealizationResult {
+  /** Result discriminant. */
+  readonly kind: 'condition-realization';
+
+  /** Exact source snapshot identity. */
+  readonly snapshotId: SnapshotId;
+
+  /** Deterministic result identity. */
+  readonly resultId: string;
+
+  /** Complete condition realization, or incomplete/blocked when a condition or input could not be resolved. */
+  readonly status: 'ready' | 'incomplete' | 'blocked';
+
+  /** First blocking or incomplete issue, or null when status is 'ready'. */
+  readonly reason: ProjectIssue | null;
+
+  /** Exact operation provenance. */
+  readonly provenance: OperationProvenance;
+
+  /** Inclusion occurrences visited during condition traversal. */
+  readonly occurrences: readonly InputOccurrence[];
+
+  /** Condition decisions in encounter order. */
+  readonly decisions: readonly ConditionDecision[];
+
+  /** Per-file source edit plan when inputs === 'preserve' and status === 'ready'; otherwise null. */
+  readonly editPlan: ProjectEditPlan | null;
+
+  /** Realized LaTeX artifacts in deterministic path order when status === 'ready'; empty on failure. */
+  readonly artifacts: readonly GeneratedArtifact[];
+
+  /** Remaining input relationships in emitted artifacts. */
+  readonly dependencies: readonly ArtifactDependency[];
+
+  /** Coverage and encountered issues. */
+  readonly coverage: Coverage;
 }
 /** Independent semantic configuration; output naming and visual filters are excluded. */
 export interface ViewConfiguration {
@@ -393,8 +470,8 @@ export interface ReachedFact {
 }
 /** A selected lexical token with distinct projected and original coordinates. */
 export interface SelectedToken {
-  /** Opaque stored syntax is a leaf; structural delimiters there never execute. */
-  readonly interpretation: 'structure' | 'opaque';
+  /** Opaque stored syntax or active verbatim region is a leaf; structural delimiters there never execute. */
+  readonly interpretation: 'structure' | 'opaque' | 'verbatim';
 
   /** Lexical source token, keeping its original offsets. */
   readonly token: SourceToken;
@@ -572,7 +649,7 @@ export interface InventoryResult {
   /** Coverage of the requested files. */
   readonly coverage: Coverage;
 }
-/** Public requests for independent inventory, interpretation, analysis, and transformation. */
+/** Public requests for independent inventory, condition realization, interpretation, analysis, and transformation. */
 export type OperationRequest =
   | NodeTransformationRequest
   | {
@@ -582,72 +659,55 @@ export type OperationRequest =
       readonly options?: InventoryRequest;
     }
   | {
+      /** Condition-only source realization on a project snapshot. */
+      readonly operation: 'realize-conditions';
+      /** Condition realization settings. */
+      readonly options: ConditionRealizationRequest;
+    }
+  | {
       /** Configured view operation. */
       readonly operation: 'resolve-view';
       /** Interpretation settings. */
       readonly options: ViewConfiguration;
     }
   | {
-      /** Independent analysis; unused-command analysis also accepts source snapshots. */
+      /** Independent structural analysis over a realized ProjectView. */
       readonly operation: 'references' | 'unused-commands';
-      /** Partial view observations require explicit opt-in; source scope is for source models only. */
+      /** Partial view observations require explicit opt-in. */
       readonly options?: AnalysisOptions;
     }
   | {
-      /** Exact source edit preview. */
-      readonly operation: 'suppress-comments' | 'identity';
-      /** Explicit source or selected-path target. */
-      readonly options: {
-        /** Inspect all requested source or only the configured selected path. */
-        readonly target: 'source' | 'selected';
+      /** Configured comment suppression on a realized ProjectView. */
+      readonly operation: 'suppress-comments';
+      /** Selected-path comment suppression options. */
+      readonly options?: {
+        /** Inspect only the configured selected path; default 'selected'. */
+        readonly target?: 'selected';
         /** Also remove recognized comment environments; default false. Verbatim remains protected. */
         readonly suppressCommentEnvironments?: boolean;
-        /** Source-only scope; forbidden with a selected-path target. */
-        readonly scope?: SourceScope;
         /** Maximum total preview size in UTF-16 code units; default 10,000,000, maximum 100,000,000. */
         readonly maxOutputCodeUnits?: number;
       };
     }
   | {
-      /** Configured conditional materialization. */
-      readonly operation: 'materialize';
-      /** Output topology independent of traversal. */
-      readonly options: {
-        /** Selected-node actions; nonempty actions require inline output. */
-        readonly nodeEdits?: readonly NodeEditAction[];
-        /** Remove selected complete comment environments; default false. */
-        readonly suppressCommentEnvironments?: boolean;
-        /** Preserve input commands or expand active inclusion occurrences. */
-        readonly inputs: 'preserve' | 'inline';
-        /** Suppress eligible comments during export; default false. */
-        readonly suppressComments?: boolean;
-        /** Maximum total output UTF-16 units; default 10000000. */
-        readonly maxOutputCodeUnits?: number;
-      };
-    }
-  | {
-      /** Export with explicit conditional retention and input arrangement. */
+      /** Export a realized ProjectView with explicit input arrangement. */
       readonly operation: 'export-project';
       /** Export semantics independent of the configured traversal. */
       readonly options: ExportOptions;
     };
 
-/** Options shared by independently runnable analyses. */
+/** Options shared by independently runnable configured analyses. */
 export interface AnalysisOptions {
   /** Accept observations up to the view's failure boundary; default false. */
   readonly allowIncomplete?: boolean;
-  /** Snapshot-only source scope; default all-files. */
-  readonly scope?: SourceScope;
 }
 
 /** Output policies for a configured project. No filename rewriting is performed. */
 export interface ExportOptions {
-  /** Selected-node actions before final export; nonempty actions require materialize/inline output. */
+  /** Selected-node actions before final export; nonempty actions require inline output. */
   readonly nodeEdits?: readonly NodeEditAction[];
   /** Remove selected complete comment environments independently of percent suppression; default false. */
   readonly suppressCommentEnvironments?: boolean;
-  /** Keep wrappers/inactive slices exactly, or export only resolved source. */
-  readonly conditions: 'preserve' | 'materialize';
   /** Preserve input commands and relative files, or expand active occurrences. */
   readonly inputs: 'preserve' | 'inline';
   /** Remove eligible active comments; default false. */
@@ -723,8 +783,8 @@ export interface OperationDescriptor {
   /** Whether execution is shipped in this release. */
   readonly implemented: boolean;
 
-  /** Required model, allowing a source or selected-path comment operation. */
-  readonly representation: 'snapshot' | 'view' | 'either';
+  /** Required model representation. */
+  readonly representation: 'snapshot' | 'view';
 
   /** Valid source/execution scopes. */
   readonly scopes: readonly ('all-files' | 'files' | 'configured')[];

@@ -1,6 +1,11 @@
-import { InputHandlingMode, isInputHandlingMode } from '@preptex/core';
 import path from 'node:path';
 import process from 'node:process';
+
+export type CliInputHandlingMode = 'preserve' | 'flatten' | 'separate';
+
+function isCliInputHandlingMode(value: string): value is CliInputHandlingMode {
+  return value === 'preserve' || value === 'flatten' || value === 'separate';
+}
 
 /*
   Minimal CLI parsing for the `transform` command.
@@ -17,7 +22,7 @@ export interface BaseCliOptions {
 export interface TransformCliOptions extends BaseCliOptions {
   suppressComments: boolean;
   verbose?: boolean;
-  inputHandling?: InputHandlingMode;
+  inputHandling?: CliInputHandlingMode;
   workDir?: string;
   outDir?: string;
   output?: string;
@@ -113,10 +118,10 @@ export function parseTransformArgs(argv: string[]): TransformCliOptions {
         opts.suppressComments = true;
         break;
       case '--flatten':
-        opts.inputHandling = InputHandlingMode.Flatten;
+        opts.inputHandling = 'flatten';
         break;
       case '--recursive':
-        opts.inputHandling = InputHandlingMode.Separate;
+        opts.inputHandling = 'separate';
         break;
       case '-f':
       case '--if-branches': {
@@ -132,7 +137,7 @@ export function parseTransformArgs(argv: string[]): TransformCliOptions {
       case '--handle-input-cmd': {
         const v = argv[++i];
         if (!v || v.startsWith('-')) throw new Error('--handle-input-cmd requires a value');
-        if (!isInputHandlingMode(v)) {
+        if (!isCliInputHandlingMode(v)) {
           throw new Error(`Invalid value for --handle-input-cmd: ${v}`);
         }
         opts.inputHandling = v;

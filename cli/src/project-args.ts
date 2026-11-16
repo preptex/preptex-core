@@ -50,7 +50,6 @@ export function parseProjectArgs(
   let kinds: SyntaxFact['kind'][] | undefined;
   const values = new Map<string, boolean>();
   const initial = new Map<string, boolean>();
-  let configuredOptions = false;
   const assign = (map: Map<string, boolean>, value: string): void => {
     const match = /^([A-Za-z]+)=(true|false)$/.exec(value);
     if (!match) bad('Boolean values must use name=true or name=false.');
@@ -106,31 +105,31 @@ export function parseProjectArgs(
       }
       case '--condition-mode': {
         const name = value();
-        if (name !== 'source' && name !== 'manual' && name !== 'source-with-overrides')
+        if (
+          name !== 'source' &&
+          name !== 'manual' &&
+          name !== 'source-with-overrides' &&
+          name !== 'none'
+        )
           bad('Unknown condition mode.');
         mode = name;
-        configuredOptions = true;
         break;
       }
       case '--condition':
         assign(values, value());
-        configuredOptions = true;
         break;
       case '--initial':
         assign(initial, value());
-        configuredOptions = true;
         break;
       case '--traversal': {
         const name = value();
         if (name !== 'project' && name !== 'file-only')
           bad('Traversal must be project or file-only.');
         traversal = name;
-        configuredOptions = true;
         break;
       }
       case '--allow-incomplete':
         allowIncomplete = true;
-        configuredOptions = true;
         break;
       default:
         bad(`Unknown analyze option: ${flag}`);
@@ -144,26 +143,27 @@ export function parseProjectArgs(
       help,
       request: { ...(scope ? { scope } : {}), ...(kinds ? { kinds } : {}) },
     };
-  if (!help && !entry && (operation === 'references' || configuredOptions))
-    bad('This analysis requires --entry; source unused-commands analysis may omit it.');
-  if (entry && scope)
-    bad('Configured analysis uses the reached project scope; --files is for source analysis only.');
-  if (mode === 'source' && values.size)
+  if (scope)
+    bad('Configured analysis uses the reached project scope; --files is for inventory only.');
+  if (!help && !entry) bad('This analysis requires --entry.');
+  if ((mode === 'source' || mode === 'none') && values.size)
     bad('--condition requires manual or source-with-overrides mode; --initial seeds source mode.');
-  if (mode === 'manual' && initial.size)
-    bad('Manual conditions cannot take --initial source seeds.');
+  if ((mode === 'manual' || mode === 'none') && initial.size)
+    bad(`${mode} conditions cannot take --initial source seeds.`);
   const seeds = initial.size ? { initialValues: Object.fromEntries(initial) } : {};
   const conditions: ConditionPolicy =
     mode === 'manual'
       ? { mode, values: Object.fromEntries(values) }
       : mode === 'source-with-overrides'
         ? { mode, overrides: Object.fromEntries(values), ...seeds }
-        : { mode, ...seeds };
+        : mode === 'none'
+          ? { mode }
+          : { mode, ...seeds };
   return {
     command,
     workDir,
     help,
-    request: { operation, options: { allowIncomplete, ...(scope ? { scope } : {}) } },
+    request: { operation, options: { allowIncomplete } },
     configuration: entry ? { entryPath: entry, conditions, traversal } : null,
   };
 }
@@ -177,10 +177,9 @@ export function printProjectHelp(command: ProjectCommand): void {
           `Kinds (comma separated): ${factKinds.join(', ')}`,
         ]
       : [
-          'Usage: preptex analyze [--work-dir <dir>] [--entry <path>] [--analysis references|unused-commands]',
-          'Print analysis JSON; references require an entry. Without an entry, unused-commands inspects source.',
-          '  --files <paths>              Comma-separated paths for source-only analysis',
-          '  --condition-mode <mode>      source (default), manual, source-with-overrides',
+          'Usage: preptex analyze [--work-dir <dir>] --entry <path> [--analysis references|unused-commands]',
+          'Print analysis JSON for a configured project view.',
+          '  --condition-mode <mode>      source (default), manual, source-with-overrides, none',
           '  --condition <name=true|false> Repeat to force named booleans in manual/override mode',
           '  --initial <name=true|false>   Repeat to seed source-mode booleans',
           '  --traversal project|file-only Default project; file-only does not follow input effects',

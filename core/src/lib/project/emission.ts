@@ -7,8 +7,10 @@ import type {
   OperationProvenance,
   ProjectSnapshot,
   ScannedFile,
+  SourceToken,
 } from '../../project-types.js';
-import { lex, scanFile, type Lexeme } from './scan.js';
+import { scanFile } from './scan.js';
+import { matchVerbatimTokens, tokenizeFile } from './tokenize.js';
 import { lineStarts, rangeAt } from './shared.js';
 import { normalizeVirtualPath, virtualDirname, withTexExtension } from '../virtual-path.js';
 import { reject } from './fail.js';
@@ -41,15 +43,26 @@ export function sourceCopier(snapshot: ProjectSnapshot) {
 export function synthetic(text: string, reason: string): Segment {
   return { text, origin: null, reason };
 }
-export function lastToken(text: string, options: NormalizedScanOptions): Lexeme | null {
-  let last: Lexeme | null = null;
-  for (let pos = 0; pos < text.length;) {
-    last = lex(text, pos, options);
-    pos = last.end;
+export function lastToken(text: string, options?: NormalizedScanOptions): SourceToken | null {
+  const tokens = tokenizeFile(text);
+  if (tokens.length === 0) return null;
+  const verbatimEnvs = options?.verbatimEnvironments ?? ['verbatim', 'lstlisting', 'minted'];
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i]!;
+    if (tok.kind === 'command' && (tok.name === 'verb' || tok.name === 'begin')) {
+      const verb = matchVerbatimTokens(tokens, i, verbatimEnvs);
+      if (verb) {
+        if (verb.closed && verb.endOffset === text.length - 1) {
+          const endTok = tokens[verb.endIndex]!;
+          return { ...endTok, kind: 'text', name: '' };
+        }
+        i = verb.endIndex;
+      }
+    }
   }
-  return last;
+  return tokens[tokens.length - 1]!;
 }
-export function boundaryDelimiter(previous: Lexeme | null, next: string): string {
+export function boundaryDelimiter(previous: SourceToken | null, next: string): string {
   if (!previous || !next) return '';
   if (previous.kind === 'command' && /^[A-Za-z@]+$/.test(previous.name) && /^[A-Za-z@]/.test(next))
     return ' ';
@@ -78,7 +91,7 @@ export function emit(
   let line = 1;
   let previousCR = false;
   let previous: Segment | undefined;
-  let tail: Lexeme | null = null;
+  let tail: SourceToken | null = null;
   function append(segment: Segment): void {
     if (!segment.text) return;
     if (length + segment.text.length > limit)

@@ -1,118 +1,118 @@
-# Migrating to the 0.3.0 project model
+# Migrating to `@preptex/core@0.3.0`
 
-All C1–C10 changes belong to **0.3.0**. The legacy functions and option types
-remain exported, with deprecation annotations to guide new integrations. Existing
-valid calls retain their behavior. Mixing legacy fields with new policies now
-throws `PrepTexError` with `PrepTexErrorCode.InvalidArgument` in either API.
+`@preptex/core@0.3.0` introduces the **separated condition-realization and condition-free structural AST architecture** and removes all deprecated `0.2.x` functions, enums, and source-target/preserve-condition shim options.
 
-C5a/C7a adds [node locations, lookup and transformations](./node-operations.md)
-within this same unreleased version. Recreate earlier development snapshots/views
-from their original sources. Configured nodes now carry `location` and environment
-`syntax`; operation unions include `edit-nodes` and `remove-environments`, whose
-descriptors have `resultKind: 'transformation'`. Update exhaustive consumer switches.
-Comment-environment suppression is explicit; percent-only behavior stays the default.
+---
 
-## Choose the representation explicitly
+## Summary of removed APIs and their `0.3.0` replacements
 
-| Legacy API                                          | New workflow                                                                             | Migration difference                                                                                                             |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `parseDocument`, `parseProject`                     | `createProjectSnapshot`; optionally `resolveProjectView`                                 | Source scanning accepts incomplete fragments and retains all branches. Only a ready configured view has structural nodes.        |
-| `mergeProjects`                                     | `updateProjectSnapshot`                                                                  | Atomic upserts and removals. Equal revisions with different text are rejected; legacy merging permits equal-version replacement. |
-| `serializeDocument`                                 | `planTransformation(snapshot, { operation: 'identity', options: { target: 'source' } })` | Exact original strings, including incomplete source, rather than serialization of a legacy AST.                                  |
-| `transformProject`                                  | `planTransformation(view, request)` or `runProjectPipeline`                              | Interpretation, analysis and export have separate settings and results.                                                          |
-| `AstNode`, `NodeType`, `isContainerNode`            | `ConfiguredNode`, `walkConfiguredNodes`, `isConfiguredContainerNode`                     | Narrow by `kind`; navigation uses original spans and inclusion identities, not file-local AST IDs.                               |
-| `ParseOptions.enabledTokens`, `maximumSectionLevel` | Keep the legacy parser when these behaviors are required                                 | No equivalent scanner option. `ScanOptions` describes the new supported source profile.                                          |
+| Removed API / Option                                                            | `@preptex/core@0.3.0` Replacement                                                                                                               | Notes                                                                                                                                                                                                                            |
+| :------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `parseDocument`, `parseProject`                                                 | `createProjectSnapshot(files)` + `resolveProjectView(snapshot, config)`                                                                         | `createProjectSnapshot` tokenizes each file once (`tokenizeFile`) and extracts `SyntaxFact[]` without requiring balanced structure. `resolveProjectView` realizes conditions and builds the condition-free `ConfiguredNode` AST. |
+| `mergeProjects`                                                                 | `updateProjectSnapshot(snapshot, changes, scanOptions?)`                                                                                        | Supports atomic `upsert` and `remove` changes and reuses unchanged file scans.                                                                                                                                                   |
+| `serializeDocument`, `transformProject`, `InputHandlingMode`, `TransformedFile` | `realizeProjectConditions(snapshot, request)` or `planTransformation(view, { operation: 'export-project', options })`                           | Use `realizeProjectConditions` for standalone condition realization without AST parsing; use `planTransformation` on a `ProjectView` for structural exports (`GeneratedArtifact`).                                               |
+| `AstNode`, `NodeType`, `isContainerNode`                                        | `ConfiguredNode`, `walkConfiguredNodes`, `isConfiguredContainerNode`                                                                            | Discriminated by `node.kind` (`'root' \| 'section' \| 'environment' \| 'group' \| 'math' \| 'token'`).                                                                                                                           |
+| `PrepTexSyntaxError`, `DiagnosticCode`, `DiagnosticSeverity`                    | `ProjectView.status` / `ProjectView.reason` (`ProjectIssue`), `ConditionRealizationResult.reason`, `PrepTexError`, `ProjectOperationError`      | Expected LaTeX syntax or condition issues are reported as structured `ProjectIssue` records (`status: 'incomplete' \| 'blocked'`) rather than throwing exceptions during parsing.                                                |
+| `operation: 'identity'`                                                         | Read `snapshot.files` directly                                                                                                                  | `ProjectSnapshot.files` already holds the exact, frozen original `source` strings.                                                                                                                                               |
+| `operation: 'materialize'`                                                      | `realizeProjectConditions(snapshot, request)` (Pipeline B) or `planTransformation(view, { operation: 'export-project', options })` (Pipeline A) | In `0.3.0`, `export-project` always emits condition-realized output from the `ProjectView`, while `realizeProjectConditions` realizes conditions directly on a `ProjectSnapshot`.                                                |
+| `ExportOptions.conditions: 'preserve' \| 'materialize'`                         | `ExportOptions` (`{ inputs?: 'preserve' \| 'inline', suppressComments?, suppressCommentEnvironments?, nodeEdits? }`)                            | Conditions are always realized prior to AST construction and export.                                                                                                                                                             |
+| `target: 'source'` on `suppress-comments` and `remove-environments`             | `target: 'selected'` (or `'artifact'`) on a ready `ProjectView`                                                                                 | Structural operations (`suppress-comments`, `remove-environments`, `edit-nodes`) operate exclusively on the realized `ProjectView` (**INV-6**).                                                                                  |
+| `runAnalysis(snapshot, { operation: 'unused-commands' })`                       | `runAnalysis(view, { operation: 'unused-commands' })`                                                                                           | Both `'references'` and `'unused-commands'` analyses operate on a configured `ProjectView` (**INV-6**). Use `inspectProject(snapshot, { kinds: ['definition', 'command-use'] })` for raw unconfigured source inventories.        |
 
-Keep source buffers as caller-owned `SourceFile` data. Store returned snapshots,
-views and results as readonly. Generated `artifacts` are separate output buffers;
-apply a checked `editPlan` only after reviewing it against its source/view identity.
-Structured cloning preserves data but does not preserve runtime freezing.
+---
 
-## Condition semantics are different
+## Separating Condition Realization (Pipeline B) from AST Generation (Pipeline A)
 
-Legacy omission of `enabledConditions` preserves conditional source. An empty
-array chooses the false arm of every recognized legacy test; a supplied list is
-a static, case-sensitive whitelist, independent of encountered setters. Legacy
-recognition includes broad `if`-prefixed spellings. Filtering strips recognized
-declarations and generated setters, even when a stored consumer could need them.
+### 1. Standalone Condition Realization (Pipeline B)
 
-The new default `source` policy interprets supported declarations and setters in
-encounter order, including active inputs. `manual` forces explicitly supplied
-names; omitted names are **unknown**, so `{ values: {} }` is not the old empty
-whitelist. `source-with-overrides` forces selected names while retaining source
-observations. `initialValues` seeds source state; a later declaration resets it.
-Literal and primitive tests cannot be reinterpreted as arbitrary named booleans.
-The [support matrix](./project-model.md#supported-interpretation-profile) describes
-the bounded profile and the points where interpretation stops.
+When the frontend needs to evaluate and strip `\newif`, `\if...`, `\else`, `\fi`, and `\Xtrue`/`\Xfalse` without requiring balanced environments, braces, or math:
 
-To migrate a whitelist for a known set of supported named flags, supply explicit
-true/false values for every relevant name. Do not guess false for unrecognized or
-externally generated tests. Use the legacy path if its broader recognition and
-unconditional stripping are needed. New materialization retains boolean
-scaffolding when bounded inspection cannot establish that removal is safe.
+```ts
+import {
+  applyProjectEdits,
+  createProjectSnapshot,
+  realizeProjectConditions,
+  type SourceFile,
+} from '@preptex/core';
 
-Exact source preservation needs no condition policy or ready view: use the
-source `identity` operation. `conditions: 'preserve'` on configured export still
-requires a ready view because it may apply active edits or expand inputs.
+const files: readonly SourceFile[] = [
+  {
+    path: 'main.tex',
+    version: 1,
+    source: String.raw`\newif\ifanon\anontrue
+\ifanon Anonymous Author\else Real Author\fi`,
+  },
+];
 
-## Input scope and output topology
+const snapshot = createProjectSnapshot(files);
+const realized = realizeProjectConditions(snapshot, {
+  entryPath: 'main.tex',
+  traversal: 'project',
+  conditions: { mode: 'source' },
+});
 
-Legacy `Preserve` emits only the entry; `Flatten` expands reachable inputs;
-`Separate` emits every supplied file, including unreachable files. New
-`traversal: 'project'` follows input effects regardless of the output topology.
-`file-only` stops incomplete at input effects; it is not a replacement for
-legacy `Preserve`.
+if (realized.status === 'ready' && realized.editPlan) {
+  const conditionFreeSnapshot = applyProjectEdits(snapshot, realized.editPlan);
+  // conditionFreeSnapshot.files[0].source === 'Anonymous Author'
+}
+```
 
-New exports choose `inputs: 'preserve' | 'inline'` independently from
-`conditions: 'preserve' | 'materialize'`. Preserving both emits all supplied files.
-Materializing with preserved inputs emits reached files and rejects conflicting
-specializations of a shared file. Inlining permits distinct inclusion outputs.
-Preserving conditions while inlining can leave inactive literal dependencies;
-inspect `dependencies` and each artifact's `topology`. No new option exactly
-recreates every legacy Separate transformation; retain that entry point when
-its all-supplied-files filtering is required.
+### 2. Building the Condition-Free AST after Realization (`conditions: { mode: 'none' }`)
 
-## Compose operations or use the pipeline
+Once conditions have been realized in-place on a `ProjectSnapshot`, pass `conditions: { mode: 'none' }` to `resolveProjectView`:
+
+```ts
+import { resolveProjectView } from '@preptex/core';
+
+const view = resolveProjectView(conditionFreeSnapshot, {
+  entryPath: 'main.tex',
+  conditions: { mode: 'none' },
+});
+// If any unrealized \if/\else/\fi remained, view.status === 'blocked'
+// and view.reason.code === 'unrealized-condition'.
+```
+
+### 3. One-Pass Virtual Realization + Structural Pipeline
+
+If the frontend wants to keep conditional directives in the editor buffers while building the realized AST, running analyses, or exporting:
 
 ```ts
 import {
   createProjectSnapshot,
+  planTransformation,
   resolveProjectView,
   runAnalysis,
-  planTransformation,
   runProjectPipeline,
   type SourceFile,
 } from '@preptex/core';
 
 const files: readonly SourceFile[] = [
-  { path: 'main.tex', version: 1, source: String.raw`\ref{x}\input{part}` },
-  { path: 'part.tex', version: 1, source: String.raw`\label{x}Hello` },
+  { path: 'main.tex', version: 1, source: String.raw`\newif\ifdraft\drafttrue\ref{x}\input{part}` },
+  { path: 'part.tex', version: 1, source: String.raw`\ifdraft\label{x}Hello\fi` },
 ];
+
 const snapshot = createProjectSnapshot(files);
-const configuration = { entryPath: 'main.tex' } as const;
+const configuration = {
+  entryPath: 'main.tex',
+  conditions: { mode: 'source' },
+} as const;
+
 const view = resolveProjectView(snapshot, configuration);
-const exportOptions = { conditions: 'materialize', inputs: 'inline' } as const;
+const exportOptions = { inputs: 'inline', suppressComments: true } as const;
+
 if (view.status === 'ready') {
   const references = runAnalysis(view, { operation: 'references' });
-  for (const finding of references.findings) console.log(finding.code, finding.severity);
-  const output = planTransformation(view, { operation: 'export-project', options: exportOptions });
-  console.log(output.artifacts);
+  const output = planTransformation(view, {
+    operation: 'export-project',
+    options: exportOptions,
+  });
+  console.log(references.findings, output.artifacts[0]?.source);
 }
+
+// Or compose snapshot + view + analyses + export in one call:
 const pipeline = runProjectPipeline(files, {
   configuration,
-  analyses: [{ operation: 'references' }],
+  analyses: [{ operation: 'references' }, { operation: 'unused-commands' }],
   exportOptions,
 });
-// pipeline.snapshot, .view, .analyses and .transformation equal the individual calls.
 ```
-
-The pipeline requires explicit export policies and an exportable view. Analyses
-run in request order, defaulting to none. It throws on an unavailable or failed
-operation, returning no partial pipeline. Use independent calls to retain an
-incomplete view or request explicitly partial analysis. Source inventory and
-source command-use analysis never require export settings or a destination.
-
-Handle `ProjectOperationError.code` and `failure`, and view `status` and
-`reason.code`; do not parse messages. The CLI's new `inventory` and `analyze`
-commands emit JSON, while existing `transform` and `ast` commands keep their
-legacy options. See the packaged CLI README for examples.

@@ -76,17 +76,21 @@ test('configured CLI reference analysis follows input order and explicit overrid
   assert.notEqual(source.resultId, forced.resultId);
 });
 
-test('source-only command candidates and scoped analysis need no configured entry', async (context) => {
+test('configured unused-commands analysis inspects reached definitions', async (context) => {
   const root = await fixture(context, {
-    'main.tex': String.raw`\def\used{}\used`,
-    'other.tex': String.raw`\def\unused{}`,
+    'main.tex': String.raw`\def\used{}\used\def\unused{}`,
+    'other.tex': String.raw`\def\unreached{}`,
   });
   const result = success(
-    run('analyze', '--work-dir', root, '--analysis', 'unused-commands', '--files', 'other.tex')
+    run('analyze', '--work-dir', root, '--entry', 'main.tex', '--analysis', 'unused-commands')
   );
-  assert.equal(result.commands[0].name, 'unused');
-  assert.equal(result.commands[0].definition.occurrenceId, null);
-  assert.equal(result.provenance.viewId, null);
+  assert.equal(result.commands.length, 2);
+  assert.equal(result.commands[0].name, 'used');
+  assert.equal(result.commands[0].classification, 'directly-used');
+  assert.equal(result.commands[1].name, 'unused');
+  assert.equal(result.commands[1].classification, 'no-recognized-use');
+  assert.equal(result.commands[1].definition.occurrenceId, 'i0');
+  assert.notEqual(result.provenance.viewId, null);
 });
 
 test('incomplete analysis requires opt-in and preserves structured coverage/failure', async (context) => {
