@@ -1,12 +1,12 @@
 # Project model integration contract
 
-`@preptex/core@0.3.0` provides a separated two-pipeline architecture over a single stateless whole-file tokenizer:
+`@preptex/core@0.4.0` provides a separated two-pipeline architecture over a single stateless whole-file tokenizer:
 
 - **Stage 0**: Source snapshots (`createProjectSnapshot`, `updateProjectSnapshot`), whole-file primitive tokenization (`tokenizeFile`), and source inventories (`inspectProject`, `inspectProjectEnvironments`).
 - **Pipeline B**: Standalone condition realization (`realizeProjectConditions` and `operation: 'realize-conditions'`), independent of structural AST generation.
 - **Pipeline A**: Condition-free structural views (`resolveProjectView`), AST traversal (`walkConfiguredNodes`), reached analyses (`runAnalysis`), source indexing (`createProjectSourceIndex`, `lookupProjectSource`, `sourceOffsetAt`), node/comment/environment edits, and exports (`planTransformation`, `applyProjectEdits`, `runProjectPipeline`).
 
-See [Node operations](./node-operations.md) for source interval indexing and selected-node transformations, [Integration guide](./integration.md) for complete frontend/backend examples, and [0.3.0 migration](./migration-0.3.md) for migration details.
+See [Node operations](./node-operations.md) for source interval indexing and selected-node transformations, [Integration guide](./integration.md) for complete frontend/backend examples, and [0.4.0 migration](./migration-0.4.md) for migration details.
 
 ---
 

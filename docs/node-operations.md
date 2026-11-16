@@ -1,6 +1,6 @@
 # Source lookup and selected-node transformations
 
-These APIs provide original-source interval indexing, cursor/range lookup, environment inventories, and selected-node transformations in `@preptex/core@0.3.0`. All operations expose deeply readonly data without mutable parser objects or custom callbacks.
+These APIs provide original-source interval indexing, cursor/range lookup, environment inventories, and selected-node transformations in `@preptex/core@0.4.0`. All operations expose deeply readonly data without mutable parser objects or custom callbacks.
 
 The [runnable example](../examples/node-operations.mjs) demonstrates standalone condition realization (`realizeProjectConditions` + `applyProjectEdits`), condition-free view construction (`conditions: { mode: 'none' }`), node selection, environment renaming/wrapping, and comment suppression.
 

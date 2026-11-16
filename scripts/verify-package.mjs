@@ -42,7 +42,7 @@ const writeJson = (filename, data) => writeFile(filename, `${JSON.stringify(data
 const packages = [];
 for (const workspace of ['core', 'cli']) {
   const manifest = await json(path.join(root, workspace, 'package.json'));
-  assert.equal(manifest.version, '0.3.0', 'All stages share the 0.3.0 release.');
+  assert.equal(manifest.version, '0.4.0', 'All stages share the 0.4.0 release.');
   npm(['run', 'prepack', `--workspace=${manifest.name}`]);
   const packOutput = npm(
     [
@@ -74,7 +74,7 @@ for (const workspace of ['core', 'cli']) {
       'dist/docs/architecture.md',
       'dist/docs/project-model.md',
       'dist/docs/node-operations.md',
-      'dist/docs/migration-0.3.md',
+      'dist/docs/migration-0.4.md',
       'dist/docs/website-handoff.md'
     );
   for (const name of required) assert.ok(names.has(name), `Missing package file: ${name}`);
@@ -143,12 +143,12 @@ try {
   assert.equal(installed.exports['.'].types, './dist/index.d.ts');
   assert.equal(installed.exports['.'].import, './dist/index.js');
   assert.equal(installed.exports['.'].browser, './dist/index.js');
-  assert.equal(installed.version, '0.3.0');
+  assert.equal(installed.version, '0.4.0');
   assert.equal(
     (await json(path.join(consumer, 'node_modules/@preptex/cli/package.json'))).dependencies[
       '@preptex/core'
     ],
-    '0.3.0'
+    '0.4.0'
   );
   await cp(path.join(root, 'core/type-tests'), path.join(consumer, 'type-tests'), {
     recursive: true,
@@ -201,7 +201,7 @@ try {
     [
       "import assert from 'node:assert/strict';",
       "import { createProjectSnapshot, runProjectPipeline } from '@preptex/core';",
-      "assert.equal(createProjectSnapshot([]).coreVersion, '0.3.0');",
+      "assert.equal(createProjectSnapshot([]).coreVersion, '0.4.0');",
       "assert.equal(typeof runProjectPipeline, 'function');",
       "await assert.rejects(import('@preptex/core/dist/lib/core.js'), { code: 'ERR_PACKAGE_PATH_NOT_EXPORTED' });",
     ].join('\n')

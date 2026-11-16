@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented here.
 
-## [0.3.0] - Unreleased
+## [0.4.0] - 2026-11-16
 
 ### Added
 
@@ -12,10 +12,23 @@ All notable changes to this project will be documented here.
 - **Source Snapshots, Inventories, and Environment Lookup**: `createProjectSnapshot`, `updateProjectSnapshot`, `inspectProject`, `inspectProjectEnvironments`, `createProjectSourceIndex`, `lookupProjectSource`, `sourceOffsetAt`, `selectProjectNode`, `getSelectedNode`, and `getSelectedEnvironment`.
 - **Realized-Only Analyses and Transformations (**INV-6**)**: `indexProjectView`, `runAnalysis` (`references`, `unused-commands`), `planTransformation` (`suppress-comments`, `remove-environments`, `edit-nodes`, `export-project`, `realize-conditions`), `validateProjectEditPlan`, `applyProjectEdits`, `checkOperationCapability`, `projectOperations`, and `runProjectPipeline`.
 
+### Fixed
+
+- Unified verbatim boundary splicing (`spliceVerbatimMatch`) across tokenization, scanning, environment inventory, and structural parsing so trailing syntax after inline `\verb` and `\end{verbatim}` is consistently processed.
+- Reset entry state across files in `file-only` traversal so file-local condition declarations do not leak across independent files.
+- Evaluated conditions inside textual metadata commands (`\title`, `\author`, `\date`, `\href`) while keeping `\label` keys opaque.
+- Tagged emitted verbatim segments to prevent spurious newline insertion after inline `\verb`.
+
 ### Breaking
 
 - Removed deprecated `0.2.x` functions, types, and enums (`parseDocument`, `parseProject`, `mergeProjects`, `serializeDocument`, `transformProject`, `InputHandlingMode`, `isInputHandlingMode`, `AstNode`, `NodeType`, `isContainerNode`, `PrepTexSyntaxError`, `DiagnosticCode`, `DiagnosticSeverity`, `TransformedFile`, `ConditionName`, `InputReferencePath`, `LineEnding`).
 - Removed deprecated source-target and condition-preservation shim options (`operation: 'identity'`, `operation: 'materialize'`, `target: 'source'`, `ExportOptions.conditions: 'preserve' | 'materialize'`, and unconfigured snapshot `unused-commands` analysis).
+
+## [0.3.0] - 2026-09-15
+
+### Added
+
+- C1–C10 multi-stage project model (`ProjectSnapshot`, `ProjectView`, `ProjectEditPlan`), node/environment selections and operations (`remove-node`, `rename-environment`, `wrap-node`, `remove-environments`), interval source indexing (`createProjectSourceIndex`, `lookupProjectSource`), reference and conservative command-use analysis, `runProjectPipeline`, and CLI `inventory`/`analyze` commands.
 
 ## [0.2.1] - Unreleased
 

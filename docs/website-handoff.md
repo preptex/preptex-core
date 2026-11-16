@@ -1,12 +1,12 @@
-# Website handoff for `@preptex/core@0.3.0`
+# Website handoff for `@preptex/core@0.4.0`
 
-This document summarizes the `@preptex/core@0.3.0` public contract for the frontend workspace and records the reproducible verification suite.
+This document summarizes the `@preptex/core@0.4.0` public contract for the frontend workspace and records the reproducible verification suite.
 
 ---
 
 ## Frontend architecture contract
 
-`@preptex/core@0.3.0` provides a clean backend for the frontend workspace where **condition realization is separate from AST generation**:
+`@preptex/core@0.4.0` provides a clean backend for the frontend workspace where **condition realization is separate from AST generation**:
 
 1. **Stage 0 — Source Ownership & Inventories (`createProjectSnapshot`, `updateProjectSnapshot`, `tokenizeFile`, `inspectProject`, `inspectProjectEnvironments`)**:
    - Scans each `.tex` file once with the stateless whole-file tokenizer (`tokenizeFile`) into `ScannedFile.tokens` (`SourceToken[]`) and `ScannedFile.facts` (`SyntaxFact[]`).
@@ -29,7 +29,7 @@ See:
 - [Integration guide](./integration.md) for complete frontend and Web Worker code examples.
 - [Project model contract](./project-model.md) for the full operation matrix and condition policies.
 - [Node operations](./node-operations.md) for source lookup and node edit actions (`remove-node`, `rename-environment`, `wrap-node`).
-- [Migration guide](./migration-0.3.md) for the mapping from removed legacy APIs.
+- [Migration guide](./migration-0.4.md) for the mapping from removed legacy APIs.
 - [Generated API reference](./api/README.md) and `dist/index.d.ts` for exact TypeScript signatures.
 
 ---
@@ -51,9 +51,9 @@ npm run consumer:check
 
 - **`npm run check`**:
   - Builds `@preptex/core` and type-checks both `@preptex/core` and `@preptex/cli`.
-  - Runs **201 core unit & acceptance tests** across 4 test suites (`project-model.test.ts`, `project-operations.test.ts`, `node-operations.test.ts`, `project-pipeline.test.ts`), including explicit verification cases `V-TOK-1`, `V-COND-1`–`V-COND-5`, `V-AST-1`–`V-AST-2`, and `V-PIPE-1`.
+  - Runs **208 core unit & acceptance tests** across 4 test suites (`project-model.test.ts`, `project-operations.test.ts`, `node-operations.test.ts`, `project-pipeline.test.ts`), including explicit verification cases `V-TOK-1`, `V-COND-1`–`V-COND-5`, `V-AST-1`–`V-AST-2`, and `V-PIPE-1`.
   - Runs **9 CLI integration tests** across `project-cli.test.mjs` and `transform-cli.test.mjs`.
   - Runs compile-time TypeScript contract tests (`core/type-tests/project-model.ts` and `core/type-tests/node-operations.ts`).
   - Validates public TSDoc with TypeDoc (`npm run docs:check`) and repository formatting with Prettier (`npm run format:check`).
 - **`npm run consumer:check`**:
-  - Packs `@preptex/core@0.3.0` and `@preptex/cli@0.3.0` into release tarballs under `examples/build/release/`, verifies required files and SHA-512 integrity, installs the tarballs in an isolated consumer outside the monorepo with TypeScript 4.9.5 (`target: ES2020`), and runs all type tests, acceptance suites, runnable examples (`examples/project-model.mjs`, `examples/node-operations.mjs`), export boundary checks, and CLI suites.
+  - Packs `@preptex/core@0.4.0` and `@preptex/cli@0.4.0` into release tarballs under `examples/build/release/`, verifies required files and SHA-512 integrity, installs the tarballs in an isolated consumer outside the monorepo with TypeScript 4.9.5 (`target: ES2020`), and runs all type tests, acceptance suites, runnable examples (`examples/project-model.mjs`, `examples/node-operations.mjs`), export boundary checks, and CLI suites.

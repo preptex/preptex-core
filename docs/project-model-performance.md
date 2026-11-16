@@ -1,6 +1,6 @@
 # Project model performance and bounds
 
-These measurements verify the synchronous performance and deterministic bounds of `@preptex/core@0.3.0`'s single stateless tokenizer (`tokenizeFile`), condition realization engine (`evaluateConditionStream`), structural parser (`parseConfiguredStructure`), and interval source index (`createProjectSourceIndex`).
+These measurements verify the synchronous performance and deterministic bounds of `@preptex/core@0.4.0`'s single stateless tokenizer (`tokenizeFile`), condition realization engine (`evaluateConditionStream`), structural parser (`parseConfiguredStructure`), and interval source index (`createProjectSourceIndex`).
 
 ## Reproducible corpus and method
 

@@ -1,9 +1,9 @@
 # PrepTeX integration guide
 
-This guide describes how to consume `@preptex/core@0.3.0` in frontend applications, Web Workers, Node.js services, and CLI tools. Treat the published package and its generated TypeScript declarations (`dist/index.d.ts`) as the authoritative integration boundary:
+This guide describes how to consume `@preptex/core@0.4.0` in frontend applications, Web Workers, Node.js services, and CLI tools. Treat the published package and its generated TypeScript declarations (`dist/index.d.ts`) as the authoritative integration boundary:
 
 ```sh
-npm install --save-exact @preptex/core@0.3.0
+npm install --save-exact @preptex/core@0.4.0
 ```
 
 See also:
@@ -11,7 +11,7 @@ See also:
 - [Project model contract](./project-model.md) for the full operation matrix, condition policies, analyses, and export options.
 - [Node operations](./node-operations.md) for source interval indexing, cursor/range lookup, and selected-node transformations.
 - [Architecture](./architecture.md) for the 6 core invariants (`INV-1`–`INV-6`) and internal pipeline design.
-- [0.3.0 migration](./migration-0.3.md) for migrating from earlier versions to the separated condition and structural pipelines.
+- [0.4.0 migration](./migration-0.4.md) for migrating from earlier versions to the separated condition and structural pipelines.
 
 ---
 

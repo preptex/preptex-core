@@ -3,10 +3,10 @@
 Environment-neutral TypeScript primitives for tokenizing, realizing conditions, analyzing, and transforming virtual LaTeX projects. The package exposes a deterministic ESM API with deeply readonly models, original-source provenance, and typed errors.
 
 ```sh
-npm install --save-exact @preptex/core@0.3.0
+npm install --save-exact @preptex/core@0.4.0
 ```
 
-`@preptex/core@0.3.0` separates condition realization from structural AST generation on top of a single stateless whole-file tokenizer:
+`@preptex/core@0.4.0` separates condition realization from structural AST generation on top of a single stateless whole-file tokenizer:
 
 1. **Stage 0 — Stateless Whole-File Tokenizer (`tokenizeFile`, `createProjectSnapshot`)**: Scans each `.tex` file once into a lossless primitive token stream (`SourceToken[]`) and source fact inventory without requiring balanced braces, environments, or conditions.
 2. **Pipeline B — Standalone Condition Realizer (`realizeProjectConditions`)**: Evaluates `\newif`, `\if...`, `\else`, `\fi`, and `[\global]\Xtrue`/`\Xfalse` (optionally across `\input` files) while ignoring non-condition LaTeX syntax, returning both a checked in-place `ProjectEditPlan` and condition-free `GeneratedArtifact[]` files.
@@ -20,7 +20,7 @@ This package bundles complete integration and architectural documentation in `di
 - `dist/docs/architecture.md`: System architecture, the 6 core invariants (`INV-1`–`INV-6`), data flow, and module boundaries.
 - `dist/docs/project-model.md`: Public contracts, condition policies, support matrix, analyses, and export options.
 - `dist/docs/node-operations.md`: Source interval indexing, node/environment selection, and structural transformations.
-- `dist/docs/migration-0.3.md`: Migration guide for the `0.3.0` separated condition and structural pipelines.
+- `dist/docs/migration-0.4.md`: Migration guide for the `0.4.0` separated condition and structural pipelines.
 - `dist/docs/website-handoff.md`: Frontend handoff guide and reproducible package verification.
 - `dist/docs/api/README.md`: Complete TypeDoc Markdown API reference.
 - `dist/index.d.ts`: Authoritative TypeScript declarations.

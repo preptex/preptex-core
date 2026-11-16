@@ -5,7 +5,7 @@ PrepTeX is a source-preserving tokenizer, condition realizer, structural parser,
 ## Install the core
 
 ```sh
-npm install --save-exact @preptex/core@0.3.0
+npm install --save-exact @preptex/core@0.4.0
 ```
 
 ```ts
@@ -81,7 +81,7 @@ npm run consumer:check
 - [Integration guide](./docs/integration.md)
 - [Project model contract](./docs/project-model.md)
 - [Node operations](./docs/node-operations.md)
-- [0.3.0 migration](./docs/migration-0.3.md)
+- [0.4.0 migration](./docs/migration-0.4.md)
 - [Website handoff and release verification](./docs/website-handoff.md)
 - [Architecture](./docs/architecture.md)
 - [Generated API reference](./docs/api/README.md)
