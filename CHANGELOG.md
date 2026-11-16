@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented here.
 
+## [0.5.0] - 2026-11-16
+
+### Added
+
+- **Explicit Argument Child Nodes (`ConfiguredArgumentNode`)**: Command, section, and environment arguments (`[optional]`, `{mandatory}`, or single-token bare arguments) are now first-class AST container children alongside `arguments` range metadata.
+- **Dynamic Command Signatures (`CustomCommandSignature`)**: Automatic arity inference from `\newcommand`/`\renewcommand`/`\providecommand`/`\def` (`inferDefinedCommands`) plus caller overrides via `ViewConfiguration.customCommands` for dynamic reparsing of undefined commands.
+- **Coarse View Tree (`buildCoarseViewTree`)**: Projects a readable `CoarseTree` of sections, environments, commands, arguments, and optional math/groups/text blocks while preserving `NodeSelection` and `NodeLocation` provenance.
+- **Extended Symbol Scanner & Catalog (`inspectProjectCatalog`)**: Scans `\newenvironment`, `\renewenvironment`, `\newtheorem`, `\bibitem`, `\cite`/`\citep`/`\citet`..., and extended `\autoref`/`\cref`/`\Cref` lists; exposes unified lists of introduced/used commands, environments, conditions, labels, and citations with complete occurrence indices.
+- **Single-Node & Global Catalog Refactorings (`refactor-symbols` & Extended `NodeEditAction`)**: Added `rename-command`, `rename-section`, and `unwrap-node` (`edit-nodes`), relaxed `rename-environment` on environments with arguments, and added `rename-command-globally`, `edit-command-definition`, `rename-environment-globally`, `rename-condition-globally`, `rename-label-globally`, `rename-citation-globally`, and `edit-metadata`.
+- **Document Metadata Extraction (`extractProjectMetadata`)**: Extracts structured metadata (`title`, `authors`, `date`, `abstract`, `documentClass`, `packages`, `bibliography`, `keywords`, and stats) with editable inner locations.
+- **Composable Multi-Step Pipeline (`planCompositeTransformation` / `compose-transformations`)**: Chains transformation requests in sequence and composes edits back to original snapshot coordinates in one unified `ProjectEditPlan`.
+
 ## [0.4.1] - 2026-11-16
 
 ### Added
