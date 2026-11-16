@@ -7,7 +7,7 @@ import type {
   SourceLocation,
 } from '../../project-types.js';
 
-export const CORE_VERSION = '0.4.0';
+export const CORE_VERSION = '0.4.1';
 export const ASSUMPTIONS = Object.freeze([
   'Direct LaTeX syntax with ordinary catcodes; no macro expansion or package execution.',
   'Source facts are syntactic occurrences, not proof of TeX execution or absence of generated syntax.',
@@ -62,9 +62,17 @@ export function bounded(value: unknown, fallback: number, maximum: number, label
 }
 
 export function freeze<T>(value: T): T {
-  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
-    for (const child of Object.values(value)) freeze(child);
-    Object.freeze(value);
+  const pending: unknown[] = [value];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (current && typeof current === 'object' && !Object.isFrozen(current)) {
+      for (const child of Object.values(current)) {
+        if (child && typeof child === 'object' && !Object.isFrozen(child)) {
+          pending.push(child);
+        }
+      }
+      Object.freeze(current);
+    }
   }
   return value;
 }

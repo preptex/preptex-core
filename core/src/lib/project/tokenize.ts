@@ -17,7 +17,9 @@ export interface BracedGroupTokenMatch {
 
 export interface OptionalBracketTokenMatch {
   readonly startIndex: number;
+  readonly startCharOffset: number;
   readonly endIndex: number;
+  readonly endCharOffset: number;
   readonly nextIndex: number;
   readonly nextCharOffset: number;
   readonly innerStartIndex: number;
@@ -139,6 +141,13 @@ export function readBracedGroupTokens(
   let depth = 1;
   for (let i = openIndex + 1; i < untilIndex; i++) {
     const tok = tokens[i]!;
+    if (tok.kind === 'command' && tok.name === 'verb') {
+      const verb = matchVerbatimTokens(tokens, i, [], untilIndex);
+      if (verb && verb.closed) {
+        i = verb.endIndex;
+        continue;
+      }
+    }
     if (tok.kind === 'open') depth++;
     else if (tok.kind === 'close') {
       depth--;
@@ -165,7 +174,8 @@ export function readBracedGroupTokens(
 
 /**
  * Read an optional `[...]` bracket argument over the token array, respecting nested `{...}`
- * groups and supporting consecutive `[a][b]` brackets within a single `'text'` token via `charOffset`.
+ * groups and active `\verb`, closing on the first unbraced `]` per LaTeX rules, and supporting
+ * consecutive `[a][b]` brackets within a single `'text'` token via `charOffset`.
  */
 export function readOptionalBracketTokens(
   tokens: readonly SourceToken[],
@@ -178,9 +188,32 @@ export function readOptionalBracketTokens(
   const firstTok = tokens[startIndex]!;
   if (firstTok.kind !== 'text' || firstTok.value[charOffset] !== '[') return null;
   const startOffset = firstTok.range.start + charOffset;
-  let depth = 1;
   let braces = 0;
   const textParts: string[] = [];
+  const finish = (
+    endIndex: number,
+    endCharOffset: number,
+    tok: SourceToken
+  ): OptionalBracketTokenMatch => {
+    const endOffset = tok.range.start + endCharOffset + 1;
+    const nextCharOffset = endCharOffset + 1 < tok.value.length ? endCharOffset + 1 : 0;
+    const nextIndex = nextCharOffset > 0 ? endIndex : endIndex + 1;
+    return {
+      startIndex,
+      startCharOffset: charOffset,
+      endIndex,
+      endCharOffset,
+      nextIndex,
+      nextCharOffset,
+      innerStartIndex: startIndex + 1,
+      innerEndIndex: endIndex - 1,
+      start: startOffset,
+      end: endOffset,
+      innerStart: startOffset + 1,
+      innerEnd: endOffset - 2,
+      text: textParts.join(''),
+    };
+  };
   for (let tIdx = startIndex; tIdx < untilIndex; tIdx++) {
     const tok = tokens[tIdx]!;
     const cStart = tIdx === startIndex ? charOffset + 1 : 0;
@@ -190,34 +223,43 @@ export function readOptionalBracketTokens(
       continue;
     }
     if (tok.kind === 'close') {
-      braces = Math.max(0, braces - 1);
+      if (braces === 0) return null;
+      braces--;
       textParts.push(tok.value);
       continue;
     }
+    if (tok.kind === 'command' && tok.name === 'verb') {
+      const verb = matchVerbatimTokens(tokens, tIdx, [], untilIndex);
+      if (verb && verb.closed) {
+        for (let k = tIdx; k < verb.endIndex; k++) {
+          textParts.push(
+            k === tIdx && cStart > 0 ? tokens[k]!.value.slice(cStart) : tokens[k]!.value
+          );
+        }
+        const endTok = tokens[verb.endIndex]!;
+        const afterVerb = verb.endOffset - endTok.range.start + 1;
+        const headStart = verb.endIndex === tIdx ? cStart : 0;
+        textParts.push(endTok.value.slice(headStart, afterVerb));
+        if (braces === 0 && endTok.kind === 'text') {
+          for (let k = afterVerb; k < endTok.value.length; k++) {
+            if (endTok.value[k] === ']') {
+              textParts.push(endTok.value.slice(afterVerb, k));
+              return finish(verb.endIndex, k, endTok);
+            }
+          }
+        }
+        if (afterVerb < endTok.value.length) {
+          textParts.push(endTok.value.slice(afterVerb));
+        }
+        tIdx = verb.endIndex;
+        continue;
+      }
+    }
     if (braces === 0 && tok.kind === 'text') {
       for (let k = cStart; k < tok.value.length; k++) {
-        if (tok.value[k] === '[') depth++;
-        else if (tok.value[k] === ']') {
-          depth--;
-          if (depth === 0) {
-            textParts.push(tok.value.slice(cStart, k));
-            const endOffset = tok.range.start + k + 1;
-            const nextCharOffset = k + 1 < tok.value.length ? k + 1 : 0;
-            const nextIndex = k + 1 < tok.value.length ? tIdx : tIdx + 1;
-            return {
-              startIndex,
-              endIndex: tIdx,
-              nextIndex,
-              nextCharOffset,
-              innerStartIndex: startIndex + 1,
-              innerEndIndex: tIdx - 1,
-              start: startOffset,
-              end: endOffset,
-              innerStart: startOffset + 1,
-              innerEnd: endOffset - 2,
-              text: textParts.join(''),
-            };
-          }
+        if (tok.value[k] === ']') {
+          textParts.push(tok.value.slice(cStart, k));
+          return finish(tIdx, k, tok);
         }
       }
     }
@@ -233,13 +275,14 @@ export function readOptionalBracketTokens(
 export function matchVerbatimTokens(
   tokens: readonly SourceToken[],
   commandIndex: number,
-  verbatimEnvironments: readonly string[]
+  verbatimEnvironments: readonly string[],
+  untilIndex = tokens.length
 ): VerbatimTokenMatch | null {
   const cmd = tokens[commandIndex];
   if (!cmd || cmd.kind !== 'command') return null;
 
   if (cmd.name === 'verb') {
-    const next = tokens[commandIndex + 1];
+    const next = commandIndex + 1 < untilIndex ? tokens[commandIndex + 1] : undefined;
     if (!next || next.kind === 'space') {
       return {
         kind: 'verb',
@@ -261,7 +304,7 @@ export function matchVerbatimTokens(
         searchTokenIndex = commandIndex + 1;
         searchCharOffset = 2;
       } else {
-        const afterStar = tokens[commandIndex + 2];
+        const afterStar = commandIndex + 2 < untilIndex ? tokens[commandIndex + 2] : undefined;
         if (!afterStar || afterStar.kind === 'space') {
           return {
             kind: 'verb',
@@ -284,7 +327,7 @@ export function matchVerbatimTokens(
       searchCharOffset = 1;
     }
 
-    for (let tIdx = searchTokenIndex; tIdx < tokens.length; tIdx++) {
+    for (let tIdx = searchTokenIndex; tIdx < untilIndex; tIdx++) {
       const tok = tokens[tIdx]!;
       const cStart = tIdx === searchTokenIndex ? searchCharOffset : 0;
       for (let k = cStart; k < tok.value.length; k++) {
@@ -314,11 +357,11 @@ export function matchVerbatimTokens(
         }
       }
     }
-    const lastTok = tokens[tokens.length - 1]!;
+    const lastTok = tokens[untilIndex - 1]!;
     return {
       kind: 'verb',
       startIndex: commandIndex,
-      endIndex: tokens.length - 1,
+      endIndex: untilIndex - 1,
       startOffset: cmd.range.start,
       endOffset: lastTok.range.end,
       envName: null,

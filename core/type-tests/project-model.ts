@@ -16,6 +16,7 @@ import {
   runProjectPipeline,
   type ConditionRealizationRequest,
   type ConditionRealizationResult,
+  type ConfiguredCommandArgument,
   type ConfiguredNode,
   type SyntaxFact,
   type ProjectSnapshot,
@@ -88,8 +89,18 @@ function visit(node: ConfiguredNode): string {
     case 'group':
       return node.kind;
     case 'environment':
-    case 'section':
       return node.name;
+    case 'section': {
+      const args: readonly ConfiguredCommandArgument[] = node.arguments;
+      void args;
+      return node.name;
+    }
+    case 'command': {
+      const args: readonly ConfiguredCommandArgument[] = node.arguments;
+      const starred: boolean = node.starred;
+      void [args, starred];
+      return node.name;
+    }
     case 'math':
       return node.delimiter;
     default: {

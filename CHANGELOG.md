@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented here.
 
+## [0.4.1] - 2026-11-16
+
+### Added
+
+- Unified command-signature registry and argument parser (`commands.ts`) shared across Stage 0 (`scan.ts`), Pipeline B (`conditions.ts`), and Pipeline A (`structure.ts`).
+- `ConfiguredCommandNode` (`kind: 'command'`) and `ConfiguredCommandArgument` in `ConfiguredContainerNode`, with `arguments` also exposed on `ConfiguredSectionNode`.
+
+### Fixed
+
+- Eliminated unbounded lookahead in `structure.ts` (`\section abc` / `\begin foo`) by splitting environment delimiter parsing from section/command argument parsing and handling coalesced `'text'` token boundaries losslessly.
+- Stopped `scan.ts` from greedily swallowing following `{...}` groups after unknown commands as `opaqueArguments`.
+- Updated `readOptionalBracketTokens` to follow LaTeX's non-nesting `[` rule at brace depth 0 and skip active `\verb` spans.
+
 ## [0.4.0] - 2026-11-16
 
 ### Added

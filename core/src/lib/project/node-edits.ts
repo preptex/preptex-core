@@ -14,19 +14,68 @@ function contains(a: ConfiguredNode, b: ConfiguredNode): boolean {
     a.projectedRange.start <= b.projectedRange.start && a.projectedRange.end >= b.projectedRange.end
   );
 }
+const protectedKeysCache = new WeakMap<ProjectView, ReadonlySet<string>>();
+function protectedTokenKeys(view: ProjectView): ReadonlySet<string> {
+  let cached = protectedKeysCache.get(view);
+  if (cached) return cached;
+  const keys = new Set<string>();
+  const pending: ConfiguredNode[] = view.root ? [view.root] : [];
+  while (pending.length > 0) {
+    const node = pending.pop()!;
+    if (node.kind === 'command' || node.kind === 'section') {
+      const firstArgStart = node.arguments[0]?.childStart ?? node.children.length;
+      if (node.children[0]) keys.add(node.children[0].occurrenceKey);
+      if (node.starred) {
+        const headerLimit =
+          node.kind === 'command'
+            ? node.children.length
+            : (node.arguments[node.arguments.length - 1]?.childEnd ?? 0) + 1;
+        for (let i = 1; i < Math.min(firstArgStart, headerLimit); i++) {
+          const child = node.children[i];
+          if (child?.kind === 'token' && child.token.value === '*') {
+            keys.add(child.occurrenceKey);
+            break;
+          }
+        }
+      }
+      for (const arg of node.arguments) {
+        if (arg.childStart === arg.childEnd) {
+          const direct = node.children[arg.childStart];
+          if (direct?.kind === 'token') keys.add(direct.occurrenceKey);
+        } else {
+          const open = node.children[arg.childStart];
+          const close = node.children[arg.childEnd];
+          if (open) keys.add(open.occurrenceKey);
+          if (close) keys.add(close.occurrenceKey);
+        }
+      }
+    }
+    if (node.kind !== 'token') {
+      for (let i = node.children.length - 1; i >= 0; i--) pending.push(node.children[i]!);
+    }
+  }
+  cached = keys;
+  protectedKeysCache.set(view, cached);
+  return cached;
+}
+
 export function plannedActions(view: ProjectView, actions: readonly NodeEditAction[]): Action[] {
   const unique = new Map<string, Action>();
   const all: Action[] = [];
+  const protectedTokens = protectedTokenKeys(view);
   actions.forEach((action, order) => {
     const node = getSelectedNode(view, action.selection);
     if (node.kind === 'root') reject('unavailable', 'The synthetic root cannot be edited.');
     if (node.kind === 'token') {
       const token = view.selectedTokens.find(
-        (t) => t.projectedRange.start === node.projectedRange.start
+        (t) =>
+          t.projectedRange.start <= node.projectedRange.start &&
+          t.projectedRange.end >= node.projectedRange.end
       );
       if (
         !token ||
         token.interpretation === 'opaque' ||
+        protectedTokens.has(node.occurrenceKey) ||
         ['command', 'open', 'close', 'math'].includes(node.token.kind)
       )
         reject(

@@ -24,6 +24,7 @@ import { normalizeProjectFilePath } from '../validation.js';
 import { normalizeConditionPolicy, normalizeViewLimits } from './configuration.js';
 import { dependencies, emit, sourceCopier, type Segment } from './emission.js';
 import { reject } from './fail.js';
+import { getCommandSignature, scanCommandTokens } from './commands.js';
 import { DEFINITIONS, literalFromGroup, scanFile, UNSUPPORTED_DEFINITIONS } from './scan.js';
 import {
   bounded,
@@ -45,27 +46,9 @@ import {
   matchVerbatimTokens,
   readBracedGroupTokens,
   readDefinitionTokens,
-  readOptionalBracketTokens,
   skipTriviaTokens,
   spliceVerbatimMatch,
 } from './tokenize.js';
-
-const OPAQUE_KEY_ARGUMENTS: Readonly<Record<string, number>> = {
-  label: 1,
-  ref: 1,
-  pageref: 1,
-  eqref: 1,
-  input: 1,
-  documentclass: 1,
-  usepackage: 1,
-  RequirePackage: 1,
-  cite: 1,
-  citep: 1,
-  citet: 1,
-  url: 1,
-  href: 1,
-  includegraphics: 1,
-};
 
 type Binding =
   | { readonly kind: 'test'; readonly flag: string }
@@ -867,44 +850,72 @@ export function evaluateConditionStream(
         continue;
       }
 
-      // Stored key/metadata arguments (e.g., \label{...}, \ref{...}, \cite{...})
-      const storedCount = Object.prototype.hasOwnProperty.call(OPAQUE_KEY_ARGUMENTS, token.name)
-        ? OPAQUE_KEY_ARGUMENTS[token.name]
-        : undefined;
-      if (storedCount !== undefined && token.name !== 'begin' && token.name !== 'end') {
-        let cursor = frame.tokenIndex;
-        const opt = readOptionalBracketTokens(tokens, cursor);
-        if (opt) {
-          cursor = opt.nextCharOffset > 0 ? opt.nextIndex + 1 : opt.nextIndex;
+      // Stored key/metadata arguments (e.g., \label{...}, \ref{...}, \cite{...}, \href{url}{...})
+      const sig = getCommandSignature(token.name);
+      if (
+        sig &&
+        sig.role !== 'environment-delimiter' &&
+        sig.role !== 'input' &&
+        sig.params.some((p) => p.opaque)
+      ) {
+        const call = scanCommandTokens(tokens, token.index, sig, tokens.length, {
+          stopBeforeNonOpaque: true,
+        });
+        if (
+          call.missingMandatory &&
+          (token.name === 'label' ||
+            token.name === 'ref' ||
+            token.name === 'pageref' ||
+            token.name === 'eqref')
+        ) {
+          stop(
+            'malformed-syntax',
+            `\\${token.name} requires a complete braced argument.`,
+            at,
+            'blocked'
+          );
+          continue;
         }
-        let endTokenIndex = token.index;
-        let ok = true;
-        for (let i = 0; i < storedCount; i++) {
-          const grp = readBracedGroupTokens(tokens, cursor);
-          if (!grp) {
-            if (
-              token.name === 'label' ||
-              token.name === 'ref' ||
-              token.name === 'pageref' ||
-              token.name === 'eqref'
-            ) {
-              stop(
-                'malformed-syntax',
-                `\\${token.name} requires a complete braced argument.`,
-                at,
-                'blocked'
-              );
-              ok = false;
+        if (call.args.length > 0) {
+          let endTokenIndex = call.endIndex;
+          let nextTokenIndex = call.nextIndex;
+          if (call.nextCharOffset > 0 && call.nextIndex === call.endIndex) {
+            const splitTok = tokens[call.endIndex]!;
+            const headEnd = splitTok.range.start + call.nextCharOffset - 1;
+            const head = Object.freeze({
+              index: call.endIndex,
+              kind: splitTok.kind,
+              value: splitTok.value.slice(0, call.nextCharOffset),
+              name: '',
+              range: Object.freeze(rangeAt(frame.starts, splitTok.range.start, headEnd)),
+            });
+            const tail = Object.freeze({
+              index: call.endIndex + 1,
+              kind: splitTok.kind,
+              value: splitTok.value.slice(call.nextCharOffset),
+              name: '',
+              range: Object.freeze(rangeAt(frame.starts, headEnd + 1, splitTok.range.end)),
+            });
+            const updated = [
+              ...tokens.slice(0, call.endIndex),
+              head,
+              tail,
+              ...tokens.slice(call.endIndex + 1),
+            ];
+            for (let k = call.endIndex + 2; k < updated.length; k++) {
+              const t = updated[k]!;
+              if (t.index !== k) updated[k] = Object.freeze({ ...t, index: k });
             }
-            break;
+            tokens = updated;
+            frame.tokens = updated;
+            frame.trace.tokens = updated;
+            endTokenIndex = call.endIndex;
+            nextTokenIndex = call.endIndex + 1;
           }
-          endTokenIndex = grp.closeIndex;
-          cursor = grp.nextIndex;
+          markActive(frame, token.index, endTokenIndex, 'opaque');
+          frame.tokenIndex = nextTokenIndex;
+          continue;
         }
-        if (!ok) continue;
-        markActive(frame, token.index, endTokenIndex, 'opaque');
-        frame.tokenIndex = cursor;
-        continue;
       }
 
       markActive(frame, token.index, token.index, 'structure');
