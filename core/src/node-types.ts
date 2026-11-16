@@ -94,15 +94,117 @@ export type NodeEditAction =
       /** Selected construct. */ readonly selection: NodeSelection;
     }
   | {
-      /** Rename both environment delimiters, retaining the body. */ readonly kind: 'rename-environment';
+      /** Rename both environment delimiters, retaining the body and any arguments. */ readonly kind: 'rename-environment';
       /** Selected environment. */ readonly selection: NodeSelection;
-      /** Literal argument-free environment name. */ readonly name: string;
+      /** Literal environment name. */ readonly name: string;
+    }
+  | {
+      /** Rename a selected command node (`\old` -> `\new`), preserving `*` and all arguments. */ readonly kind: 'rename-command';
+      /** Selected command node or standalone command token. */ readonly selection: NodeSelection;
+      /** Command name without leading `\`. */ readonly name: string;
+    }
+  | {
+      /** Change a selected section node's heading level and/or starred form. */ readonly kind: 'rename-section';
+      /** Selected section node. */ readonly selection: NodeSelection;
+      /** Target sectioning command. */ readonly sectionCommand:
+        'section' | 'subsection' | 'subsubsection' | 'paragraph' | 'subparagraph';
+      /** Optional target starred flag; omits keeping existing starred spelling. */ readonly starred?: boolean;
+    }
+  | {
+      /** Unwrap an environment, group, or single-argument formatting command, keeping its inner body. */ readonly kind: 'unwrap-node';
+      /** Selected container construct. */ readonly selection: NodeSelection;
     }
   | {
       /** Retain the node inside a new environment. */ readonly kind: 'wrap-node';
       /** Selected construct. */ readonly selection: NodeSelection;
       /** Literal argument-free wrapper name. */ readonly name: string;
     };
+
+/** Bulk catalog-based refactoring or metadata edit action. */
+export type SymbolRefactorAction =
+  | {
+      /** Rename all occurrences of a command and optionally its definitions (`\newcommand`, `\def`, etc.). */
+      readonly kind: 'rename-command-globally';
+      /** Existing command name without leading `\`. */
+      readonly oldName: string;
+      /** Replacement command name without leading `\`. */
+      readonly newName: string;
+      /** Also update matching `\newcommand`/`\def` definition names; default true. */
+      readonly includeDefinitions?: boolean;
+    }
+  | {
+      /** Modify a `\newcommand` / `\renewcommand` / `\providecommand` definition in-place. */
+      readonly kind: 'edit-command-definition';
+      /** Exact definition fact location (`path` and `range`). */
+      readonly definitionLocation: SourceLocation;
+      /** Optional new command name without leading `\`. */
+      readonly newName?: string;
+      /** Optional updated total parameter count (0–9). */
+      readonly numArgs?: number;
+      /** Optional updated default value for `#1` (`null` removes `[default]`; `string` sets `[default]`). */
+      readonly defaultArg?: string | null;
+      /** Optional updated replacement body interior (without outer `{}`). */
+      readonly newBody?: string;
+    }
+  | {
+      /** Rename all `\begin{oldName}` / `\end{oldName}` occurrences and `\newenvironment`/`\newtheorem` definitions. */
+      readonly kind: 'rename-environment-globally';
+      /** Existing literal environment name. */
+      readonly oldName: string;
+      /** Replacement literal environment name. */
+      readonly newName: string;
+      /** Also update matching environment definition names; default true. */
+      readonly includeDefinitions?: boolean;
+    }
+  | {
+      /** Rename a boolean condition across `\newif\if<old>`, `\if<old>`, `\<old>true`, and `\<old>false`. */
+      readonly kind: 'rename-condition-globally';
+      /** Existing boolean flag name without `if` prefix. */
+      readonly oldName: string;
+      /** Replacement boolean flag name without `if` prefix. */
+      readonly newName: string;
+    }
+  | {
+      /** Rename a label key across all `\label{oldKey}` declarations and `\ref`/`\eqref`/`\pageref`/`\autoref`/`\cref`/`\Cref` uses. */
+      readonly kind: 'rename-label-globally';
+      /** Existing label key. */
+      readonly oldKey: string;
+      /** Replacement label key. */
+      readonly newKey: string;
+    }
+  | {
+      /** Rename a citation key across `\bibitem{oldKey}` definitions and `\cite`/`\citep`/`\citet` occurrences. */
+      readonly kind: 'rename-citation-globally';
+      /** Existing citation key. */
+      readonly oldKey: string;
+      /** Replacement citation key. */
+      readonly newKey: string;
+    }
+  | {
+      /** Edit a document metadata field (`title`, `author`, `date`, or `abstract`) in-place. */
+      readonly kind: 'edit-metadata';
+      /** Target metadata field. */
+      readonly field: 'title' | 'author' | 'date' | 'abstract';
+      /** Replacement LaTeX interior content. */
+      readonly newValue: string;
+      /** Optional updated `[short]` title/author argument (`null` removes `[short]`). */
+      readonly shortValue?: string | null;
+    };
+
+/** Request for bulk symbol, definition, or metadata refactoring. */
+export interface SymbolRefactorRequest {
+  /** Operation discriminant. */
+  readonly operation: 'refactor-symbols';
+  /** Refactoring scope, ordered actions, and output limit. */
+  readonly options: {
+    /** Edit target: `'selected'` or `'artifact'` for views, `'source'` for snapshots. */
+    readonly target?: 'selected' | 'source' | 'artifact';
+    /** Ordered refactoring actions to apply atomically. */
+    readonly actions: readonly SymbolRefactorAction[];
+    /** Total UTF-16 output limit, default 10000000; maximum 100000000. */
+    readonly maxOutputCodeUnits?: number;
+  };
+}
 /** Additional transformations using configured nodes over a realized ProjectView. */
 export type NodeTransformationRequest =
   | {

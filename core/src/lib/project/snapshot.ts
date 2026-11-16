@@ -195,9 +195,12 @@ export function normalizeScope(value: unknown = { kind: 'all-files' }): SourceSc
 
 export const FACT_KINDS: readonly SyntaxFact['kind'][] = [
   'definition',
+  'environment-definition',
   'command-use',
   'label',
   'reference',
+  'bibitem',
+  'citation',
   'condition-declaration',
   'condition-test',
   'condition-delimiter',

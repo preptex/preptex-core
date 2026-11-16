@@ -1,5 +1,6 @@
 import type { ProjectSnapshot, ProjectView, ViewConfiguration } from '../../project-types.js';
 import { knownView, rememberView } from './canonical.js';
+import { resolveCommandSignatures } from './commands.js';
 import { evaluateConditionStream } from './conditions.js';
 import { normalizeConfiguration } from './configuration.js';
 import { coverage, freeze, identity, invalid, issue, record } from './shared.js';
@@ -82,11 +83,13 @@ export function resolveProjectView(
     );
   }
 
+  const commandSignatures = resolveCommandSignatures(source, config, evaluation.reachedFacts);
   const parsed = parseConfiguredStructure(
     evaluation.selectedTokens,
     id,
     config.limits.maxNesting,
-    source
+    source,
+    commandSignatures
   );
   if (parsed.kind === 'error') {
     const inputChain: string[] = [];

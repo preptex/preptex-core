@@ -1,4 +1,10 @@
-import type { SourceToken } from '../../project-types.js';
+import type {
+  CustomCommandSignature,
+  NormalizedViewConfiguration,
+  ProjectSnapshot,
+  ReachedFact,
+  SourceToken,
+} from '../../project-types.js';
 import {
   readBracedGroupTokens,
   readOptionalBracketTokens,
@@ -18,6 +24,11 @@ export interface CommandSignature {
   readonly allowStar: boolean;
   readonly role: 'command' | 'section' | 'environment-delimiter' | 'input';
   readonly sectionLevel?: 1 | 2 | 3 | 4 | 5;
+  readonly params: readonly CommandParameterSpec[];
+}
+
+export interface EnvironmentSignature {
+  readonly name: string;
   readonly params: readonly CommandParameterSpec[];
 }
 
@@ -75,6 +86,9 @@ const SIGNATURE_LIST: readonly CommandSignature[] = [
   { name: 'ref', allowStar: false, role: 'command', params: [BRACED_OPAQUE] },
   { name: 'pageref', allowStar: false, role: 'command', params: [BRACED_OPAQUE] },
   { name: 'eqref', allowStar: false, role: 'command', params: [BRACED_OPAQUE] },
+  { name: 'autoref', allowStar: true, role: 'command', params: [BRACED_OPAQUE] },
+  { name: 'cref', allowStar: true, role: 'command', params: [BRACED_OPAQUE] },
+  { name: 'Cref', allowStar: true, role: 'command', params: [BRACED_OPAQUE] },
   {
     name: 'documentclass',
     allowStar: false,
@@ -111,6 +125,64 @@ const SIGNATURE_LIST: readonly CommandSignature[] = [
     role: 'command',
     params: [OPT_OPAQUE, OPT_OPAQUE, BRACED_OPAQUE],
   },
+  {
+    name: 'Citep',
+    allowStar: true,
+    role: 'command',
+    params: [OPT_OPAQUE, OPT_OPAQUE, BRACED_OPAQUE],
+  },
+  {
+    name: 'Citet',
+    allowStar: true,
+    role: 'command',
+    params: [OPT_OPAQUE, OPT_OPAQUE, BRACED_OPAQUE],
+  },
+  {
+    name: 'citeauthor',
+    allowStar: true,
+    role: 'command',
+    params: [OPT_OPAQUE, OPT_OPAQUE, BRACED_OPAQUE],
+  },
+  {
+    name: 'citeyear',
+    allowStar: true,
+    role: 'command',
+    params: [OPT_OPAQUE, OPT_OPAQUE, BRACED_OPAQUE],
+  },
+  {
+    name: 'bibliography',
+    allowStar: false,
+    role: 'command',
+    params: [BRACED_OPAQUE],
+  },
+  {
+    name: 'bibliographystyle',
+    allowStar: false,
+    role: 'command',
+    params: [BRACED_OPAQUE],
+  },
+  {
+    name: 'addbibresource',
+    allowStar: false,
+    role: 'command',
+    params: [OPT_OPAQUE, BRACED_OPAQUE],
+  },
+  {
+    name: 'bibitem',
+    allowStar: false,
+    role: 'command',
+    params: [OPT_OPAQUE, BRACED_OPAQUE],
+  },
+  { name: 'keywords', allowStar: false, role: 'command', params: [TEX_ARG_TEXT] },
+  { name: 'affil', allowStar: false, role: 'command', params: [OPT_OPAQUE, TEX_ARG_TEXT] },
+  { name: 'institute', allowStar: false, role: 'command', params: [OPT_OPAQUE, TEX_ARG_TEXT] },
+  { name: 'email', allowStar: false, role: 'command', params: [BRACED_OPAQUE] },
+  { name: 'and', allowStar: false, role: 'command', params: [] },
+  { name: 'operatorname', allowStar: true, role: 'command', params: [TEX_ARG_TEXT] },
+  { name: 'text', allowStar: false, role: 'command', params: [TEX_ARG_TEXT] },
+  { name: 'maketitle', allowStar: false, role: 'command', params: [] },
+  { name: 'tableofcontents', allowStar: false, role: 'command', params: [] },
+  { name: 'appendix', allowStar: false, role: 'command', params: [] },
   { name: 'url', allowStar: false, role: 'command', params: [BRACED_OPAQUE] },
   { name: 'href', allowStar: false, role: 'command', params: [BRACED_OPAQUE, TEX_ARG_TEXT] },
   {
@@ -179,8 +251,133 @@ const SIGNATURE_LIST: readonly CommandSignature[] = [
 
 const SIGNATURES = new Map<string, CommandSignature>(SIGNATURE_LIST.map((s) => [s.name, s]));
 
+const ENVIRONMENT_SIGNATURE_LIST: readonly EnvironmentSignature[] = [
+  { name: 'theorem', params: [OPT_TEXT] },
+  { name: 'lemma', params: [OPT_TEXT] },
+  { name: 'proposition', params: [OPT_TEXT] },
+  { name: 'corollary', params: [OPT_TEXT] },
+  { name: 'definition', params: [OPT_TEXT] },
+  { name: 'remark', params: [OPT_TEXT] },
+  { name: 'example', params: [OPT_TEXT] },
+  { name: 'proof', params: [OPT_TEXT] },
+  { name: 'figure', params: [OPT_OPAQUE] },
+  { name: 'figure*', params: [OPT_OPAQUE] },
+  { name: 'table', params: [OPT_OPAQUE] },
+  { name: 'table*', params: [OPT_OPAQUE] },
+  { name: 'itemize', params: [OPT_OPAQUE] },
+  { name: 'enumerate', params: [OPT_OPAQUE] },
+  { name: 'description', params: [OPT_OPAQUE] },
+  { name: 'tabular', params: [OPT_OPAQUE, BRACED_OPAQUE] },
+  { name: 'tabular*', params: [BRACED_OPAQUE, OPT_OPAQUE, BRACED_OPAQUE] },
+  { name: 'array', params: [OPT_OPAQUE, BRACED_OPAQUE] },
+  { name: 'minipage', params: [OPT_OPAQUE, OPT_OPAQUE, OPT_OPAQUE, BRACED_OPAQUE] },
+  { name: 'multicols', params: [BRACED_OPAQUE] },
+  { name: 'frame', params: [OPT_OPAQUE, OPT_TEXT] },
+  { name: 'lstlisting', params: [OPT_OPAQUE] },
+];
+
+const ENVIRONMENT_SIGNATURES = new Map<string, EnvironmentSignature>(
+  ENVIRONMENT_SIGNATURE_LIST.map((s) => [s.name, s])
+);
+
 export function getCommandSignature(name: string): CommandSignature | undefined {
   return SIGNATURES.get(name);
+}
+
+export function getBuiltinEnvironmentSignature(name: string): EnvironmentSignature | undefined {
+  return ENVIRONMENT_SIGNATURES.get(name);
+}
+
+export function customSignatureToCommandSignature(sig: CustomCommandSignature): CommandSignature {
+  let params: readonly CommandParameterSpec[];
+  if (sig.params) {
+    params = sig.params;
+  } else {
+    const optCount = sig.optionalArgs ?? 0;
+    const mandCount = sig.mandatoryArgs;
+    const optSpec = sig.opaque ? OPT_OPAQUE : OPT_TEXT;
+    const mandSpec = sig.opaque ? BRACED_OPAQUE : TEX_ARG_TEXT;
+    const built: CommandParameterSpec[] = [];
+    for (let i = 0; i < optCount; i++) built.push(optSpec);
+    for (let i = 0; i < mandCount; i++) built.push(mandSpec);
+    params = built;
+  }
+  return {
+    name: sig.name,
+    allowStar: sig.allowStar ?? true,
+    role: 'command',
+    params,
+  };
+}
+
+export function inferDefinitionSignature(
+  snapshot: ProjectSnapshot,
+  path: string,
+  form: string,
+  name: string,
+  starred: boolean,
+  argRanges: readonly { readonly start: number; readonly end: number }[]
+): CommandSignature | null {
+  const file = snapshot.files.find((f) => f.path === path);
+  if (!file) return null;
+  if (form === 'def') {
+    if (argRanges.length === 0) {
+      return { name, allowStar: starred, role: 'command', params: [] };
+    }
+    const paramText = file.source.slice(argRanges[0]!.start, argRanges[0]!.end + 1);
+    const match = /^(?:#([1-9]))+$/.exec(paramText);
+    if (!match) return null;
+    const indices = [...paramText.matchAll(/#([1-9])/g)].map((m) => Number(m[1]));
+    for (let idx = 0; idx < indices.length; idx++) {
+      if (indices[idx] !== idx + 1) return null;
+    }
+    const params: CommandParameterSpec[] = indices.map(() => TEX_ARG_TEXT);
+    return { name, allowStar: starred, role: 'command', params };
+  }
+  if (argRanges.length === 0) {
+    return { name, allowStar: true, role: 'command', params: [] };
+  }
+  const countText = file.source.slice(argRanges[0]!.start, argRanges[0]!.end + 1).trim();
+  if (!/^[0-9]$/.test(countText)) return null;
+  const total = Number(countText);
+  const hasOptional = argRanges.length >= 2 && total >= 1;
+  const params: CommandParameterSpec[] = [];
+  if (hasOptional) params.push(OPT_TEXT);
+  const mandCount = hasOptional ? total - 1 : total;
+  for (let i = 0; i < mandCount; i++) params.push(TEX_ARG_TEXT);
+  return { name, allowStar: true, role: 'command', params };
+}
+
+export function resolveCommandSignatures(
+  snapshot: ProjectSnapshot,
+  config: NormalizedViewConfiguration,
+  reachedFacts?: readonly ReachedFact[]
+): ReadonlyMap<string, CommandSignature> {
+  const map = new Map<string, CommandSignature>(SIGNATURES);
+  if (config.inferDefinedCommands) {
+    const facts = reachedFacts
+      ? reachedFacts.map((r) => r.fact)
+      : snapshot.files.flatMap((f) => f.facts);
+    for (const fact of facts) {
+      if (fact.kind !== 'definition' || !fact.name) continue;
+      if (SIGNATURES.get(fact.name)?.role && SIGNATURES.get(fact.name)!.role !== 'command') {
+        continue;
+      }
+      const inferred = inferDefinitionSignature(
+        snapshot,
+        fact.path,
+        fact.form,
+        fact.name,
+        fact.starred,
+        fact.arguments
+      );
+      if (inferred) map.set(fact.name, inferred);
+    }
+  }
+  for (const custom of config.customCommands) {
+    map.set(custom.name, customSignatureToCommandSignature(custom));
+  }
+  return map;
 }
 
 export function sectionLevel(name: string): 1 | 2 | 3 | 4 | 5 | undefined {

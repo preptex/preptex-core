@@ -1,5 +1,6 @@
 import type { MathDelimiter, SourceRange } from '../../api-types.js';
 import type {
+  ConfiguredArgumentNode,
   ConfiguredCommandArgument,
   ConfiguredContainerNode,
   ConfiguredNode,
@@ -13,6 +14,7 @@ import type {
 import type { ConfiguredEnvironmentDelimiter, NodeLocation } from '../../node-types.js';
 import {
   firstCodePointLength,
+  getBuiltinEnvironmentSignature,
   getCommandSignature,
   sectionLevel,
   type CommandSignature,
@@ -23,19 +25,32 @@ import {
   hasEnvironmentArguments,
   readDelimiter,
 } from './environments.js';
-import { DEFINITIONS } from './scan.js';
+import { DEFINITIONS, ENV_DEFINITIONS } from './scan.js';
 import { issue, rangeAt, testKind } from './shared.js';
-import { readDefinitionTokens } from './tokenize.js';
+import { readDefinitionTokens, readEnvironmentDefinitionTokens } from './tokenize.js';
 
 interface ContainerFrame {
-  kind: 'root' | 'environment' | 'group' | 'math';
+  kind: 'root' | 'group' | 'math';
+  key: string;
+  start: number;
+  children: ConfiguredNode[];
+  delimiter: MathDelimiter;
+}
+
+interface EnvironmentFrame {
+  kind: 'environment';
   key: string;
   start: number;
   children: ConfiguredNode[];
   name: string;
-  delimiter: MathDelimiter;
   openingEnd: number;
   closingStart: number;
+  starred: boolean;
+  arguments: ConfiguredCommandArgument[];
+  signature: CommandSignature | undefined;
+  nextSlot: number;
+  starChecked: boolean;
+  phase: 'header' | 'body';
 }
 
 interface SectionFrame {
@@ -75,16 +90,17 @@ interface CommandArgFrame {
   openTokenIndex: number;
   openLeaf: ConfiguredNode & { kind: 'token' };
   children: ConfiguredNode[];
-  parent: CommandFrame | SectionFrame;
+  parent: CommandFrame | SectionFrame | EnvironmentFrame;
 }
 
-type StackFrame = ContainerFrame | SectionFrame | CommandFrame | CommandArgFrame;
+type StackFrame = ContainerFrame | EnvironmentFrame | SectionFrame | CommandFrame | CommandArgFrame;
 
 export function parseConfiguredStructure(
   tokens: readonly SelectedToken[],
   viewId: ViewId,
   maxNesting: number,
-  snapshot: ProjectSnapshot
+  snapshot: ProjectSnapshot,
+  signatures?: ReadonlyMap<string, CommandSignature>
 ):
   | { kind: 'success'; root: ConfiguredContainerNode & { kind: 'root' } }
   | { kind: 'error'; issue: ProjectIssue } {
@@ -95,10 +111,7 @@ export function parseConfiguredStructure(
       key: `n${nextKey++}`,
       start,
       children: [],
-      name: '',
       delimiter: '$',
-      openingEnd: -1,
-      closingStart: -1,
     };
   }
 
@@ -330,7 +343,7 @@ export function parseConfiguredStructure(
   }
 
   function build(
-    frame: ContainerFrame | SectionFrame | CommandFrame,
+    frame: ContainerFrame | EnvironmentFrame | SectionFrame | CommandFrame,
     end = -1
   ): ConfiguredContainerNode {
     if (frame.kind === 'section' || frame.kind === 'command') {
@@ -377,6 +390,7 @@ export function parseConfiguredStructure(
           ...shared,
           kind: 'environment',
           name: frame.name,
+          arguments: frame.arguments,
           syntax: {
             opening,
             closing,
@@ -402,7 +416,9 @@ export function parseConfiguredStructure(
     stack[stack.length - 1]!.children.push(node);
   }
 
-  function pushContainerFrame(frame: ContainerFrame | SectionFrame | CommandFrame): boolean {
+  function pushContainerFrame(
+    frame: ContainerFrame | EnvironmentFrame | SectionFrame | CommandFrame
+  ): boolean {
     stack.push(frame);
     astDepth++;
     if (astDepth > maxNesting) {
@@ -425,22 +441,33 @@ export function parseConfiguredStructure(
   }
 
   function recordSingleNodeArgument(
-    frame: CommandFrame | SectionFrame,
+    frame: CommandFrame | SectionFrame | EnvironmentFrame,
     slot: number,
     kind: 'optional' | 'mandatory',
     opaque: boolean,
     node: ConfiguredNode & { kind: 'token' }
   ): void {
+    const argNode: ConfiguredArgumentNode = {
+      ...baseFromNodes([node], `n${nextKey++}`),
+      kind: 'argument',
+      argKind: kind,
+      slot,
+      opaque,
+      delimiter: 'bare',
+      innerLocation: node.location,
+      innerProjectedRange: node.projectedRange,
+      children: [node],
+    };
     const childIndex = frame.children.length;
-    frame.children.push(node);
+    frame.children.push(argNode);
     frame.arguments.push({
       kind,
       slot,
       opaque,
-      location: node.location,
-      innerLocation: node.location,
-      projectedRange: node.projectedRange,
-      innerProjectedRange: node.projectedRange,
+      location: argNode.location,
+      innerLocation: argNode.innerLocation,
+      projectedRange: argNode.projectedRange,
+      innerProjectedRange: argNode.innerProjectedRange,
       childStart: childIndex,
       childEnd: childIndex,
     });
@@ -455,10 +482,7 @@ export function parseConfiguredStructure(
     closeTokenIndex: number
   ): void {
     const parent = argFrame.parent;
-    const childStart = parent.children.length;
-    parent.children.push(argFrame.openLeaf, ...argFrame.children, closeLeaf);
-    const childEnd = parent.children.length - 1;
-    const allNodes = parent.children.slice(childStart, childEnd + 1);
+    const allNodes: ConfiguredNode[] = [argFrame.openLeaf, ...argFrame.children, closeLeaf];
     const outerOrigins = mergeOrigins(allNodes);
     const outerLocation = locationFromOrigins(outerOrigins);
     const outerProjected = projectedRangeFromNodes(allNodes);
@@ -473,6 +497,23 @@ export function parseConfiguredStructure(
             line: argFrame.openLeaf.projectedRange.line,
           };
     const kind = argFrame.delimiter === '[' ? 'optional' : 'mandatory';
+    const argNode: ConfiguredArgumentNode = {
+      viewId,
+      occurrenceKey: `n${nextKey++}`,
+      origins: outerOrigins,
+      projectedRange: outerProjected,
+      location: outerLocation,
+      kind: 'argument',
+      argKind: kind,
+      slot: argFrame.slot,
+      opaque: argFrame.opaque,
+      delimiter: argFrame.delimiter === '[' ? 'bracket' : 'braced',
+      innerLocation,
+      innerProjectedRange: innerProjected,
+      children: allNodes,
+    };
+    const childStart = parent.children.length;
+    parent.children.push(argNode);
     parent.arguments.push({
       kind,
       slot: argFrame.slot,
@@ -482,7 +523,7 @@ export function parseConfiguredStructure(
       projectedRange: outerProjected,
       innerProjectedRange: innerProjected,
       childStart,
-      childEnd,
+      childEnd: childStart,
     });
     if (parent.kind === 'section' && kind === 'mandatory') {
       const rawParts: string[] = [];
@@ -494,20 +535,26 @@ export function parseConfiguredStructure(
     parent.nextSlot++;
   }
 
-  function headerErrorMessage(frame: CommandFrame | SectionFrame): string {
+  function headerErrorMessage(frame: CommandFrame | SectionFrame | EnvironmentFrame): string {
     return frame.kind === 'section'
       ? 'Malformed selected section heading.'
-      : 'Malformed selected command arguments.';
+      : frame.kind === 'environment'
+        ? 'Malformed selected environment arguments.'
+        : 'Malformed selected command arguments.';
   }
 
   function advanceCommandArgs(
-    frame: CommandFrame | SectionFrame,
+    frame: CommandFrame | SectionFrame | EnvironmentFrame,
     startIndex: number,
     startCharOffset: number
   ): { nextIndex: number; nextCharOffset: number } {
     let cursor = startIndex;
     let charOffset = startCharOffset;
     const sig = frame.signature;
+    if (!sig) {
+      if (frame.kind === 'environment') frame.phase = 'body';
+      return { nextIndex: cursor, nextCharOffset: charOffset };
+    }
 
     if (!frame.starChecked) {
       frame.starChecked = true;
@@ -671,7 +718,7 @@ export function parseConfiguredStructure(
     }
 
     // All signature parameters resolved
-    if (frame.kind === 'section') {
+    if (frame.kind === 'section' || frame.kind === 'environment') {
       frame.phase = 'body';
     } else {
       close();
@@ -803,10 +850,21 @@ export function parseConfiguredStructure(
             }
           }
           if (closeStart !== -1) {
-            const frame = container('environment', i);
-            frame.name = env.name;
-            frame.openingEnd = env.end;
-            frame.closingStart = closeStart;
+            const frame: EnvironmentFrame = {
+              kind: 'environment',
+              key: `n${nextKey++}`,
+              start: i,
+              children: [],
+              name: env.name,
+              openingEnd: env.end,
+              closingStart: closeStart,
+              starred: env.name.endsWith('*'),
+              arguments: [],
+              signature: undefined,
+              nextSlot: 0,
+              starChecked: true,
+              phase: 'body',
+            };
             if (!pushContainerFrame(frame)) break;
             for (let k = env.end + 1; k < closeStart; k++) {
               leaf(k);
@@ -825,19 +883,38 @@ export function parseConfiguredStructure(
     }
 
     const command = token.kind === 'command' ? token.name || token.value.slice(1) : '';
-    if (selected.interpretation === 'opaque' && DEFINITIONS.has(command)) {
+    if (
+      selected.interpretation === 'opaque' &&
+      (DEFINITIONS.has(command) || ENV_DEFINITIONS.has(command))
+    ) {
       const origin = selected.origin;
-      const defFact = files
-        .get(origin.path)
-        ?.facts.find((f) => f.kind === 'definition' && f.range.start === origin.range.start);
-      let bodyEndOffset =
-        defFact?.kind === 'definition' && defFact.body ? defFact.body.end + 1 : -1;
-      if (bodyEndOffset < 0) {
-        const def = readDefinitionTokens(
-          tokens.map((t) => t.token),
-          i
-        );
-        if (def.body) bodyEndOffset = def.body.end - 1;
+      let bodyEndOffset = -1;
+      if (DEFINITIONS.has(command)) {
+        const defFact = files
+          .get(origin.path)
+          ?.facts.find((f) => f.kind === 'definition' && f.range.start === origin.range.start);
+        bodyEndOffset = defFact?.kind === 'definition' && defFact.body ? defFact.body.end + 1 : -1;
+        if (bodyEndOffset < 0) {
+          const def = readDefinitionTokens(
+            tokens.map((t) => t.token),
+            i
+          );
+          if (def.body) bodyEndOffset = def.body.end - 1;
+        }
+      } else {
+        const envFact = files
+          .get(origin.path)
+          ?.facts.find(
+            (f) => f.kind === 'environment-definition' && f.range.start === origin.range.start
+          );
+        bodyEndOffset = envFact?.kind === 'environment-definition' ? envFact.range.end : -1;
+        if (bodyEndOffset < 0) {
+          const envDef = readEnvironmentDefinitionTokens(
+            tokens.map((t) => t.token),
+            i
+          );
+          bodyEndOffset = envDef.endOffset - 1;
+        }
       }
       if (bodyEndOffset >= 0) {
         while (
@@ -855,7 +932,10 @@ export function parseConfiguredStructure(
       }
     }
 
-    const sig = token.kind === 'command' ? getCommandSignature(command) : undefined;
+    const sig =
+      token.kind === 'command'
+        ? (signatures?.get(command) ?? getCommandSignature(command))
+        : undefined;
 
     if (selected.interpretation === 'opaque' && (!sig || sig.role !== 'command')) {
       leaf(i, charOffset);
@@ -915,12 +995,33 @@ export function parseConfiguredStructure(
         break;
       }
       if (command === 'begin') {
-        const frame = container('environment', i);
-        frame.name = env.name;
-        frame.openingEnd = env.end;
+        const envSig = getBuiltinEnvironmentSignature(env.name);
+        const frame: EnvironmentFrame = {
+          kind: 'environment',
+          key: `n${nextKey++}`,
+          start: i,
+          children: [],
+          name: env.name,
+          openingEnd: env.end,
+          closingStart: -1,
+          starred: env.name.endsWith('*'),
+          arguments: [],
+          signature: envSig
+            ? { name: env.name, allowStar: false, role: 'command', params: envSig.params }
+            : undefined,
+          nextSlot: 0,
+          starChecked: true,
+          phase: envSig ? 'header' : 'body',
+        };
         if (!pushContainerFrame(frame)) break;
-        i = env.end + 1;
-        charOffset = 0;
+        if (envSig) {
+          const next = advanceCommandArgs(frame, env.end + 1, 0);
+          i = next.nextIndex;
+          charOffset = next.nextCharOffset;
+        } else {
+          i = env.end + 1;
+          charOffset = 0;
+        }
       } else {
         while (
           stack[stack.length - 1]!.kind === 'section' &&
@@ -929,6 +1030,10 @@ export function parseConfiguredStructure(
           close();
         }
         const current = stack[stack.length - 1]!;
+        if (current.kind === 'environment' && current.phase === 'header') {
+          fail('Malformed selected environment arguments.', current.start);
+          break;
+        }
         if (current.kind !== 'environment' || current.name !== env.name) {
           fail('Mismatched selected environment.', i);
           break;
@@ -1051,6 +1156,8 @@ export function parseConfiguredStructure(
       fail(headerErrorMessage(unclosed.parent), unclosed.parent.start);
     } else if (unclosed.kind === 'command') {
       fail('Malformed selected command arguments.', unclosed.start);
+    } else if (unclosed.kind === 'environment' && unclosed.phase === 'header') {
+      fail('Malformed selected environment arguments.', unclosed.start);
     } else {
       fail(`Unclosed selected ${unclosed.kind}.`, unclosed.start);
     }

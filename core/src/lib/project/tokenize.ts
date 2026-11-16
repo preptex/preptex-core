@@ -46,10 +46,38 @@ export interface VerbatimTokenMatch {
 
 export interface DefinitionTokenMatch {
   readonly name: string | null;
+  readonly nameStart: number | null;
+  readonly nameEnd: number | null;
   readonly starred: boolean;
+  readonly numArgs: number;
+  readonly defaultArg: string | null;
   readonly endOffset: number;
   readonly nextIndex: number;
   readonly body: BracedGroupTokenMatch | null;
+  readonly arguments: readonly {
+    readonly start: number;
+    readonly end: number;
+    readonly innerStart: number;
+    readonly innerEnd: number;
+    readonly innerStartIndex: number;
+    readonly innerEndIndex: number;
+    readonly text: string;
+  }[];
+  readonly valid: boolean;
+}
+
+export interface EnvironmentDefinitionTokenMatch {
+  readonly name: string | null;
+  readonly nameStart: number | null;
+  readonly nameEnd: number | null;
+  readonly starred: boolean;
+  readonly numArgs: number;
+  readonly defaultArg: string | null;
+  readonly endOffset: number;
+  readonly endIndex: number;
+  readonly nextIndex: number;
+  readonly beginBody: BracedGroupTokenMatch | null;
+  readonly endBody: BracedGroupTokenMatch | null;
   readonly arguments: readonly {
     readonly start: number;
     readonly end: number;
@@ -582,19 +610,34 @@ export function readDefinitionTokens(
     cursor = skipTriviaTokens(tokens, cursor, untilIndex);
   }
   let name: string | null = null;
+  let nameStart: number | null = null;
+  let nameEnd: number | null = null;
   let lastOffset = starred ? cmd.range.end + 2 : cmd.range.end + 1;
   if (charOffset === 0 && cursor < untilIndex) {
     const targetTok = tokens[cursor]!;
     if (targetTok.kind === 'command' || targetTok.kind === 'math') {
       if (targetTok.kind === 'command' && /^[A-Za-z@]+$/.test(targetTok.name)) {
         name = targetTok.name;
+        nameStart = targetTok.range.start + 1;
+        nameEnd = targetTok.range.end;
       }
       lastOffset = targetTok.range.end + 1;
       cursor++;
     } else if (cmd.name !== 'def') {
       const grp = readBracedGroupTokens(tokens, cursor, untilIndex);
       if (grp) {
-        name = /^\\([A-Za-z@]+)$/.exec(grp.text.trim())?.[1] ?? null;
+        const match = /^\\([A-Za-z@]+)$/.exec(grp.text.trim());
+        name = match?.[1] ?? null;
+        if (name) {
+          for (let k = grp.innerStartIndex; k <= grp.innerEndIndex; k++) {
+            const innerTok = tokens[k]!;
+            if (innerTok.kind === 'command' && innerTok.name === name) {
+              nameStart = innerTok.range.start + 1;
+              nameEnd = innerTok.range.end;
+              break;
+            }
+          }
+        }
         lastOffset = grp.end;
         cursor = grp.nextIndex;
       }
@@ -661,6 +704,24 @@ export function readDefinitionTokens(
     lastOffset = body.end;
     cursor = body.nextIndex;
   }
+  let numArgs = 0;
+  let defaultArg: string | null = null;
+  if (cmd.name === 'def') {
+    const paramText = args[0]?.text ?? '';
+    if (/^(?:#[1-9])+$/.test(paramText)) {
+      const indices = [...paramText.matchAll(/#([1-9])/g)].map((m) => Number(m[1]));
+      if (indices.every((val, idx) => val === idx + 1)) {
+        numArgs = indices.length;
+      }
+    }
+  } else {
+    if (args.length >= 1 && /^[0-9]$/.test(args[0]!.text.trim())) {
+      numArgs = Number(args[0]!.text.trim());
+    }
+    if (args.length >= 2) {
+      defaultArg = args[1]!.text;
+    }
+  }
   const valid =
     Boolean(name && body) &&
     (cmd.name === 'def' ||
@@ -669,10 +730,189 @@ export function readDefinitionTokens(
         (args.length === 1 || args[0]!.text.trim() !== '0')));
   return {
     name,
+    nameStart,
+    nameEnd,
     starred,
+    numArgs,
+    defaultArg,
     endOffset: body ? body.end : Math.max(lastOffset, cmd.range.end + 1),
     nextIndex: body ? body.nextIndex : untilIndex,
     body,
+    arguments: args,
+    valid,
+  };
+}
+
+/**
+ * Read a `\newenvironment[*]`, `\renewenvironment[*]`, or `\newtheorem[*]`
+ * declaration header and body over the token array.
+ */
+export function readEnvironmentDefinitionTokens(
+  tokens: readonly SourceToken[],
+  commandIndex: number,
+  untilIndex = tokens.length
+): EnvironmentDefinitionTokenMatch {
+  const cmd = tokens[commandIndex]!;
+  let cursor = commandIndex + 1;
+  let charOffset = 0;
+  let starred = false;
+  if (
+    cursor < untilIndex &&
+    tokens[cursor]!.kind === 'text' &&
+    tokens[cursor]!.value.startsWith('*')
+  ) {
+    starred = true;
+    if (tokens[cursor]!.value.length === 1) cursor++;
+    else charOffset = 1;
+  }
+  if (charOffset === 0) cursor = skipTriviaTokens(tokens, cursor, untilIndex);
+
+  let name: string | null = null;
+  let nameStart: number | null = null;
+  let nameEnd: number | null = null;
+  let lastOffset = starred ? cmd.range.end + 2 : cmd.range.end + 1;
+  let lastIndex = commandIndex;
+
+  if (charOffset === 0) {
+    const nameGrp = readBracedGroupTokens(tokens, cursor, untilIndex);
+    if (nameGrp) {
+      const trimmed = nameGrp.text.trim();
+      if (/^[A-Za-z][A-Za-z0-9@*-]{0,127}$/.test(trimmed)) {
+        name = trimmed;
+        const lead = nameGrp.text.indexOf(trimmed);
+        nameStart = nameGrp.innerStart + lead;
+        nameEnd = nameStart + trimmed.length - 1;
+      }
+      lastOffset = nameGrp.end;
+      lastIndex = nameGrp.closeIndex;
+      cursor = nameGrp.nextIndex;
+    }
+  }
+
+  const args: {
+    readonly start: number;
+    readonly end: number;
+    readonly innerStart: number;
+    readonly innerEnd: number;
+    readonly innerStartIndex: number;
+    readonly innerEndIndex: number;
+    readonly text: string;
+  }[] = [];
+
+  if (cmd.name === 'newtheorem') {
+    const numberedLike = readOptionalBracketTokens(tokens, cursor, untilIndex, 0);
+    if (numberedLike) {
+      args.push({
+        start: numberedLike.start,
+        end: numberedLike.end,
+        innerStart: numberedLike.innerStart,
+        innerEnd: numberedLike.innerEnd,
+        innerStartIndex: numberedLike.innerStartIndex,
+        innerEndIndex: numberedLike.innerEndIndex,
+        text: numberedLike.text,
+      });
+      lastOffset = numberedLike.end;
+      lastIndex = numberedLike.endIndex;
+      cursor = numberedLike.nextIndex;
+    }
+    const caption = readBracedGroupTokens(tokens, cursor, untilIndex);
+    if (caption) {
+      lastOffset = caption.end;
+      lastIndex = caption.closeIndex;
+      cursor = caption.nextIndex;
+    }
+    const within = readOptionalBracketTokens(tokens, cursor, untilIndex, 0);
+    if (within) {
+      args.push({
+        start: within.start,
+        end: within.end,
+        innerStart: within.innerStart,
+        innerEnd: within.innerEnd,
+        innerStartIndex: within.innerStartIndex,
+        innerEndIndex: within.innerEndIndex,
+        text: within.text,
+      });
+      lastOffset = within.end;
+      lastIndex = within.endIndex;
+      cursor = within.nextIndex;
+    }
+    return {
+      name,
+      nameStart,
+      nameEnd,
+      starred,
+      numArgs: 0,
+      defaultArg: null,
+      endOffset: Math.max(lastOffset, cmd.range.end + 1),
+      endIndex: lastIndex,
+      nextIndex: caption ? cursor : untilIndex,
+      beginBody: caption,
+      endBody: null,
+      arguments: args,
+      valid: Boolean(name && caption),
+    };
+  }
+
+  let optOffset = 0;
+  for (let i = 0; i < 2; i++) {
+    const opt = readOptionalBracketTokens(tokens, cursor, untilIndex, optOffset);
+    if (!opt) break;
+    args.push({
+      start: opt.start,
+      end: opt.end,
+      innerStart: opt.innerStart,
+      innerEnd: opt.innerEnd,
+      innerStartIndex: opt.innerStartIndex,
+      innerEndIndex: opt.innerEndIndex,
+      text: opt.text,
+    });
+    lastOffset = opt.end;
+    lastIndex = opt.endIndex;
+    cursor = opt.nextIndex;
+    optOffset = opt.nextCharOffset;
+  }
+  if (optOffset > 0) cursor++;
+
+  const beginBody = readBracedGroupTokens(tokens, cursor, untilIndex);
+  if (beginBody) {
+    lastOffset = beginBody.end;
+    lastIndex = beginBody.closeIndex;
+    cursor = beginBody.nextIndex;
+  }
+  const endBody = beginBody ? readBracedGroupTokens(tokens, cursor, untilIndex) : null;
+  if (endBody) {
+    lastOffset = endBody.end;
+    lastIndex = endBody.closeIndex;
+    cursor = endBody.nextIndex;
+  }
+
+  let numArgs = 0;
+  let defaultArg: string | null = null;
+  if (args.length >= 1 && /^[0-9]$/.test(args[0]!.text.trim())) {
+    numArgs = Number(args[0]!.text.trim());
+  }
+  if (args.length >= 2) {
+    defaultArg = args[1]!.text;
+  }
+
+  const valid =
+    Boolean(name && beginBody && endBody) &&
+    (args.length === 0 ||
+      (/^[0-9]$/.test(args[0]!.text.trim()) &&
+        (args.length === 1 || args[0]!.text.trim() !== '0')));
+
+  return {
+    name,
+    nameStart,
+    nameEnd,
+    starred,
+    numArgs,
+    defaultArg,
+    endOffset: Math.max(lastOffset, cmd.range.end + 1),
+    endIndex: lastIndex,
+    nextIndex: endBody ? cursor : untilIndex,
+    beginBody,
+    endBody,
     arguments: args,
     valid,
   };

@@ -2,6 +2,8 @@ import { safeComment, commentEdit } from './comment-edits.js';
 import { realizeProjectConditions } from './conditions.js';
 import { sourceOperationEdits } from './source-operations.js';
 import { environmentActions, projectionChanges } from './node-edits.js';
+import { runCompositeTransformation } from './composite.js';
+import { symbolRefactorProjectionChanges } from './refactor.js';
 import { projectedEditor } from './projected-edits.js';
 import type {
   ExportOptions,
@@ -117,6 +119,9 @@ export function planTransformation(
   )
     invalid('Expected a transformation operation.');
   requireCapability(normalized, operation);
+  if (operation.operation === 'compose-transformations') {
+    return runCompositeTransformation(normalized, operation.options);
+  }
   if (operation.operation === 'realize-conditions') {
     if (normalized.kind !== 'snapshot') invalid('Condition realization requires a snapshot.');
     const realized = realizeProjectConditions(normalized, operation.options);
@@ -164,13 +169,17 @@ export function planTransformation(
   if (
     operation.operation === 'suppress-comments' ||
     ((operation.operation === 'edit-nodes' || operation.operation === 'remove-environments') &&
-      operation.options.target !== 'artifact')
+      operation.options.target !== 'artifact') ||
+    (operation.operation === 'refactor-symbols' && operation.options.target !== 'artifact')
   ) {
-    if (normalized.kind !== 'view') invalid('Structural source edits require a configured view.');
+    if (normalized.kind !== 'view' && operation.operation !== 'refactor-symbols') {
+      invalid('Structural source edits require a configured view.');
+    }
+    const viewForEdits = normalized.kind === 'view' ? normalized : undefined;
     const files = source.files;
-    const edits = sourceOperationEdits(source, operation, normalized);
+    const edits = sourceOperationEdits(source, operation, viewForEdits);
     const plan = freeze({ kind: 'edits' as const, provenance, edits });
-    validateProjectEditPlan(source, plan, normalized);
+    validateProjectEditPlan(source, plan, viewForEdits);
     let remaining = operation.options?.maxOutputCodeUnits ?? 10000000;
     const artifacts = files.map((file) => {
       const artifact = emit(
@@ -192,14 +201,15 @@ export function planTransformation(
       artifacts,
       entryPath: null,
       dependencies: dependencies(artifacts, source.scanOptions),
-      coverage: normalized.coverage,
+      coverage: normalized.kind === 'view' ? normalized.coverage : coverage([]),
     });
   }
   if (normalized.kind !== 'view') invalid('Configured exports require a view.');
   if (
     operation.operation !== 'export-project' &&
     operation.operation !== 'edit-nodes' &&
-    operation.operation !== 'remove-environments'
+    operation.operation !== 'remove-environments' &&
+    operation.operation !== 'refactor-symbols'
   )
     invalid('Expected a configured export operation.');
   const options: ExportOptions =
@@ -212,15 +222,25 @@ export function planTransformation(
               : environmentActions(normalized, operation.options.names),
           maxOutputCodeUnits: operation.options.maxOutputCodeUnits ?? 10000000,
         }
-      : operation.options;
-  const exported = exportView(normalized, options, provenance);
+      : operation.operation === 'refactor-symbols'
+        ? {
+            inputs: 'inline',
+            maxOutputCodeUnits: operation.options.maxOutputCodeUnits ?? 10000000,
+          }
+        : operation.options;
+  const extraChanges =
+    operation.operation === 'refactor-symbols'
+      ? symbolRefactorProjectionChanges(normalized, operation.options.actions)
+      : [];
+  const exported = exportView(normalized, options, provenance, extraChanges);
   return freeze({ kind: 'transformation', resultId, provenance, editPlan: null, ...exported });
 }
 
 function exportView(
   view: ProjectView,
   options: ExportOptions,
-  provenance: OperationProvenance
+  provenance: OperationProvenance,
+  extraProjectionChanges: readonly import('./text-edits.js').TextChange[] = []
 ): {
   artifacts: readonly GeneratedArtifact[];
   entryPath: string;
@@ -236,7 +256,9 @@ function exportView(
   // Explicit actions share one conflict check with export-time environment suppression.
   const project = projectedEditor(
     view,
-    projectionChanges(view, [...nodeActions, ...commentActions])
+    extraProjectionChanges.length > 0
+      ? extraProjectionChanges
+      : projectionChanges(view, [...nodeActions, ...commentActions])
   );
   const issues: ProjectIssue[] = [...view.coverage.issues];
   const selectedByOccurrence = new Map<string, SelectedToken[]>();

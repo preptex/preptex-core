@@ -25,7 +25,13 @@ import { normalizeConditionPolicy, normalizeViewLimits } from './configuration.j
 import { dependencies, emit, sourceCopier, type Segment } from './emission.js';
 import { reject } from './fail.js';
 import { getCommandSignature, scanCommandTokens } from './commands.js';
-import { DEFINITIONS, literalFromGroup, scanFile, UNSUPPORTED_DEFINITIONS } from './scan.js';
+import {
+  DEFINITIONS,
+  ENV_DEFINITIONS,
+  literalFromGroup,
+  scanFile,
+  UNSUPPORTED_DEFINITIONS,
+} from './scan.js';
 import {
   bounded,
   coverage,
@@ -46,6 +52,7 @@ import {
   matchVerbatimTokens,
   readBracedGroupTokens,
   readDefinitionTokens,
+  readEnvironmentDefinitionTokens,
   skipTriviaTokens,
   spliceVerbatimMatch,
 } from './tokenize.js';
@@ -758,6 +765,17 @@ export function evaluateConditionStream(
         }
         markActive(frame, token.index, def.body.closeIndex, 'opaque');
         frame.tokenIndex = def.nextIndex;
+        continue;
+      }
+
+      if (ENV_DEFINITIONS.has(token.name)) {
+        const envDef = readEnvironmentDefinitionTokens(tokens, token.index);
+        if (!envDef.valid) {
+          stop('malformed-syntax', 'Malformed supported environment definition.', at, 'blocked');
+          continue;
+        }
+        markActive(frame, token.index, envDef.endIndex, 'opaque');
+        frame.tokenIndex = envDef.nextIndex;
         continue;
       }
 
