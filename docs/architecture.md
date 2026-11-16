@@ -11,7 +11,7 @@ PrepTeX Core (`@preptex/core@0.4.0`) processes virtual LaTeX projects using **tw
    - Outputs both a checked in-place `ProjectEditPlan` (removing condition commands and inactive branches) and realized condition-free `GeneratedArtifact[]` files.
 3. **Pipeline A — Structural View, Analytics, and Transformations (`resolveProjectView` $\rightarrow$ `parseConfiguredStructure` $\rightarrow$ `runAnalysis` / `planTransformation`)**:
    - **Step 1 (View Preprocessor)**: Uses the shared condition realization engine (`evaluateConditionStream`) when `conditions.mode !== 'none'`, or passes tokens directly when `conditions.mode === 'none'`, producing a condition-free `SelectedToken[]` stream with `SourceOrigin` provenance back to the original source files.
-   - **Step 2 (Condition-Free AST Parser)**: Builds the structural AST (`ConfiguredNode`: `root | section | environment | group | math | token`) from `SelectedToken[]`. **Blocks with `reason.code === 'unrealized-condition'` if any unrealized condition token is encountered.**
+   - **Step 2 (Condition-Free AST Parser)**: Builds the structural AST (`ConfiguredNode`: `root | section | command | environment | group | math | token`) from `SelectedToken[]`. **Blocks with `reason.code === 'unrealized-condition'` if any unrealized condition token is encountered.**
    - **Step 3 (Analytics & Structural Transforms)**: Runs `references`, `unused-commands`, `suppress-comments`, `remove-environments`, `edit-nodes`, and `export-project` exclusively on the realized `ProjectView`.
 
 ---

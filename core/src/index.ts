@@ -20,6 +20,7 @@ export type {
   ConditionPolicy,
   ConditionRealizationRequest,
   ConditionRealizationResult,
+  ConfiguredCommandArgument,
   ConfiguredContainerNode,
   ConfiguredNode,
   ConfiguredNodeBase,

@@ -158,7 +158,7 @@ const eligibility = checkOperationCapability(view, { operation: 'references' });
   - Formatting commands (`\section`, `\textbf`, `\emph`, etc.) containing math or macros (`\section{Model $\alpha$}`) and unknown user commands with arguments (`\mycustomcmd{arg}`) do **not** block `resolveProjectView`.
 - **Condition-Free Structural AST (`parseConfiguredStructure`)**:
   - Expects zero unrealized condition commands (**INV-4**).
-  - Builds `ConfiguredNode` (`root | section | environment | group | math | token`) over the realized `SelectedToken[]` stream.
+  - Builds `ConfiguredNode` (`root | section | command | environment | group | math | token`) over the realized `SelectedToken[]` stream, attaching `starred` and `ConfiguredCommandArgument` spans (`location`, `innerLocation`, `projectedRange`, `innerProjectedRange`, `childStart`, `childEnd`) to known-signature commands and section headings without duplicating argument text strings.
   - Because condition directives and inactive branches are already stripped in Step 1, environments or brace groups that originally straddled `\if...\else...\fi` in raw source parse cleanly into balanced `ConfiguredEnvironmentNode` or `ConfiguredGroupNode` containers with multi-span `origins` and `location`.
 
 ---

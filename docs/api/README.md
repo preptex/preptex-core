@@ -653,6 +653,69 @@ Complete condition realization, or incomplete/blocked when a condition or input 
 
 ***
 
+### ConfiguredCommandArgument
+
+One present optional or mandatory argument attached to a configured command or section heading.
+Original positions use [NodeLocation](#nodelocation) so conditional and input gaps are never bridged.
+
+#### Properties
+
+##### childEnd
+
+> `readonly` **childEnd**: `number`
+
+Inclusive index in `children` of this argument's last node.
+
+##### childStart
+
+> `readonly` **childStart**: `number`
+
+Inclusive index in `children` of this argument's first node.
+
+##### innerLocation
+
+> `readonly` **innerLocation**: [`NodeLocation`](#nodelocation)
+
+Original extent of the interior content alone (`kind: 'none'` for empty delimiters).
+
+##### innerProjectedRange
+
+> `readonly` **innerProjectedRange**: [`SourceRange`](#sourcerange)
+
+Inclusive range of the interior content in the virtual tape (`end = start - 1` when empty).
+
+##### kind
+
+> `readonly` **kind**: `"optional"` \| `"mandatory"`
+
+Argument role in the command signature.
+
+##### location
+
+> `readonly` **location**: [`NodeLocation`](#nodelocation)
+
+Original extent including enclosing `[...]` or `{...}` delimiters when present.
+
+##### opaque
+
+> `readonly` **opaque**: `boolean`
+
+Whether the interior tokens are non-executed opaque leaves rather than parsed AST nodes.
+
+##### projectedRange
+
+> `readonly` **projectedRange**: [`SourceRange`](#sourcerange)
+
+Inclusive range in the virtual selected token tape including delimiters.
+
+##### slot
+
+> `readonly` **slot**: `number`
+
+Zero-based parameter slot index in the command signature.
+
+***
+
 ### ConfiguredEnvironmentDelimiter
 
 Located delimiter in one configured inclusion.
@@ -2597,7 +2660,7 @@ Assert no conditionals exist in the reached source; any conditional syntax stops
 
 ### ConfiguredContainerNode
 
-> **ConfiguredContainerNode** = [`ConfiguredNodeBase`](#configurednodebase) & \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"root"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"environment"`; `name`: `string`; `syntax`: [`ConfiguredEnvironmentSyntax`](#configuredenvironmentsyntax); \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"group"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `delimiter`: [`MathDelimiter`](#mathdelimiter); `kind`: `"math"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"section"`; `level`: `1` \| `2` \| `3` \| `4` \| `5`; `name`: `string`; `starred`: `boolean`; \}
+> **ConfiguredContainerNode** = [`ConfiguredNodeBase`](#configurednodebase) & \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"root"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"environment"`; `name`: `string`; `syntax`: [`ConfiguredEnvironmentSyntax`](#configuredenvironmentsyntax); \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"group"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `delimiter`: [`MathDelimiter`](#mathdelimiter); `kind`: `"math"`; \} \| \{ `arguments`: readonly [`ConfiguredCommandArgument`](#configuredcommandargument)[]; `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"section"`; `level`: `1` \| `2` \| `3` \| `4` \| `5`; `name`: `string`; `starred`: `boolean`; \} \| \{ `arguments`: readonly [`ConfiguredCommandArgument`](#configuredcommandargument)[]; `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"command"`; `name`: `string`; `starred`: `boolean`; \}
 
 Configured containers, with a complete ordered child list only in ready views.
 

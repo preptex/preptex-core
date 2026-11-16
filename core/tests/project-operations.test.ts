@@ -198,7 +198,7 @@ describe('C6 conservative configured command evidence', () => {
     String.raw`{\def\local{}}\local`,
     String.raw`\begin{example}\def\local{}\end{example}\local`,
     String.raw`\local\def\local{}`,
-    String.raw`\def\local{}\opaque{\local}`,
+    String.raw`\def\local{}\cite{\local}`,
   ])('reports ambiguous bindings without choosing a definition: %s', (text) => {
     expect(
       runAnalysis(view(text), { operation: 'unused-commands' }).commands[0]!.classification

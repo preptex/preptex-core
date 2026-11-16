@@ -233,6 +233,33 @@ export function runAnalysis(
         )
           located.push({ fact, location: { ...reached.origin, range: fact.range } });
     }
+    const opaqueByPath = new Map<string, (typeof normalized.selectedTokens)[number][]>();
+    for (const token of normalized.selectedTokens) {
+      if (token.interpretation !== 'opaque') continue;
+      const bucket = opaqueByPath.get(token.origin.path) ?? [];
+      bucket.push(token);
+      opaqueByPath.set(token.origin.path, bucket);
+    }
+    for (const [path, opaqueTokens] of opaqueByPath) {
+      const file = source.files.find((f) => f.path === path);
+      if (!file) continue;
+      for (const fact of file.facts) {
+        if (
+          fact.kind !== 'command-use' ||
+          fact.context.opaqueArguments.length === 0 ||
+          fact.context.definitionBodies.length > 0
+        )
+          continue;
+        for (const tok of opaqueTokens) {
+          if (
+            tok.origin.range.start <= fact.range.start &&
+            tok.origin.range.end >= fact.range.start
+          ) {
+            located.push({ fact, location: { ...tok.origin, range: fact.range } });
+          }
+        }
+      }
+    }
     located = [
       ...new Map(
         located.map((entry) => [

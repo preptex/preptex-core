@@ -20,7 +20,7 @@ This document summarizes the `@preptex/core@0.4.0` public contract for the front
      - `artifacts: readonly GeneratedArtifact[]` (condition-free files)
 3. **Pipeline A — Condition-Free Structural View, Analyses, Node Edits, and Export (`resolveProjectView`, `runAnalysis`, `planTransformation`)**:
    - `resolveProjectView(snapshot, configuration)` either runs the shared condition realizer first (`conditions.mode: 'source' | 'source-with-overrides' | 'manual'`) or expects an already condition-free snapshot (`conditions.mode: 'none'`).
-   - The structural parser (`parseConfiguredStructure`) builds a condition-free `ConfiguredNode` tree (`root | section | environment | group | math | token`) and blocks with `reason.code === 'unrealized-condition'` if any condition token reaches it (**INV-4**).
+   - The structural parser (`parseConfiguredStructure`) builds a condition-free `ConfiguredNode` tree (`root | section | command | environment | group | math | token`) and blocks with `reason.code === 'unrealized-condition'` if any condition token reaches it (**INV-4**).
    - `runAnalysis(view, { operation: 'references' | 'unused-commands' })` and `planTransformation(view, { operation: 'suppress-comments' | 'remove-environments' | 'edit-nodes' | 'export-project', options })` operate exclusively on the realized `ProjectView` (**INV-6**).
    - `createProjectSourceIndex(view)`, `sourceOffsetAt`, `lookupProjectSource`, `selectProjectNode`, and `getSelectedNode` provide fast original-source cursor/range mapping and revision-bound node selection.
 

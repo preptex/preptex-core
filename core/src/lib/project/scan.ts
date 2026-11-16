@@ -8,12 +8,12 @@ import type {
   ScannedFile,
   SyntaxFact,
 } from '../../project-types.js';
+import { getCommandSignature, scanCommandTokens } from './commands.js';
 import { coverage, issue, lineStarts, rangeAt, testKind } from './shared.js';
 import {
   matchVerbatimTokens,
   readBracedGroupTokens,
   readDefinitionTokens,
-  readOptionalBracketTokens,
   skipTriviaTokens,
   spliceVerbatimMatch,
   tokenizeFile,
@@ -33,54 +33,6 @@ export const UNSUPPORTED_DEFINITIONS = new Set([
   'ProvideDocumentCommand',
   'DeclareDocumentCommand',
 ]);
-export const SECTIONS: Readonly<Record<string, 1 | 2 | 3 | 4 | 5>> = {
-  section: 1,
-  subsection: 2,
-  subsubsection: 3,
-  paragraph: 4,
-  subparagraph: 5,
-};
-export const STORED_ARGUMENTS: Readonly<Record<string, number>> = {
-  label: 1,
-  ref: 1,
-  pageref: 1,
-  eqref: 1,
-  input: 1,
-  begin: 1,
-  end: 1,
-  documentclass: 1,
-  usepackage: 1,
-  RequirePackage: 1,
-  title: 1,
-  author: 1,
-  date: 1,
-  cite: 1,
-  citep: 1,
-  citet: 1,
-  url: 1,
-  href: 2,
-  includegraphics: 1,
-};
-export const TEXT_ARGUMENTS = new Set([
-  'textbf',
-  'textit',
-  'textrm',
-  'textsf',
-  'texttt',
-  'emph',
-  'underline',
-  'mbox',
-]);
-
-export function sectionLevel(name: string): 1 | 2 | 3 | 4 | 5 | undefined {
-  return Object.prototype.hasOwnProperty.call(SECTIONS, name) ? SECTIONS[name] : undefined;
-}
-
-export function storedArgumentCount(name: string): number | undefined {
-  return Object.prototype.hasOwnProperty.call(STORED_ARGUMENTS, name)
-    ? STORED_ARGUMENTS[name]
-    : undefined;
-}
 
 export function literalFromGroup(
   arg: BracedGroupTokenMatch | null,
@@ -334,7 +286,9 @@ export function scanFile(
       if (
         token.name === 'input' ||
         token.name === 'label' ||
-        ['ref', 'pageref', 'eqref'].includes(token.name)
+        token.name === 'ref' ||
+        token.name === 'pageref' ||
+        token.name === 'eqref'
       ) {
         const arg = readBracedGroupTokens(scanTokens, idx, untilIndex);
         const key = literalFromGroup(arg, starts);
@@ -344,8 +298,7 @@ export function scanFile(
         );
         if (token.name === 'input') facts.push({ ...base, kind: 'input', target: key });
         else if (token.name === 'label') facts.push({ ...base, kind: 'label', key });
-        else if (token.name === 'ref' || token.name === 'pageref' || token.name === 'eqref')
-          facts.push({ ...base, kind: 'reference', command: token.name, key });
+        else facts.push({ ...base, kind: 'reference', command: token.name, key });
         if (!arg) {
           issues.push(
             issue(
@@ -354,49 +307,8 @@ export function scanFile(
               { path: file.path, range: rangeAt(starts, token.range.start, untilOffset - 1) }
             )
           );
+          continue;
         }
-      }
-
-      // Inventory contents of braced arguments as stored syntax, never document execution.
-      let argIdx = idx;
-      let argCharOffset = 0;
-      if (
-        argIdx < untilIndex &&
-        scanTokens[argIdx]!.kind === 'text' &&
-        scanTokens[argIdx]!.value.startsWith('*')
-      ) {
-        if (scanTokens[argIdx]!.value.length === 1) argIdx++;
-        else argCharOffset = 1;
-      }
-      const opt = readOptionalBracketTokens(scanTokens, argIdx, untilIndex, argCharOffset);
-      if (opt) {
-        const region = rangeAt(starts, opt.innerStart, opt.innerEnd);
-        const subDelta = scan(
-          opt.innerStartIndex,
-          opt.innerEndIndex + 1,
-          opt.innerStart,
-          opt.innerEnd + 1,
-          {
-            ...context,
-            branches: [...branches],
-            opaqueArguments: [...context.opaqueArguments, region],
-          },
-          depth + 1
-        );
-        untilIndex += subDelta;
-        totalDelta += subDelta;
-        argIdx = (opt.nextCharOffset > 0 ? opt.nextIndex + 1 : opt.nextIndex) + subDelta;
-      } else if (argCharOffset > 0) {
-        argIdx++;
-      }
-
-      const knownCount =
-        storedArgumentCount(token.name) ??
-        (sectionLevel(token.name) !== undefined || TEXT_ARGUMENTS.has(token.name) ? 1 : undefined);
-      let consumed = 0;
-      while (knownCount === undefined || consumed < knownCount) {
-        const arg = readBracedGroupTokens(scanTokens, argIdx, untilIndex);
-        if (!arg) break;
         const region = rangeAt(starts, arg.innerStart, arg.innerEnd);
         const subDelta = scan(
           arg.innerStartIndex,
@@ -412,10 +324,54 @@ export function scanFile(
         );
         untilIndex += subDelta;
         totalDelta += subDelta;
-        argIdx = arg.nextIndex + subDelta;
-        consumed++;
+        idx = arg.nextIndex + subDelta;
+        continue;
       }
-      if (argIdx > idx) idx = argIdx;
+
+      const sig = getCommandSignature(token.name);
+      if (!sig) continue;
+
+      const call = scanCommandTokens(scanTokens, token.index, sig, untilIndex);
+      let argShift = 0;
+      for (const arg of call.args) {
+        const region = rangeAt(starts, arg.innerStart, arg.innerEnd);
+        const argContext: FactContext = arg.spec.opaque
+          ? {
+              ...context,
+              branches: [...branches],
+              opaqueArguments: [...context.opaqueArguments, region],
+            }
+          : { ...context, branches: [...branches] };
+        if (arg.braced || arg.optional) {
+          const subDelta = scan(
+            arg.innerStartIndex + argShift,
+            arg.innerEndIndex + 1 + argShift,
+            arg.innerStart,
+            arg.innerEnd + 1,
+            argContext,
+            depth + 1
+          );
+          argShift += subDelta;
+        } else {
+          const singleIdx = arg.startIndex + argShift;
+          const singleTok = scanTokens[singleIdx];
+          if (singleTok?.kind === 'command') {
+            const subDelta = scan(
+              singleIdx,
+              singleIdx + 1,
+              singleTok.range.start,
+              singleTok.range.end + 1,
+              argContext,
+              depth + 1
+            );
+            argShift += subDelta;
+          }
+        }
+      }
+      untilIndex += argShift;
+      totalDelta += argShift;
+      const endCursor = (call.nextCharOffset > 0 ? call.nextIndex + 1 : call.nextIndex) + argShift;
+      if (endCursor > idx) idx = endCursor;
     }
     return totalDelta;
   }

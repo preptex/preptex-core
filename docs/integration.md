@@ -26,7 +26,7 @@ PrepTeX Core is an in-memory, environment-neutral LaTeX tokenizer, condition rea
    - Ignores unbalanced `{`, mismatched `\begin`/`\end` environments, math `$`, and custom macros (**INV-3**).
    - Produces both a checked in-place `ProjectEditPlan` (stripping condition directives and inactive branches from source files) and condition-free `GeneratedArtifact[]` files.
 3. **Pipeline A — Condition-Free Structural View, Analyses, and Transformations (`resolveProjectView`, `runAnalysis`, `planTransformation`)**:
-   - Preprocesses conditions (or asserts that no conditions exist when `conditions: { mode: 'none' }`) and parses the realized token stream into a condition-free structural AST (`ConfiguredNode`: `root | section | environment | group | math | token`).
+   - Preprocesses conditions (or asserts that no conditions exist when `conditions: { mode: 'none' }`) and parses the realized token stream into a condition-free structural AST (`ConfiguredNode`: `root | section | command | environment | group | math | token`).
    - Rejects any unrealized condition command in the structural parser with `status: 'blocked'` and `reason.code === 'unrealized-condition'` (**INV-4**).
    - Runs `references` and `unused-commands` analyses and `suppress-comments`, `remove-environments`, `edit-nodes`, and `export-project` transformations exclusively on the realized `ProjectView` (**INV-6**).
 

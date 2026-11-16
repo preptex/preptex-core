@@ -1161,3 +1161,234 @@ describe('Tokenizer, Pipeline B, and Pipeline A edge cases & pitfall regressions
     ready(clean);
   });
 });
+
+describe('Unified command-with-arguments model and lookahead regressions', () => {
+  it('handles unbraced section headings without swallowing downstream environments', () => {
+    const src =
+      '\\section abc\n\\subsection cd\n\n\\begin{itemize}\n\\item Some env\n\\end{itemize}';
+    const v = resolve(src);
+    ready(v);
+    const sections = walkConfiguredNodes(v.root).filter((n) => n.kind === 'section');
+    expect(sections.map((s) => s.kind === 'section' && [s.name, s.level, s.starred])).toEqual([
+      ['a', 1, false],
+      ['c', 2, false],
+    ]);
+    const sec = sections[0]!;
+    if (sec.kind === 'section') {
+      expect(sec.arguments).toHaveLength(1);
+      expect(sec.arguments[0]!.location.primary?.range).toEqual({ start: 9, end: 9, line: 1 });
+      expect(sec.children.some((c) => c.kind === 'token' && c.token.value === 'bc')).toBe(true);
+    }
+    const envs = walkConfiguredNodes(v.root).filter((n) => n.kind === 'environment');
+    expect(envs.map((e) => e.kind === 'environment' && e.name)).toEqual(['itemize']);
+  });
+
+  it('supports single-command section headings and rejects malformed headings/delimiters at the opener', () => {
+    const cmdTitle = resolve('\\section \\mytitle\n\\begin{itemize}\\item x\\end{itemize}');
+    ready(cmdTitle);
+    const sec = walkConfiguredNodes(cmdTitle.root).find((n) => n.kind === 'section');
+    expect(sec?.kind === 'section' && sec.name).toBe('\\mytitle');
+
+    const nonStar = resolve('\\section foo * {Bar}');
+    ready(nonStar);
+    const nonStarSec = walkConfiguredNodes(nonStar.root).find((n) => n.kind === 'section');
+    expect(nonStarSec?.kind === 'section' && [nonStarSec.name, nonStarSec.starred]).toEqual([
+      'f',
+      false,
+    ]);
+
+    for (const badSection of [
+      '\\section',
+      '{\\section}',
+      '\\section[unclosed',
+      '{\\section[unclosed}',
+      '\\begin{itemize}\\section\\end{itemize}',
+    ]) {
+      const v = resolve(badSection);
+      failure(v, 'blocked', 'structural-error');
+      if (v.status !== 'ready') {
+        expect(v.reason.location?.range.start).toBe(badSection.indexOf('\\section'));
+      }
+    }
+
+    for (const badEnv of [
+      '\\begin foo',
+      '\\begin*{itemize}\\end{itemize}',
+      '\\begin[opt]{itemize}\\end{itemize}',
+      '\\begin{itemize}\\end foo',
+    ]) {
+      const v = resolve(badEnv);
+      failure(v, 'blocked', 'structural-error');
+    }
+  });
+
+  it('parses known commands with optional/mandatory argument positions and avoids outer group depth doubling', () => {
+    const src =
+      '\\textbf{hello}\\cite*[see][p.5]{k1}\\item[p.1]tail{k2}\\href{https://a.com}{\\iftrue \\emph{Link}\\fi}';
+    const v = resolve(src);
+    ready(v);
+    const cmds = walkConfiguredNodes(v.root).filter((n) => n.kind === 'command');
+    expect(
+      cmds.map((c) =>
+        c.kind === 'command'
+          ? [c.name, c.starred, c.arguments.map((a) => [a.kind, a.slot, a.opaque])]
+          : []
+      )
+    ).toEqual([
+      ['textbf', false, [['mandatory', 0, false]]],
+      [
+        'cite',
+        true,
+        [
+          ['optional', 0, true],
+          ['optional', 1, true],
+          ['mandatory', 2, true],
+        ],
+      ],
+      ['item', false, [['optional', 0, false]]],
+      [
+        'href',
+        false,
+        [
+          ['mandatory', 0, true],
+          ['mandatory', 1, false],
+        ],
+      ],
+      ['emph', false, [['mandatory', 0, false]]],
+    ]);
+    // \textbf{hello} places delimiters directly inside command.children without an outer group container.
+    expect(cmds[0]!.kind === 'command' && cmds[0]!.children.some((c) => c.kind === 'group')).toBe(
+      false
+    );
+    // \item[p.1]tail{k2} leaves 'tail' and {k2} outside \item.
+    expect(v.root.children.some((n) => n.kind === 'token' && n.token.value === 'tail')).toBe(true);
+    expect(v.root.children.some((n) => n.kind === 'group')).toBe(true);
+    // \cite[p.1]tail{k2} fails at \cite because mandatory {key} is blocked by 'tail'.
+    failure(resolve('\\cite[p.1]tail{k2}'), 'blocked', 'structural-error');
+
+    // 200 nested \textbf{...} fits comfortably inside default maxNesting (256) without doubling depth.
+    const deep = '\\textbf{'.repeat(200) + 'x' + '}'.repeat(200);
+    const deepView = resolve(deep);
+    ready(deepView);
+    allFrozen(deepView);
+  });
+
+  it('handles section headings with math/nested braces, part/chapter commands, empty args, and non-nesting brackets', () => {
+    const v = resolve(
+      '\\part*{Intro}\\chapter[Ch1]{One}\\section*[short {nested} $\\beta$]{Model $\\alpha$}\\textbf{}\\cite[$[0,1)$]{k}\\cite[{[1]}]{k}'
+    );
+    ready(v);
+    const sec = walkConfiguredNodes(v.root).find((n) => n.kind === 'section');
+    expect(sec?.kind === 'section' && [sec.name, sec.starred, sec.arguments.length]).toEqual([
+      'Model $\\alpha$',
+      true,
+      2,
+    ]);
+    if (sec?.kind === 'section') {
+      const headingMath = sec.children.filter((c) => c.kind === 'math');
+      expect(headingMath).toHaveLength(2);
+      expect(sec.children.some((c) => c.kind === 'group')).toBe(true);
+    }
+    const cmds = walkConfiguredNodes(v.root).filter((n) => n.kind === 'command');
+    expect(cmds.map((c) => c.kind === 'command' && c.name)).toEqual([
+      'part',
+      'chapter',
+      'textbf',
+      'cite',
+      'cite',
+    ]);
+    const emptyTextbf = cmds[2]!;
+    if (emptyTextbf.kind === 'command') {
+      const arg = emptyTextbf.arguments[0]!;
+      expect(arg.innerLocation).toEqual({ kind: 'none', primary: null, spans: [] });
+      expect(arg.innerProjectedRange.end).toBe(arg.innerProjectedRange.start - 1);
+    }
+  });
+
+  it('tracks multi-file/conditional argument locations, surrogate-safe tex-args, verbatim in args, and unknown commands', () => {
+    const multi = resolveProjectView(
+      createProjectSnapshot([
+        file('\\textbf{A\\iftrue B\\else C\\fi\\input{part}}'),
+        file('D', 'part.tex'),
+      ]),
+      { entryPath: 'main.tex' }
+    );
+    ready(multi);
+    const bold = walkConfiguredNodes(multi.root).find(
+      (n) => n.kind === 'command' && n.name === 'textbf'
+    );
+    if (bold?.kind === 'command') {
+      expect(bold.arguments[0]!.location.kind).toBe('multiple');
+      expect(bold.arguments[0]!.innerLocation.kind).toBe('multiple');
+      expect(new Set(bold.arguments[0]!.innerLocation.spans.map((s) => s.path)).size).toBe(2);
+    }
+
+    const surrogate = resolve('\\textbf 😀x\\unknown{arg}');
+    ready(surrogate);
+    const surCmd = walkConfiguredNodes(surrogate.root).find(
+      (n) => n.kind === 'command' && n.name === 'textbf'
+    );
+    expect(
+      surCmd?.kind === 'command' &&
+        surCmd.children.map((c) => (c.kind === 'token' ? c.token.value : c.kind))
+    ).toEqual(['\\textbf', ' ', '😀']);
+    expect(surrogate.root.children.some((n) => n.kind === 'token' && n.token.value === 'x')).toBe(
+      true
+    );
+    expect(surrogate.root.children.some((n) => n.kind === 'group')).toBe(true);
+
+    const verbInArgs = resolve('\\section[\\verb|]|]{\\verb|{|}\\href{\\verb|u|}{\\textbf{t}}');
+    ready(verbInArgs);
+    const verbSec = walkConfiguredNodes(verbInArgs.root).find((n) => n.kind === 'section');
+    expect(verbSec?.kind === 'section' && verbSec.name).toBe('\\verb|{|');
+
+    const macroBody = resolve(
+      '\\newcommand{\\mybold}[1]{\\textbf{#1}\\label{x}}\\def\\g#1{\\cite{#1}}\\mybold{hi}'
+    );
+    ready(macroBody);
+    // \textbf and \label inside macro bodies stay opaque leaves, not document command nodes.
+    const docCmds = walkConfiguredNodes(macroBody.root).filter((n) => n.kind === 'command');
+    expect(docCmds).toEqual([]);
+
+    // INV-3: Pipeline B ignores malformed non-condition commands.
+    const cond = realizeProjectConditions(snapshot('\\iftrue\\textbf{\\else\\frac{a}\\fi'));
+    expect(cond.status).toBe('ready');
+
+    // Unknown commands do not swallow adjacent {...} into opaqueArguments in scan.ts.
+    const unknownGroup = snapshot('\\def\\unused{}\\relax{\\unused}');
+    const unusedFact = inspectProject(unknownGroup, { kinds: ['command-use'] }).facts.find(
+      (f) => f.kind === 'command-use' && f.name === 'unused'
+    );
+    expect(unusedFact?.context.opaqueArguments).toEqual([]);
+  });
+
+  it('parses additional standard LaTeX signatures and rejects missing mandatory arguments at the command', () => {
+    const ok = resolve(
+      '\\usepackage[utf8]{inputenc}[2020/01/01]\\textcolor[rgb]{1,0,0}{\\textbf{hi}}\\frac 1 2\\sqrt[3]{x}\\parbox[t][2cm]{3cm}{body}\\item[n] x\\\\*[5pt]'
+    );
+    ready(ok);
+    const cmds = walkConfiguredNodes(ok.root).filter((n) => n.kind === 'command');
+    expect(cmds.map((c) => c.kind === 'command' && c.name)).toEqual([
+      'usepackage',
+      'textcolor',
+      'textbf',
+      'frac',
+      'sqrt',
+      'parbox',
+      'item',
+      '\\',
+    ]);
+    const pkg = cmds[0]!;
+    expect(pkg.kind === 'command' && pkg.arguments.map((a) => a.slot)).toEqual([0, 1, 2]);
+    const lineBreak = cmds[7]!;
+    expect(lineBreak.kind === 'command' && [lineBreak.starred, lineBreak.arguments.length]).toEqual(
+      [true, 1]
+    );
+
+    failure(resolve('\\label x'), 'blocked', 'malformed-syntax');
+    for (const bad of ['\\cite{k', '\\frac{a}', '\\textbf}', '\\textcolor{red}']) {
+      const v = resolve(bad);
+      failure(v, 'blocked', 'structural-error');
+    }
+  });
+});

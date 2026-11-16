@@ -498,6 +498,30 @@ export interface ConfiguredNodeBase {
   /** Inclusive range in the virtual selected token tape; empty root ends at -1. */
   readonly projectedRange: SourceRange;
 }
+/**
+ * One present optional or mandatory argument attached to a configured command or section heading.
+ * Original positions use {@link NodeLocation} so conditional and input gaps are never bridged.
+ */
+export interface ConfiguredCommandArgument {
+  /** Argument role in the command signature. */
+  readonly kind: 'optional' | 'mandatory';
+  /** Zero-based parameter slot index in the command signature. */
+  readonly slot: number;
+  /** Whether the interior tokens are non-executed opaque leaves rather than parsed AST nodes. */
+  readonly opaque: boolean;
+  /** Original extent including enclosing `[...]` or `{...}` delimiters when present. */
+  readonly location: NodeLocation;
+  /** Original extent of the interior content alone (`kind: 'none'` for empty delimiters). */
+  readonly innerLocation: NodeLocation;
+  /** Inclusive range in the virtual selected token tape including delimiters. */
+  readonly projectedRange: SourceRange;
+  /** Inclusive range of the interior content in the virtual tape (`end = start - 1` when empty). */
+  readonly innerProjectedRange: SourceRange;
+  /** Inclusive index in `children` of this argument's first node. */
+  readonly childStart: number;
+  /** Inclusive index in `children` of this argument's last node. */
+  readonly childEnd: number;
+}
 /** Configured containers, with a complete ordered child list only in ready views. */
 export type ConfiguredContainerNode = ConfiguredNodeBase &
   (
@@ -540,7 +564,21 @@ export type ConfiguredContainerNode = ConfiguredNodeBase &
         readonly level: 1 | 2 | 3 | 4 | 5;
         /** Starred spelling. */
         readonly starred: boolean;
-        /** Ordered children, including heading tokens. */
+        /** Present heading arguments (`[short]` and mandatory title) in source order. */
+        readonly arguments: readonly ConfiguredCommandArgument[];
+        /** Ordered children, including heading tokens/nodes followed by body nodes. */
+        readonly children: readonly ConfiguredNode[];
+      }
+    | {
+        /** Known-signature command invocation with parsed arguments. */
+        readonly kind: 'command';
+        /** Command name without leading `\`. */
+        readonly name: string;
+        /** Starred spelling (`\cmd*`). */
+        readonly starred: boolean;
+        /** Present optional and mandatory arguments in source order. */
+        readonly arguments: readonly ConfiguredCommandArgument[];
+        /** Ordered children: command token, optional `*` token, and argument delimiters/contents. */
         readonly children: readonly ConfiguredNode[];
       }
   );

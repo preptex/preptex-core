@@ -88,7 +88,7 @@ if (result.editPlan) {
 | `suppress-comments`   | `view`, `target: 'selected'` | Remove reached `%` comments (and `comment` environments when `suppressCommentEnvironments: true`) with lexical join repair |
 
 - **Actions (`NodeEditAction`)**:
-  - `{ kind: 'remove-node', selection }`: Removes the selected node (environment, group, math, section, or structural token) and its descendants.
+  - `{ kind: 'remove-node', selection }`: Removes the selected node (environment, command, group, math, section, or eligible leaf token) and its descendants.
   - `{ kind: 'rename-environment', selection, name }`: Replaces both `\begin{...}` and `\end{...}` names of a selected environment that has two literal delimiters and no environment arguments.
   - `{ kind: 'wrap-node', selection, name }`: Wraps the selected node inside `\begin{<name>}...\end{<name>}`.
 - **`target: 'selected'` vs `target: 'artifact'`**:

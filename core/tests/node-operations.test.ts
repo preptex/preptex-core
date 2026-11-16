@@ -563,4 +563,47 @@ describe('C5a/C7a edge cases and operation ordering', () => {
         })
       ).toThrow(expect.objectContaining({ code: PrepTexErrorCode.OutputLimit }));
   });
+  it('supports editing whole command nodes and non-opaque interiors while protecting delimiters and opaque args', () => {
+    const v = view('\\section abc\n\\textbf{hi \\emph{there}}\\cite[p.1]{k}\\label{x}');
+    const all = nodes(v);
+    const emph = all.find((n) => n.kind === 'command' && n.name === 'emph')!;
+    const cite = all.find((n) => n.kind === 'command' && n.name === 'cite')!;
+    const label = all.find((n) => n.kind === 'command' && n.name === 'label')!;
+    const bc = all.find((n) => n.kind === 'token' && n.token.value === 'bc')!;
+
+    expect(applied(v, edit(v, [remove(v, emph), remove(v, cite), remove(v, bc)]))).toBe(
+      '\\section a\n\\textbf{hi }\\label{x}'
+    );
+    expect(applied(v, edit(v, [wrap(v, label, 'center')]))).toBe(
+      '\\section abc\n\\textbf{hi \\emph{there}}\\cite[p.1]{k}\\begin{center}\\label{x}\\end{center}'
+    );
+
+    // Reject removing internal command delimiters, modifiers, unbraced tex-args, or opaque interiors.
+    const bold = all.find((n) => n.kind === 'command' && n.name === 'textbf')!;
+    const openBrace = bold.kind === 'command' ? bold.children[1]! : bold;
+    const unbracedView = view('\\section*{S}\\textbf a');
+    const secNode = nodes(unbracedView).find((n) => n.kind === 'section')!;
+    const starTok =
+      secNode.kind === 'section'
+        ? secNode.children.find((c) => c.kind === 'token' && c.token.value === '*')!
+        : secNode;
+    const unbracedBold = nodes(unbracedView).find(
+      (n) => n.kind === 'command' && n.name === 'textbf'
+    )!;
+    const directArgTok = unbracedBold.kind === 'command' ? unbracedBold.children[2]! : unbracedBold;
+    const opaqueKey = all.find((n) => n.kind === 'token' && n.token.value === 'k')!;
+
+    expect(() => edit(v, [remove(v, openBrace)])).toThrow(
+      expect.objectContaining({ code: PrepTexErrorCode.OperationUnavailable })
+    );
+    expect(() => edit(v, [remove(v, opaqueKey)])).toThrow(
+      expect.objectContaining({ code: PrepTexErrorCode.OperationUnavailable })
+    );
+    expect(() => edit(unbracedView, [remove(unbracedView, starTok)])).toThrow(
+      expect.objectContaining({ code: PrepTexErrorCode.OperationUnavailable })
+    );
+    expect(() => edit(unbracedView, [remove(unbracedView, directArgTok)])).toThrow(
+      expect.objectContaining({ code: PrepTexErrorCode.OperationUnavailable })
+    );
+  });
 });
