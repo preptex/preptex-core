@@ -1,8 +1,8 @@
-**@preptex/core v0.4.1**
+**@preptex/core v0.5.0**
 
 ***
 
-# @preptex/core v0.4.1
+# @preptex/core v0.5.0
 
 PrepTeX's environment-neutral public API for parsing and transforming virtual
 LaTeX projects.
@@ -435,6 +435,602 @@ Display explanation.
 
 ***
 
+### CatalogCitationEntry
+
+Catalog entry grouping `\bibitem` definitions and `\cite` occurrences for one key.
+
+#### Properties
+
+##### canRenameGlobally
+
+> `readonly` **canRenameGlobally**: `boolean`
+
+Whether global citation key renaming is supported.
+
+##### category
+
+> `readonly` **category**: `"introduced-used"` \| `"introduced-unused"` \| `"used-external"`
+
+Definition/usage classification.
+
+##### definitions
+
+> `readonly` **definitions**: readonly `object`[]
+
+`\bibitem{key}` definitions.
+
+##### key
+
+> `readonly` **key**: `string`
+
+Literal citation key.
+
+##### occurrences
+
+> `readonly` **occurrences**: readonly `object`[]
+
+Citation command occurrences (`\cite`, `\citep`, `\citet`, etc.).
+
+***
+
+### CatalogCommandEntry
+
+Catalog entry grouping definitions and occurrences for one command name.
+
+#### Properties
+
+##### canRenameGlobally
+
+> `readonly` **canRenameGlobally**: `boolean`
+
+Whether global renaming is safely supported.
+
+##### category
+
+> `readonly` **category**: `"introduced-used"` \| `"introduced-unused"` \| `"used-undefined"` \| `"used-builtin"`
+
+Usage/definition classification.
+
+##### definitions
+
+> `readonly` **definitions**: readonly [`CommandDefinitionItem`](#commanddefinitionitem)[]
+
+All definition sites for this command.
+
+##### name
+
+> `readonly` **name**: `string`
+
+Command name without leading ``.
+
+##### occurrences
+
+> `readonly` **occurrences**: readonly [`CommandOccurrenceItem`](#commandoccurrenceitem)[]
+
+All usage occurrences in encounter order.
+
+##### signature
+
+> `readonly` **signature**: `object`
+
+Resolved signature metadata.
+
+###### allowStar
+
+> `readonly` **allowStar**: `boolean`
+
+Whether `*` modifier is accepted.
+
+###### mandatoryArgs
+
+> `readonly` **mandatoryArgs**: `number`
+
+Number of mandatory arguments.
+
+###### optionalArgs
+
+> `readonly` **optionalArgs**: `number`
+
+Number of optional arguments.
+
+###### source
+
+> `readonly` **source**: `"none"` \| `"builtin"` \| `"inferred-definition"` \| `"user-override"`
+
+Origin of the active signature.
+
+***
+
+### CatalogConditionEntry
+
+Catalog entry grouping declaration, test, and setter occurrences for one condition.
+
+#### Properties
+
+##### canRenameGlobally
+
+> `readonly` **canRenameGlobally**: `boolean`
+
+Whether global renaming is safely supported.
+
+##### category
+
+> `readonly` **category**: `"literal"` \| `"primitive"` \| `"introduced-used"` \| `"introduced-unused"` \| `"used-undeclared"`
+
+Condition classification.
+
+##### declarations
+
+> `readonly` **declarations**: readonly `object`[]
+
+`\newif\if<name>` declarations.
+
+##### name
+
+> `readonly` **name**: `string`
+
+Condition flag name without `if` prefix (or full name for primitives/literals).
+
+##### setters
+
+> `readonly` **setters**: readonly `object`[]
+
+`[\global]\<name>true` / `\<name>false` setter occurrences.
+
+##### tests
+
+> `readonly` **tests**: readonly `object`[]
+
+Conditional test occurrences.
+
+***
+
+### CatalogEnvironmentEntry
+
+Catalog entry grouping definitions and occurrences for one environment name.
+
+#### Properties
+
+##### canRenameGlobally
+
+> `readonly` **canRenameGlobally**: `boolean`
+
+Whether global renaming is safely supported.
+
+##### category
+
+> `readonly` **category**: `"introduced-used"` \| `"introduced-unused"` \| `"used-undefined"` \| `"used-standard"`
+
+Usage/definition classification.
+
+##### definitions
+
+> `readonly` **definitions**: readonly [`EnvironmentDefinitionItem`](#environmentdefinitionitem)[]
+
+All definition sites for this environment.
+
+##### name
+
+> `readonly` **name**: `string`
+
+Environment name.
+
+##### occurrences
+
+> `readonly` **occurrences**: readonly [`EnvironmentOccurrenceItem`](#environmentoccurrenceitem)[]
+
+All `\begin{name}...\end{name}` occurrences.
+
+***
+
+### CatalogLabelEntry
+
+Catalog entry grouping `\label` declarations and referencing occurrences for one key.
+
+#### Properties
+
+##### canRenameGlobally
+
+> `readonly` **canRenameGlobally**: `boolean`
+
+Whether global key renaming is supported.
+
+##### category
+
+> `readonly` **category**: `"introduced-used"` \| `"introduced-unused"` \| `"used-undefined"`
+
+Declaration/usage classification.
+
+##### declarations
+
+> `readonly` **declarations**: readonly `object`[]
+
+`\label{key}` declarations.
+
+##### key
+
+> `readonly` **key**: `string`
+
+Literal label key.
+
+##### occurrences
+
+> `readonly` **occurrences**: readonly `object`[]
+
+Referencing occurrences (`\ref`, `\eqref`, `\pageref`, `\autoref`, `\cref`, `\Cref`).
+
+***
+
+### CoarseNode
+
+One node in a readable [CoarseTree](#coarsetree) projection derived from a ready [ProjectView](#projectview).
+
+#### Properties
+
+##### argumentInfo?
+
+> `readonly` `optional` **argumentInfo?**: `object`
+
+Argument metadata when `kind === 'argument'`.
+
+###### argKind
+
+> `readonly` **argKind**: `"optional"` \| `"mandatory"`
+
+Optional vs. mandatory role.
+
+###### delimiter
+
+> `readonly` **delimiter**: [`ConfiguredArgumentDelimiter`](#configuredargumentdelimiter)
+
+Source delimiter form.
+
+###### opaque
+
+> `readonly` **opaque**: `boolean`
+
+Whether interior tokens are opaque leaves.
+
+###### slot
+
+> `readonly` **slot**: `number`
+
+Zero-based parameter slot index.
+
+##### children
+
+> `readonly` **children**: readonly [`CoarseNode`](#coarsenode)[]
+
+Filtered coarse structural children.
+
+##### editableName
+
+> `readonly` **editableName**: `boolean`
+
+Whether this node's name can be directly edited (`environment`, `command`, `section`).
+
+##### id
+
+> `readonly` **id**: `string`
+
+Deterministic node key matching `occurrenceKey` or a synthetic block ID.
+
+##### kind
+
+> `readonly` **kind**: [`CoarseNodeKind`](#coarsenodekind-1)
+
+Coarse node category.
+
+##### location
+
+> `readonly` **location**: [`NodeLocation`](#nodelocation)
+
+Exact source location(s) in the owning snapshot.
+
+##### name
+
+> `readonly` **name**: `string`
+
+Primary display name (section title, environment name, command name, `[#1]`, `{#1}`, or math delimiter).
+
+##### occurrenceKey
+
+> `readonly` **occurrenceKey**: `string` \| `null`
+
+Underlying `ConfiguredNode.occurrenceKey`, or null for a coalesced `text-block`.
+
+##### previewText
+
+> `readonly` **previewText**: `string`
+
+Concise plain-text summary of interior content or short title.
+
+##### projectedRange
+
+> `readonly` **projectedRange**: [`SourceRange`](#sourcerange)
+
+Inclusive range in the virtual selected token tape.
+
+##### sectionLevel?
+
+> `readonly` `optional` **sectionLevel?**: `2` \| `1` \| `3` \| `4` \| `5`
+
+Section depth 1–5 when `kind === 'section'`.
+
+##### selection
+
+> `readonly` **selection**: [`NodeSelection`](#nodeselection) \| `null`
+
+Ready-to-use `NodeSelection` for single-node edit operations, or null for root/synthetic nodes.
+
+##### starred?
+
+> `readonly` `optional` **starred?**: `boolean`
+
+Starred status for sections or commands.
+
+***
+
+### CoarseTree
+
+Readable structural projection of a ready [ProjectView](#projectview).
+
+#### Properties
+
+##### kind
+
+> `readonly` **kind**: `"coarse-tree"`
+
+Result discriminant.
+
+##### nodeCount
+
+> `readonly` **nodeCount**: `number`
+
+Total number of nodes in the coarse tree.
+
+##### options
+
+> `readonly` **options**: [`NormalizedCoarseTreeOptions`](#normalizedcoarsetreeoptions)
+
+Normalized options used to build this tree.
+
+##### resultId
+
+> `readonly` **resultId**: `string`
+
+Deterministic coarse-tree result identity.
+
+##### root
+
+> `readonly` **root**: [`CoarseNode`](#coarsenode)
+
+Coarse root node.
+
+##### snapshotId
+
+> `readonly` **snapshotId**: `string`
+
+Exact source snapshot identity.
+
+##### viewId
+
+> `readonly` **viewId**: `string`
+
+Exact configured view identity.
+
+***
+
+### CoarseTreeOptions
+
+Options controlling how [buildCoarseViewTree](#buildcoarseviewtree) simplifies a [ProjectView](#projectview).
+
+#### Properties
+
+##### commandFilter?
+
+> `readonly` `optional` **commandFilter?**: readonly `string`[]
+
+Specific command names to always include regardless of built-in status.
+
+##### environmentFilter?
+
+> `readonly` `optional` **environmentFilter?**: readonly `string`[]
+
+Environment names to include; omit to include all environments.
+
+##### includeArguments?
+
+> `readonly` `optional` **includeArguments?**: `boolean`
+
+Include command/environment arguments as child nodes; default true.
+
+##### includeBuiltinCommands?
+
+> `readonly` `optional` **includeBuiltinCommands?**: `boolean`
+
+Include standard built-in inline/formatting commands (`\textbf`, `\emph`, `\cite`, `\ref`); default false.
+
+##### includeCustomAndUndefinedCommands?
+
+> `readonly` `optional` **includeCustomAndUndefinedCommands?**: `boolean`
+
+Include project-introduced (`\newcommand`/`\def`) and used-undefined commands; default true.
+
+##### includeDisplayMath?
+
+> `readonly` `optional` **includeDisplayMath?**: `boolean`
+
+Include display math (`$$...$$`, `\[...\]`) while hiding inline `$x$`; default false.
+
+##### includeEnvironments?
+
+> `readonly` `optional` **includeEnvironments?**: `boolean`
+
+Include environments (`\begin{...}...\end{...}`); default true.
+
+##### includeGroups?
+
+> `readonly` `optional` **includeGroups?**: `boolean`
+
+Include anonymous `{...}` brace groups as container nodes; default false (hoists structural children).
+
+##### includeMath?
+
+> `readonly` `optional` **includeMath?**: `boolean`
+
+Include inline and display math blocks (`$...$`, `$$...$$`, `\(`, `\[`); default false.
+
+##### includeSections?
+
+> `readonly` `optional` **includeSections?**: `boolean`
+
+Include structural sections (`\section`..`\subparagraph`); default true.
+
+##### includeTextBlocks?
+
+> `readonly` `optional` **includeTextBlocks?**: `boolean`
+
+Coalesce top-level prose runs into summarized `text-block` nodes; default false.
+
+##### maxPreviewLength?
+
+> `readonly` `optional` **maxPreviewLength?**: `number`
+
+Maximum character length for `previewText` snippets; default 80 (1–1000).
+
+***
+
+### CommandDefinitionItem
+
+One command definition site in [ProjectCatalog](#projectcatalog).
+
+#### Properties
+
+##### arguments
+
+> `readonly` **arguments**: readonly [`SourceRange`](#sourcerange)[]
+
+Argument spec ranges in declaration order.
+
+##### bodyRange
+
+> `readonly` **bodyRange**: [`SourceRange`](#sourcerange) \| `null`
+
+Interior range of definition body, or null.
+
+##### bodySource
+
+> `readonly` **bodySource**: `string` \| `null`
+
+Raw source string of definition body, or null.
+
+##### defaultArg
+
+> `readonly` **defaultArg**: `string` \| `null`
+
+Default value for optional `#1`, or null.
+
+##### form
+
+> `readonly` **form**: `string`
+
+Declaration form (`newcommand`, `renewcommand`, `providecommand`, `def`).
+
+##### id
+
+> `readonly` **id**: `string`
+
+File-local fact identifier.
+
+##### location
+
+> `readonly` **location**: [`AnalysisLocation`](#analysislocation)
+
+Source/configured definition location.
+
+##### name
+
+> `readonly` **name**: `string`
+
+Defined command name without leading ``.
+
+##### nameRange
+
+> `readonly` **nameRange**: [`SourceRange`](#sourcerange) \| `null`
+
+Range of command name without leading ``, or null if unrecognized.
+
+##### numArgs
+
+> `readonly` **numArgs**: `number`
+
+Total parameter count (0–9).
+
+##### starred
+
+> `readonly` **starred**: `boolean`
+
+Starred form flag.
+
+***
+
+### CommandOccurrenceItem
+
+One command usage occurrence in [ProjectCatalog](#projectcatalog).
+
+#### Properties
+
+##### argumentRanges
+
+> `readonly` **argumentRanges**: readonly [`SourceRange`](#sourcerange)[]
+
+Ranges of parsed arguments when available.
+
+##### commandTokenRange
+
+> `readonly` **commandTokenRange**: [`SourceRange`](#sourcerange)
+
+Exact range of `\<name>` token.
+
+##### fullRange
+
+> `readonly` **fullRange**: [`SourceRange`](#sourcerange)
+
+Full invocation range including parsed arguments when available.
+
+##### inDefinitionBody
+
+> `readonly` **inDefinitionBody**: `boolean`
+
+Whether occurrence lies inside a definition body.
+
+##### inOpaqueArgument
+
+> `readonly` **inOpaqueArgument**: `boolean`
+
+Whether occurrence lies inside an opaque command argument.
+
+##### location
+
+> `readonly` **location**: [`AnalysisLocation`](#analysislocation)
+
+Occurrence location.
+
+##### selection
+
+> `readonly` **selection**: [`NodeSelection`](#nodeselection) \| `null`
+
+View-bound selection when inspected against a ready view, else null.
+
+##### starred
+
+> `readonly` **starred**: `boolean`
+
+Starred invocation flag.
+
+***
+
 ### CommandUsage
 
 Conservative per-definition command evidence; never permission to delete a definition.
@@ -476,6 +1072,44 @@ Defined name without the backslash.
 > `readonly` **selfReferences**: readonly [`AnalysisLocation`](#analysislocation)[]
 
 Self references are listed separately and are not root uses.
+
+***
+
+### CompositeTransformationRequest
+
+Composable multi-step transformation pipeline request.
+
+#### Properties
+
+##### operation
+
+> `readonly` **operation**: `"compose-transformations"`
+
+Operation discriminant.
+
+##### options
+
+> `readonly` **options**: `object`
+
+Pipeline configuration, ordered steps, and output size limit.
+
+###### configuration?
+
+> `readonly` `optional` **configuration?**: [`ViewConfiguration`](#viewconfiguration)
+
+View configuration used when resolving intermediate views.
+
+###### maxOutputCodeUnits?
+
+> `readonly` `optional` **maxOutputCodeUnits?**: `number`
+
+Total UTF-16 output limit, default 10000000; maximum 100000000.
+
+###### steps
+
+> `readonly` **steps**: readonly [`CompositeStepRequest`](#compositesteprequest)[]
+
+Ordered sequence of 1–100 transformation steps.
 
 ***
 
@@ -734,7 +1368,7 @@ Name inside braces, without expansion.
 
 ###### Inherited from
 
-[`EnvironmentDelimiter`](#environmentdelimiter).[`name`](#name-4)
+[`EnvironmentDelimiter`](#environmentdelimiter).[`name`](#name-11)
 
 ##### nameRange
 
@@ -744,7 +1378,7 @@ Inclusive original range of the name alone.
 
 ###### Inherited from
 
-[`EnvironmentDelimiter`](#environmentdelimiter).[`nameRange`](#namerange-1)
+[`EnvironmentDelimiter`](#environmentdelimiter).[`nameRange`](#namerange-3)
 
 ##### origin
 
@@ -914,6 +1548,144 @@ Complete recognized coverage, or explicitly limited observations.
 
 ***
 
+### CustomCommandParameterSpec
+
+Parameter specification for a recognized or custom LaTeX command signature.
+
+#### Properties
+
+##### form
+
+> `readonly` **form**: `"braced"` \| `"tex-arg"`
+
+Whether mandatory argument requires `{...}` braces or accepts a single TeX token.
+
+##### kind
+
+> `readonly` **kind**: `"optional"` \| `"mandatory"`
+
+Whether the argument is `[optional]` or mandatory.
+
+##### opaque
+
+> `readonly` **opaque**: `boolean`
+
+Whether the interior is non-executed opaque content rather than parsed structural AST.
+
+***
+
+### CustomCommandSignature
+
+User-supplied command signature for parsing undefined or overridden commands.
+
+#### Properties
+
+##### allowStar?
+
+> `readonly` `optional` **allowStar?**: `boolean`
+
+Whether a starred form (`\cmd*`) is recognized; default true.
+
+##### mandatoryArgs
+
+> `readonly` **mandatoryArgs**: `number`
+
+Number of mandatory `{...}` / TeX arguments (0–9).
+
+##### name
+
+> `readonly` **name**: `string`
+
+Command name without leading ``.
+
+##### opaque?
+
+> `readonly` `optional` **opaque?**: `boolean`
+
+Whether arguments are opaque keys rather than parsed LaTeX text; default false.
+
+##### optionalArgs?
+
+> `readonly` `optional` **optionalArgs?**: `number`
+
+Number of leading optional `[...]` arguments (0–9, default 0).
+
+##### params?
+
+> `readonly` `optional` **params?**: readonly [`CustomCommandParameterSpec`](#customcommandparameterspec)[]
+
+Optional explicit parameter sequence overriding `mandatoryArgs`/`optionalArgs`.
+
+***
+
+### EnvironmentDefinitionItem
+
+One environment definition site in [ProjectCatalog](#projectcatalog).
+
+#### Properties
+
+##### beginBodyRange
+
+> `readonly` **beginBodyRange**: [`SourceRange`](#sourcerange) \| `null`
+
+Begin-definition body (or theorem caption) range, or null.
+
+##### defaultArg
+
+> `readonly` **defaultArg**: `string` \| `null`
+
+Default value for optional `#1`, or null.
+
+##### endBodyRange
+
+> `readonly` **endBodyRange**: [`SourceRange`](#sourcerange) \| `null`
+
+End-definition body range, or null.
+
+##### form
+
+> `readonly` **form**: `string`
+
+Declaration form (`newenvironment`, `renewenvironment`, `newtheorem`).
+
+##### id
+
+> `readonly` **id**: `string`
+
+File-local fact identifier.
+
+##### location
+
+> `readonly` **location**: [`AnalysisLocation`](#analysislocation)
+
+Definition location.
+
+##### name
+
+> `readonly` **name**: `string`
+
+Defined environment name.
+
+##### nameRange
+
+> `readonly` **nameRange**: [`SourceRange`](#sourcerange) \| `null`
+
+Range of environment name inside `{...}`, or null.
+
+##### numArgs
+
+> `readonly` **numArgs**: `number`
+
+Total parameter count (0–9).
+
+##### starred
+
+> `readonly` **starred**: `boolean`
+
+Starred form flag.
+
+***
+
 ### EnvironmentDelimiter
 
 A complete literal begin/end command in original source.
@@ -997,6 +1769,56 @@ Canonical request/content identity.
 > `readonly` **snapshotId**: `string`
 
 Exact source authority.
+
+***
+
+### EnvironmentOccurrenceItem
+
+One environment occurrence in [ProjectCatalog](#projectcatalog).
+
+#### Properties
+
+##### closingNameRange
+
+> `readonly` **closingNameRange**: [`SourceRange`](#sourcerange) \| `null`
+
+Closing delimiter name range, or null.
+
+##### environmentSelection
+
+> `readonly` **environmentSelection**: [`EnvironmentSelection`](#environmentselection-1) \| `null`
+
+Snapshot-level environment selection, or null.
+
+##### hasArguments
+
+> `readonly` **hasArguments**: `boolean`
+
+Whether arguments follow `\begin{name}`.
+
+##### location
+
+> `readonly` **location**: [`AnalysisLocation`](#analysislocation)
+
+Environment occurrence location.
+
+##### openingNameRange
+
+> `readonly` **openingNameRange**: [`SourceRange`](#sourcerange) \| `null`
+
+Opening delimiter name range, or null.
+
+##### selection
+
+> `readonly` **selection**: [`NodeSelection`](#nodeselection) \| `null`
+
+View-bound selection when inspected against a ready view, else null.
+
+##### status
+
+> `readonly` **status**: `"matched"` \| `"candidate"`
+
+Whether opening and closing delimiters are matched.
 
 ***
 
@@ -1186,7 +2008,7 @@ Source inventory request; no entry, conditions, or output destination.
 
 ##### kinds?
 
-> `readonly` `optional` **kinds?**: readonly (`"input"` \| `"definition"` \| `"command-use"` \| `"label"` \| `"reference"` \| `"condition-declaration"` \| `"condition-test"` \| `"condition-delimiter"` \| `"condition-assignment"` \| `"opaque"`)[]
+> `readonly` `optional` **kinds?**: readonly (`"input"` \| `"definition"` \| `"environment-definition"` \| `"command-use"` \| `"label"` \| `"reference"` \| `"bibitem"` \| `"citation"` \| `"condition-declaration"` \| `"condition-test"` \| `"condition-delimiter"` \| `"condition-assignment"` \| `"opaque"`)[]
 
 Fact categories; omitted means all; empty means none.
 
@@ -1248,6 +2070,82 @@ Exact snapshot.
 
 ***
 
+### MetadataAuthor
+
+One parsed author entry from `\author{...}`.
+
+#### Properties
+
+##### location
+
+> `readonly` **location**: [`AnalysisLocation`](#analysislocation)
+
+Source location of this author segment.
+
+##### name
+
+> `readonly` **name**: `string`
+
+Normalized author display name.
+
+##### notes
+
+> `readonly` **notes**: readonly `string`[]
+
+Extracted `\thanks` / `\affil` / `\institute` / `\email` notes.
+
+##### rawSource
+
+> `readonly` **rawSource**: `string`
+
+Exact raw LaTeX substring of this author segment.
+
+***
+
+### MetadataField
+
+Extracted metadata field with normalized display text and exact edit location.
+
+#### Properties
+
+##### contentLocation
+
+> `readonly` **contentLocation**: [`AnalysisLocation`](#analysislocation) \| `null`
+
+Source location of the interior content for editing, or null.
+
+##### location
+
+> `readonly` **location**: [`AnalysisLocation`](#analysislocation)
+
+Source location of the full command or environment.
+
+##### nodeKey
+
+> `readonly` **nodeKey**: `string` \| `null`
+
+View-local `occurrenceKey` when extracted from a ready view, else null.
+
+##### rawSource
+
+> `readonly` **rawSource**: `string`
+
+Exact raw LaTeX interior substring.
+
+##### shortText
+
+> `readonly` **shortText**: `string` \| `null`
+
+Normalized plain text of `[short]` argument, or null.
+
+##### text
+
+> `readonly` **text**: `string`
+
+Normalized plain-text display string.
+
+***
+
 ### NodeSelection
 
 Reference to one configured structural node, including its inclusion context.
@@ -1277,6 +2175,86 @@ Owning original source identity.
 > `readonly` **viewId**: `string`
 
 Owning configured interpretation identity.
+
+***
+
+### NormalizedCoarseTreeOptions
+
+Normalized coarse-tree options stored on [CoarseTree](#coarsetree).
+
+#### Properties
+
+##### commandFilter
+
+> `readonly` **commandFilter**: readonly `string`[] \| `null`
+
+Normalized command name filter, or null when unfiltered.
+
+##### environmentFilter
+
+> `readonly` **environmentFilter**: readonly `string`[] \| `null`
+
+Normalized environment name filter, or null when unfiltered.
+
+##### includeArguments
+
+> `readonly` **includeArguments**: `boolean`
+
+Include command/environment arguments as child nodes.
+
+##### includeBuiltinCommands
+
+> `readonly` **includeBuiltinCommands**: `boolean`
+
+Include standard built-in commands.
+
+##### includeCustomAndUndefinedCommands
+
+> `readonly` **includeCustomAndUndefinedCommands**: `boolean`
+
+Include project-introduced and used-undefined commands.
+
+##### includeDisplayMath
+
+> `readonly` **includeDisplayMath**: `boolean`
+
+Include display math nodes.
+
+##### includeEnvironments
+
+> `readonly` **includeEnvironments**: `boolean`
+
+Include environments.
+
+##### includeGroups
+
+> `readonly` **includeGroups**: `boolean`
+
+Include anonymous brace groups.
+
+##### includeMath
+
+> `readonly` **includeMath**: `boolean`
+
+Include all math nodes.
+
+##### includeSections
+
+> `readonly` **includeSections**: `boolean`
+
+Include structural sections.
+
+##### includeTextBlocks
+
+> `readonly` **includeTextBlocks**: `boolean`
+
+Coalesce inline prose into `text-block` nodes.
+
+##### maxPreviewLength
+
+> `readonly` **maxPreviewLength**: `number`
+
+Maximum snippet character length.
 
 ***
 
@@ -1312,11 +2290,23 @@ Fully specified canonical view settings.
 
 Explicit normalized policy with sorted maps.
 
+##### customCommands
+
+> `readonly` **customCommands**: readonly [`CustomCommandSignature`](#customcommandsignature)[]
+
+Canonical sorted custom command signatures.
+
 ##### entryPath
 
 > `readonly` **entryPath**: `string`
 
 Normalized entry.
+
+##### inferDefinedCommands
+
+> `readonly` **inferDefinedCommands**: `boolean`
+
+Whether reached command definitions infer argument signatures.
 
 ##### limits
 
@@ -1352,7 +2342,7 @@ Required completeness.
 
 ##### id
 
-> `readonly` **id**: `"edit-nodes"` \| `"remove-environments"` \| `"source-inventory"` \| `"realize-conditions"` \| `"resolve-view"` \| `"references"` \| `"unused-commands"` \| `"suppress-comments"` \| `"export-project"`
+> `readonly` **id**: `"refactor-symbols"` \| `"edit-nodes"` \| `"remove-environments"` \| `"source-inventory"` \| `"realize-conditions"` \| `"suppress-comments"` \| `"export-project"` \| `"compose-transformations"` \| `"resolve-view"` \| `"references"` \| `"unused-commands"`
 
 Stable operation name.
 
@@ -1446,6 +2436,140 @@ Exact configured identity, null for source-local work.
 
 ***
 
+### ProjectCatalog
+
+Comprehensive inventory of introduced and used project symbols and their occurrences.
+
+#### Properties
+
+##### citations
+
+> `readonly` **citations**: readonly [`CatalogCitationEntry`](#catalogcitationentry)[]
+
+All citation keys sorted by key.
+
+##### commands
+
+> `readonly` **commands**: readonly [`CatalogCommandEntry`](#catalogcommandentry)[]
+
+All commands sorted by name.
+
+##### conditions
+
+> `readonly` **conditions**: readonly [`CatalogConditionEntry`](#catalogconditionentry)[]
+
+All conditions sorted by name.
+
+##### environments
+
+> `readonly` **environments**: readonly [`CatalogEnvironmentEntry`](#catalogenvironmententry)[]
+
+All environments sorted by name.
+
+##### introducedCitations
+
+> `readonly` **introducedCitations**: readonly [`CatalogCitationEntry`](#catalogcitationentry)[]
+
+Subset of citation keys introduced with `\bibitem`.
+
+##### introducedCommands
+
+> `readonly` **introducedCommands**: readonly [`CatalogCommandEntry`](#catalogcommandentry)[]
+
+Subset of commands introduced by `\newcommand` / `\def`.
+
+##### introducedConditions
+
+> `readonly` **introducedConditions**: readonly [`CatalogConditionEntry`](#catalogconditionentry)[]
+
+Subset of conditions declared with `\newif`.
+
+##### introducedEnvironments
+
+> `readonly` **introducedEnvironments**: readonly [`CatalogEnvironmentEntry`](#catalogenvironmententry)[]
+
+Subset of environments introduced by `\newenvironment` / `\newtheorem`.
+
+##### introducedLabels
+
+> `readonly` **introducedLabels**: readonly [`CatalogLabelEntry`](#cataloglabelentry)[]
+
+Subset of labels declared with `\label`.
+
+##### kind
+
+> `readonly` **kind**: `"catalog"`
+
+Result discriminant.
+
+##### labels
+
+> `readonly` **labels**: readonly [`CatalogLabelEntry`](#cataloglabelentry)[]
+
+All labels sorted by key.
+
+##### resultId
+
+> `readonly` **resultId**: `string`
+
+Deterministic catalog result identity.
+
+##### snapshotId
+
+> `readonly` **snapshotId**: `string`
+
+Exact source snapshot identity.
+
+##### usedCitations
+
+> `readonly` **usedCitations**: readonly [`CatalogCitationEntry`](#catalogcitationentry)[]
+
+Subset of citation keys cited in the document.
+
+##### usedCommands
+
+> `readonly` **usedCommands**: readonly [`CatalogCommandEntry`](#catalogcommandentry)[]
+
+Subset of commands with at least one usage occurrence.
+
+##### usedConditions
+
+> `readonly` **usedConditions**: readonly [`CatalogConditionEntry`](#catalogconditionentry)[]
+
+Subset of conditions with at least one test or setter occurrence.
+
+##### usedEnvironments
+
+> `readonly` **usedEnvironments**: readonly [`CatalogEnvironmentEntry`](#catalogenvironmententry)[]
+
+Subset of environments with at least one usage occurrence.
+
+##### usedLabels
+
+> `readonly` **usedLabels**: readonly [`CatalogLabelEntry`](#cataloglabelentry)[]
+
+Subset of labels referenced by `\ref`/`\eqref`/`\cref`/etc.
+
+##### usedUndefinedCommands
+
+> `readonly` **usedUndefinedCommands**: readonly [`CatalogCommandEntry`](#catalogcommandentry)[]
+
+Subset of non-builtin commands used without a definition.
+
+##### usedUndefinedLabels
+
+> `readonly` **usedUndefinedLabels**: readonly [`CatalogLabelEntry`](#cataloglabelentry)[]
+
+Subset of labels referenced without a `\label` declaration.
+
+##### viewId
+
+> `readonly` **viewId**: `string` \| `null`
+
+Exact configured view identity, or null in snapshot mode.
+
+***
+
 ### ProjectEditPlan
 
 Immutable proposal, not applied source. Equal-offset insertions and insertion/replacement overlap are rejected.
@@ -1507,6 +2631,222 @@ Human-readable explanation.
 > `readonly` **severity**: `"error"` \| `"warning"`
 
 Error blocks required syntax; warning denotes unsupported or uncertain behavior.
+
+***
+
+### ProjectMetadata
+
+Extracted document metadata and structural statistics across a snapshot or view.
+
+#### Properties
+
+##### abstract
+
+> `readonly` **abstract**: [`MetadataField`](#metadatafield) \| `null`
+
+Document `abstract` environment, or null.
+
+##### authors
+
+> `readonly` **authors**: readonly [`MetadataAuthor`](#metadataauthor)[]
+
+Parsed authors from `\author{...}`.
+
+##### bibliography
+
+> `readonly` **bibliography**: `object`
+
+Bibliography style and resource files.
+
+###### locations
+
+> `readonly` **locations**: readonly [`AnalysisLocation`](#analysislocation)[]
+
+Locations of bibliography commands.
+
+###### resources
+
+> `readonly` **resources**: readonly `string`[]
+
+`\bibliography` / `\addbibresource` targets.
+
+###### style
+
+> `readonly` **style**: `string` \| `null`
+
+`\bibliographystyle`, or null.
+
+##### date
+
+> `readonly` **date**: [`MetadataField`](#metadatafield) \| `null`
+
+Document `\date`, or null.
+
+##### documentClass
+
+> `readonly` **documentClass**: \{ `location`: [`AnalysisLocation`](#analysislocation); `name`: `string`; `options`: readonly `string`[]; \} \| `null`
+
+`\documentclass` declaration, or null.
+
+###### Union Members
+
+###### Type Literal
+
+\{ `location`: [`AnalysisLocation`](#analysislocation); `name`: `string`; `options`: readonly `string`[]; \}
+
+###### location
+
+> `readonly` **location**: [`AnalysisLocation`](#analysislocation)
+
+Declaration location.
+
+###### name
+
+> `readonly` **name**: `string`
+
+Class name.
+
+###### options
+
+> `readonly` **options**: readonly `string`[]
+
+Class options list.
+
+***
+
+`null`
+
+##### keywords
+
+> `readonly` **keywords**: readonly `string`[]
+
+Parsed keywords from `\keywords{...}`.
+
+##### kind
+
+> `readonly` **kind**: `"metadata"`
+
+Result discriminant.
+
+##### packages
+
+> `readonly` **packages**: readonly `object`[]
+
+`\usepackage` and `\RequirePackage` declarations.
+
+##### rawAuthorField
+
+> `readonly` **rawAuthorField**: [`MetadataField`](#metadatafield) \| `null`
+
+Raw `\author` field for whole-field editing, or null.
+
+##### resultId
+
+> `readonly` **resultId**: `string`
+
+Deterministic metadata result identity.
+
+##### snapshotId
+
+> `readonly` **snapshotId**: `string`
+
+Exact source snapshot identity.
+
+##### stats
+
+> `readonly` **stats**: `object`
+
+Aggregate document structural statistics.
+
+###### citationCount
+
+> `readonly` **citationCount**: `number`
+
+Number of cited keys.
+
+###### commandUseCount
+
+> `readonly` **commandUseCount**: `number`
+
+Total command usage occurrences.
+
+###### environmentCount
+
+> `readonly` **environmentCount**: `number`
+
+Number of non-definition environments.
+
+###### figureCount
+
+> `readonly` **figureCount**: `number`
+
+Number of `figure` / `figure*` environments.
+
+###### introducedCommandCount
+
+> `readonly` **introducedCommandCount**: `number`
+
+Number of introduced commands.
+
+###### labelCount
+
+> `readonly` **labelCount**: `number`
+
+Number of `\label` declarations.
+
+###### mathCount
+
+> `readonly` **mathCount**: `number`
+
+Number of math blocks.
+
+###### reachedFiles
+
+> `readonly` **reachedFiles**: `number`
+
+Reached files in the view (or total files in snapshot mode).
+
+###### referenceCount
+
+> `readonly` **referenceCount**: `number`
+
+Number of cross-reference keys.
+
+###### sectionCount
+
+> `readonly` **sectionCount**: `number`
+
+Number of sectioning nodes/commands.
+
+###### tableCount
+
+> `readonly` **tableCount**: `number`
+
+Number of `table` / `table*` environments.
+
+###### totalFiles
+
+> `readonly` **totalFiles**: `number`
+
+Total files in the snapshot.
+
+###### undefinedCommandCount
+
+> `readonly` **undefinedCommandCount**: `number`
+
+Number of used undefined commands.
+
+##### title
+
+> `readonly` **title**: [`MetadataField`](#metadatafield) \| `null`
+
+Document `\title`, or null.
+
+##### viewId
+
+> `readonly` **viewId**: `string` \| `null`
+
+Exact configured view identity, or null in snapshot mode.
 
 ***
 
@@ -2272,6 +3612,44 @@ Exact source substring.
 
 ***
 
+### SymbolRefactorRequest
+
+Request for bulk symbol, definition, or metadata refactoring.
+
+#### Properties
+
+##### operation
+
+> `readonly` **operation**: `"refactor-symbols"`
+
+Operation discriminant.
+
+##### options
+
+> `readonly` **options**: `object`
+
+Refactoring scope, ordered actions, and output limit.
+
+###### actions
+
+> `readonly` **actions**: readonly [`SymbolRefactorAction`](#symbolrefactoraction)[]
+
+Ordered refactoring actions to apply atomically.
+
+###### maxOutputCodeUnits?
+
+> `readonly` `optional` **maxOutputCodeUnits?**: `number`
+
+Total UTF-16 output limit, default 10000000; maximum 100000000.
+
+###### target?
+
+> `readonly` `optional` **target?**: `"selected"` \| `"source"` \| `"artifact"`
+
+Edit target: `'selected'` or `'artifact'` for views, `'source'` for snapshots.
+
+***
+
 ### SyntaxFactBase
 
 Common fields for facts; IDs are unique within the source file only.
@@ -2426,7 +3804,7 @@ Exact source snapshot identity.
 
 ###### Inherited from
 
-[`SourceOrigin`](#sourceorigin).[`snapshotId`](#snapshotid-11)
+[`SourceOrigin`](#sourceorigin).[`snapshotId`](#snapshotid-14)
 
 ##### version
 
@@ -2448,11 +3826,23 @@ Independent semantic configuration; output naming and visual filters are exclude
 
 Boolean policy; default source with no seeds.
 
+##### customCommands?
+
+> `readonly` `optional` **customCommands?**: readonly [`CustomCommandSignature`](#customcommandsignature)[]
+
+User-supplied command signatures for undefined or overridden commands, sorted deterministically.
+
 ##### entryPath
 
 > `readonly` **entryPath**: `string`
 
 Entry virtual path.
+
+##### inferDefinedCommands?
+
+> `readonly` `optional` **inferDefinedCommands?**: `boolean`
+
+Automatically infer command signatures from reached `\newcommand`/`\renewcommand`/`\providecommand`/`\def` declarations; default true.
 
 ##### limits?
 
@@ -2578,6 +3968,102 @@ Named values, case-sensitive; names exclude the if prefix and primitives.
 
 ***
 
+### CoarseNodeKind
+
+> **CoarseNodeKind** = `"root"` \| `"section"` \| `"environment"` \| `"command"` \| `"argument"` \| `"math"` \| `"group"` \| `"text-block"`
+
+Category of a node in a readable [CoarseTree](#coarsetree) projection.
+
+***
+
+### CompositeStepRequest
+
+> **CompositeStepRequest** = [`NodeTransformationRequest`](#nodetransformationrequest) \| [`SymbolRefactorRequest`](#symbolrefactorrequest) \| \{ `operation`: `"realize-conditions"`; `options`: [`ConditionRealizationRequest`](#conditionrealizationrequest); \} \| \{ `operation`: `"suppress-comments"`; `options?`: \{ `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"`; \}; \} \| \{ `operation`: `"export-project"`; `options`: [`ExportOptions`](#exportoptions); \}
+
+Single step permitted inside [CompositeTransformationRequest](#compositetransformationrequest).
+
+#### Union Members
+
+[`NodeTransformationRequest`](#nodetransformationrequest)
+
+***
+
+[`SymbolRefactorRequest`](#symbolrefactorrequest)
+
+***
+
+##### Type Literal
+
+\{ `operation`: `"realize-conditions"`; `options`: [`ConditionRealizationRequest`](#conditionrealizationrequest); \}
+
+###### operation
+
+> `readonly` **operation**: `"realize-conditions"`
+
+Condition realization step discriminant.
+
+###### options
+
+> `readonly` **options**: [`ConditionRealizationRequest`](#conditionrealizationrequest)
+
+Condition realization request options.
+
+***
+
+##### Type Literal
+
+\{ `operation`: `"suppress-comments"`; `options?`: \{ `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"`; \}; \}
+
+###### operation
+
+> `readonly` **operation**: `"suppress-comments"`
+
+Comment suppression step discriminant.
+
+###### options?
+
+> `readonly` `optional` **options?**: `object`
+
+Comment suppression options.
+
+###### options.maxOutputCodeUnits?
+
+> `readonly` `optional` **maxOutputCodeUnits?**: `number`
+
+Total UTF-16 output limit.
+
+###### options.suppressCommentEnvironments?
+
+> `readonly` `optional` **suppressCommentEnvironments?**: `boolean`
+
+Also strip `comment` environments; default false.
+
+###### options.target?
+
+> `readonly` `optional` **target?**: `"selected"`
+
+Target scope; only `'selected'` is supported.
+
+***
+
+##### Type Literal
+
+\{ `operation`: `"export-project"`; `options`: [`ExportOptions`](#exportoptions); \}
+
+###### operation
+
+> `readonly` **operation**: `"export-project"`
+
+Project export step discriminant (permitted only as the final step).
+
+###### options
+
+> `readonly` **options**: [`ExportOptions`](#exportoptions)
+
+Export topology and cleanup options.
+
+***
+
 ### ConditionPolicy
 
 > **ConditionPolicy** = \{ `initialValues?`: [`BooleanValues`](#booleanvalues); `mode`: `"source"`; \} \| \{ `mode`: `"manual"`; `values`: [`BooleanValues`](#booleanvalues); \} \| \{ `initialValues?`: [`BooleanValues`](#booleanvalues); `mode`: `"source-with-overrides"`; `overrides`: [`BooleanValues`](#booleanvalues); \} \| \{ `mode`: `"none"`; \}
@@ -2658,9 +4144,75 @@ Assert no conditionals exist in the reached source; any conditional syntax stops
 
 ***
 
+### ConfiguredArgumentDelimiter
+
+> **ConfiguredArgumentDelimiter** = `"braced"` \| `"bracket"` \| `"bare"`
+
+Source delimiter syntax enclosing a configured argument node.
+
+***
+
+### ConfiguredArgumentNode
+
+> **ConfiguredArgumentNode** = [`ConfiguredNodeBase`](#configurednodebase) & `object`
+
+Explicit argument container attached as a child of a command, section, or environment node.
+
+#### Type Declaration
+
+##### argKind
+
+> `readonly` **argKind**: `"optional"` \| `"mandatory"`
+
+Argument role in the parent signature.
+
+##### children
+
+> `readonly` **children**: readonly [`ConfiguredNode`](#configurednode)[]
+
+Ordered children: opening delimiter (if delimited), interior nodes, closing delimiter (if delimited).
+
+##### delimiter
+
+> `readonly` **delimiter**: [`ConfiguredArgumentDelimiter`](#configuredargumentdelimiter)
+
+Enclosing delimiter syntax in source.
+
+##### innerLocation
+
+> `readonly` **innerLocation**: [`NodeLocation`](#nodelocation)
+
+Original extent of the interior content alone (`kind: 'none'` for empty delimiters).
+
+##### innerProjectedRange
+
+> `readonly` **innerProjectedRange**: [`SourceRange`](#sourcerange)
+
+Inclusive range of the interior content in the virtual token tape.
+
+##### kind
+
+> `readonly` **kind**: `"argument"`
+
+Argument container variant.
+
+##### opaque
+
+> `readonly` **opaque**: `boolean`
+
+Whether interior tokens are non-executed opaque leaves.
+
+##### slot
+
+> `readonly` **slot**: `number`
+
+Zero-based parameter slot index in the parent signature.
+
+***
+
 ### ConfiguredContainerNode
 
-> **ConfiguredContainerNode** = [`ConfiguredNodeBase`](#configurednodebase) & \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"root"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"environment"`; `name`: `string`; `syntax`: [`ConfiguredEnvironmentSyntax`](#configuredenvironmentsyntax); \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"group"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `delimiter`: [`MathDelimiter`](#mathdelimiter); `kind`: `"math"`; \} \| \{ `arguments`: readonly [`ConfiguredCommandArgument`](#configuredcommandargument)[]; `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"section"`; `level`: `1` \| `2` \| `3` \| `4` \| `5`; `name`: `string`; `starred`: `boolean`; \} \| \{ `arguments`: readonly [`ConfiguredCommandArgument`](#configuredcommandargument)[]; `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"command"`; `name`: `string`; `starred`: `boolean`; \}
+> **ConfiguredContainerNode** = [`ConfiguredArgumentNode`](#configuredargumentnode) \| [`ConfiguredNodeBase`](#configurednodebase) & \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"root"`; \} \| \{ `arguments`: readonly [`ConfiguredCommandArgument`](#configuredcommandargument)[]; `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"environment"`; `name`: `string`; `syntax`: [`ConfiguredEnvironmentSyntax`](#configuredenvironmentsyntax); \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"group"`; \} \| \{ `children`: readonly [`ConfiguredNode`](#configurednode)[]; `delimiter`: [`MathDelimiter`](#mathdelimiter); `kind`: `"math"`; \} \| \{ `arguments`: readonly [`ConfiguredCommandArgument`](#configuredcommandargument)[]; `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"section"`; `level`: `1` \| `2` \| `3` \| `4` \| `5`; `name`: `string`; `starred`: `boolean`; \} \| \{ `arguments`: readonly [`ConfiguredCommandArgument`](#configuredcommandargument)[]; `children`: readonly [`ConfiguredNode`](#configurednode)[]; `kind`: `"command"`; `name`: `string`; `starred`: `boolean`; \}
 
 Configured containers, with a complete ordered child list only in ready views.
 
@@ -2748,7 +4300,7 @@ An opening delimiter recognized for a LaTeX math node.
 
 ### NodeEditAction
 
-> **NodeEditAction** = \{ `kind`: `"remove-node"`; `selection`: [`NodeSelection`](#nodeselection); \} \| \{ `kind`: `"rename-environment"`; `name`: `string`; `selection`: [`NodeSelection`](#nodeselection); \} \| \{ `kind`: `"wrap-node"`; `name`: `string`; `selection`: [`NodeSelection`](#nodeselection); \}
+> **NodeEditAction** = \{ `kind`: `"remove-node"`; `selection`: [`NodeSelection`](#nodeselection); \} \| \{ `kind`: `"rename-environment"`; `name`: `string`; `selection`: [`NodeSelection`](#nodeselection); \} \| \{ `kind`: `"rename-command"`; `name`: `string`; `selection`: [`NodeSelection`](#nodeselection); \} \| \{ `kind`: `"rename-section"`; `sectionCommand`: `"section"` \| `"subsection"` \| `"subsubsection"` \| `"paragraph"` \| `"subparagraph"`; `selection`: [`NodeSelection`](#nodeselection); `starred?`: `boolean`; \} \| \{ `kind`: `"unwrap-node"`; `selection`: [`NodeSelection`](#nodeselection); \} \| \{ `kind`: `"wrap-node"`; `name`: `string`; `selection`: [`NodeSelection`](#nodeselection); \}
 
 Tree-selected change; all references belong to the same original view.
 
@@ -2780,19 +4332,91 @@ Selected construct.
 
 > `readonly` **kind**: `"rename-environment"`
 
-Rename both environment delimiters, retaining the body.
+Rename both environment delimiters, retaining the body and any arguments.
 
 ###### name
 
 > `readonly` **name**: `string`
 
-Literal argument-free environment name.
+Literal environment name.
 
 ###### selection
 
 > `readonly` **selection**: [`NodeSelection`](#nodeselection)
 
 Selected environment.
+
+***
+
+##### Type Literal
+
+\{ `kind`: `"rename-command"`; `name`: `string`; `selection`: [`NodeSelection`](#nodeselection); \}
+
+###### kind
+
+> `readonly` **kind**: `"rename-command"`
+
+Rename a selected command node (`\old` -> `\new`), preserving `*` and all arguments.
+
+###### name
+
+> `readonly` **name**: `string`
+
+Command name without leading ``.
+
+###### selection
+
+> `readonly` **selection**: [`NodeSelection`](#nodeselection)
+
+Selected command node or standalone command token.
+
+***
+
+##### Type Literal
+
+\{ `kind`: `"rename-section"`; `sectionCommand`: `"section"` \| `"subsection"` \| `"subsubsection"` \| `"paragraph"` \| `"subparagraph"`; `selection`: [`NodeSelection`](#nodeselection); `starred?`: `boolean`; \}
+
+###### kind
+
+> `readonly` **kind**: `"rename-section"`
+
+Change a selected section node's heading level and/or starred form.
+
+###### sectionCommand
+
+> `readonly` **sectionCommand**: `"section"` \| `"subsection"` \| `"subsubsection"` \| `"paragraph"` \| `"subparagraph"`
+
+Target sectioning command.
+
+###### selection
+
+> `readonly` **selection**: [`NodeSelection`](#nodeselection)
+
+Selected section node.
+
+###### starred?
+
+> `readonly` `optional` **starred?**: `boolean`
+
+Optional target starred flag; omits keeping existing starred spelling.
+
+***
+
+##### Type Literal
+
+\{ `kind`: `"unwrap-node"`; `selection`: [`NodeSelection`](#nodeselection); \}
+
+###### kind
+
+> `readonly` **kind**: `"unwrap-node"`
+
+Unwrap an environment, group, or single-argument formatting command, keeping its inner body.
+
+###### selection
+
+> `readonly` **selection**: [`NodeSelection`](#nodeselection)
+
+Selected container construct.
 
 ***
 
@@ -3034,13 +4658,21 @@ Ordered reasons.
 
 ### OperationRequest
 
-> **OperationRequest** = [`NodeTransformationRequest`](#nodetransformationrequest) \| \{ `operation`: `"source-inventory"`; `options?`: [`InventoryRequest`](#inventoryrequest); \} \| \{ `operation`: `"realize-conditions"`; `options`: [`ConditionRealizationRequest`](#conditionrealizationrequest); \} \| \{ `operation`: `"resolve-view"`; `options`: [`ViewConfiguration`](#viewconfiguration); \} \| \{ `operation`: `"references"` \| `"unused-commands"`; `options?`: [`AnalysisOptions`](#analysisoptions); \} \| \{ `operation`: `"suppress-comments"`; `options?`: \{ `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"`; \}; \} \| \{ `operation`: `"export-project"`; `options`: [`ExportOptions`](#exportoptions); \}
+> **OperationRequest** = [`NodeTransformationRequest`](#nodetransformationrequest) \| [`SymbolRefactorRequest`](#symbolrefactorrequest) \| [`CompositeTransformationRequest`](#compositetransformationrequest) \| \{ `operation`: `"source-inventory"`; `options?`: [`InventoryRequest`](#inventoryrequest); \} \| \{ `operation`: `"realize-conditions"`; `options`: [`ConditionRealizationRequest`](#conditionrealizationrequest); \} \| \{ `operation`: `"resolve-view"`; `options`: [`ViewConfiguration`](#viewconfiguration); \} \| \{ `operation`: `"references"` \| `"unused-commands"`; `options?`: [`AnalysisOptions`](#analysisoptions); \} \| \{ `operation`: `"suppress-comments"`; `options?`: \{ `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"`; \}; \} \| \{ `operation`: `"export-project"`; `options`: [`ExportOptions`](#exportoptions); \}
 
 Public requests for independent inventory, condition realization, interpretation, analysis, and transformation.
 
 #### Union Members
 
 [`NodeTransformationRequest`](#nodetransformationrequest)
+
+***
+
+[`SymbolRefactorRequest`](#symbolrefactorrequest)
+
+***
+
+[`CompositeTransformationRequest`](#compositetransformationrequest)
 
 ***
 
@@ -3324,7 +4956,7 @@ Opaque deterministic content identity; compare exactly, never parse or persist a
 
 ### SourceLookupHit
 
-> **SourceLookupHit** = \{ `kind`: `"token"`; `location`: [`SourceLocation`](#sourcelocation); `tokenIndex`: `number`; \} \| \{ `kind`: `"environment"`; `location`: [`SourceLocation`](#sourcelocation); `selection`: [`EnvironmentSelection`](#environmentselection); \} \| \{ `depth`: `number`; `kind`: `"node"`; `location`: [`VersionedSourceOrigin`](#versionedsourceorigin); `order`: `number`; `selection`: [`NodeSelection`](#nodeselection); \}
+> **SourceLookupHit** = \{ `kind`: `"token"`; `location`: [`SourceLocation`](#sourcelocation); `tokenIndex`: `number`; \} \| \{ `kind`: `"environment"`; `location`: [`SourceLocation`](#sourcelocation); `selection`: [`EnvironmentSelection`](#environmentselection-1); \} \| \{ `depth`: `number`; `kind`: `"node"`; `location`: [`VersionedSourceOrigin`](#versionedsourceorigin); `order`: `number`; `selection`: [`NodeSelection`](#nodeselection); \}
 
 One immutable hit returned by original-source lookup.
 
@@ -3356,7 +4988,7 @@ Original token index in its file.
 
 ##### Type Literal
 
-\{ `kind`: `"environment"`; `location`: [`SourceLocation`](#sourcelocation); `selection`: [`EnvironmentSelection`](#environmentselection); \}
+\{ `kind`: `"environment"`; `location`: [`SourceLocation`](#sourcelocation); `selection`: [`EnvironmentSelection`](#environmentselection-1); \}
 
 ###### kind
 
@@ -3372,7 +5004,7 @@ Known original extent.
 
 ###### selection
 
-> `readonly` **selection**: [`EnvironmentSelection`](#environmentselection)
+> `readonly` **selection**: [`EnvironmentSelection`](#environmentselection-1)
 
 Safe identity for subsequent inspection.
 
@@ -3460,9 +5092,221 @@ Lexical category of an unconditional source token.
 
 ***
 
+### SymbolRefactorAction
+
+> **SymbolRefactorAction** = \{ `includeDefinitions?`: `boolean`; `kind`: `"rename-command-globally"`; `newName`: `string`; `oldName`: `string`; \} \| \{ `defaultArg?`: `string` \| `null`; `definitionLocation`: [`SourceLocation`](#sourcelocation); `kind`: `"edit-command-definition"`; `newBody?`: `string`; `newName?`: `string`; `numArgs?`: `number`; \} \| \{ `includeDefinitions?`: `boolean`; `kind`: `"rename-environment-globally"`; `newName`: `string`; `oldName`: `string`; \} \| \{ `kind`: `"rename-condition-globally"`; `newName`: `string`; `oldName`: `string`; \} \| \{ `kind`: `"rename-label-globally"`; `newKey`: `string`; `oldKey`: `string`; \} \| \{ `kind`: `"rename-citation-globally"`; `newKey`: `string`; `oldKey`: `string`; \} \| \{ `field`: `"title"` \| `"author"` \| `"date"` \| `"abstract"`; `kind`: `"edit-metadata"`; `newValue`: `string`; `shortValue?`: `string` \| `null`; \}
+
+Bulk catalog-based refactoring or metadata edit action.
+
+#### Union Members
+
+##### Type Literal
+
+\{ `includeDefinitions?`: `boolean`; `kind`: `"rename-command-globally"`; `newName`: `string`; `oldName`: `string`; \}
+
+###### includeDefinitions?
+
+> `readonly` `optional` **includeDefinitions?**: `boolean`
+
+Also update matching `\newcommand`/`\def` definition names; default true.
+
+###### kind
+
+> `readonly` **kind**: `"rename-command-globally"`
+
+Rename all occurrences of a command and optionally its definitions (`\newcommand`, `\def`, etc.).
+
+###### newName
+
+> `readonly` **newName**: `string`
+
+Replacement command name without leading ``.
+
+###### oldName
+
+> `readonly` **oldName**: `string`
+
+Existing command name without leading ``.
+
+***
+
+##### Type Literal
+
+\{ `defaultArg?`: `string` \| `null`; `definitionLocation`: [`SourceLocation`](#sourcelocation); `kind`: `"edit-command-definition"`; `newBody?`: `string`; `newName?`: `string`; `numArgs?`: `number`; \}
+
+###### defaultArg?
+
+> `readonly` `optional` **defaultArg?**: `string` \| `null`
+
+Optional updated default value for `#1` (`null` removes `[default]`; `string` sets `[default]`).
+
+###### definitionLocation
+
+> `readonly` **definitionLocation**: [`SourceLocation`](#sourcelocation)
+
+Exact definition fact location (`path` and `range`).
+
+###### kind
+
+> `readonly` **kind**: `"edit-command-definition"`
+
+Modify a `\newcommand` / `\renewcommand` / `\providecommand` definition in-place.
+
+###### newBody?
+
+> `readonly` `optional` **newBody?**: `string`
+
+Optional updated replacement body interior (without outer `{}`).
+
+###### newName?
+
+> `readonly` `optional` **newName?**: `string`
+
+Optional new command name without leading ``.
+
+###### numArgs?
+
+> `readonly` `optional` **numArgs?**: `number`
+
+Optional updated total parameter count (0–9).
+
+***
+
+##### Type Literal
+
+\{ `includeDefinitions?`: `boolean`; `kind`: `"rename-environment-globally"`; `newName`: `string`; `oldName`: `string`; \}
+
+###### includeDefinitions?
+
+> `readonly` `optional` **includeDefinitions?**: `boolean`
+
+Also update matching environment definition names; default true.
+
+###### kind
+
+> `readonly` **kind**: `"rename-environment-globally"`
+
+Rename all `\begin{oldName}` / `\end{oldName}` occurrences and `\newenvironment`/`\newtheorem` definitions.
+
+###### newName
+
+> `readonly` **newName**: `string`
+
+Replacement literal environment name.
+
+###### oldName
+
+> `readonly` **oldName**: `string`
+
+Existing literal environment name.
+
+***
+
+##### Type Literal
+
+\{ `kind`: `"rename-condition-globally"`; `newName`: `string`; `oldName`: `string`; \}
+
+###### kind
+
+> `readonly` **kind**: `"rename-condition-globally"`
+
+Rename a boolean condition across `\newif\if<old>`, `\if<old>`, `\<old>true`, and `\<old>false`.
+
+###### newName
+
+> `readonly` **newName**: `string`
+
+Replacement boolean flag name without `if` prefix.
+
+###### oldName
+
+> `readonly` **oldName**: `string`
+
+Existing boolean flag name without `if` prefix.
+
+***
+
+##### Type Literal
+
+\{ `kind`: `"rename-label-globally"`; `newKey`: `string`; `oldKey`: `string`; \}
+
+###### kind
+
+> `readonly` **kind**: `"rename-label-globally"`
+
+Rename a label key across all `\label{oldKey}` declarations and `\ref`/`\eqref`/`\pageref`/`\autoref`/`\cref`/`\Cref` uses.
+
+###### newKey
+
+> `readonly` **newKey**: `string`
+
+Replacement label key.
+
+###### oldKey
+
+> `readonly` **oldKey**: `string`
+
+Existing label key.
+
+***
+
+##### Type Literal
+
+\{ `kind`: `"rename-citation-globally"`; `newKey`: `string`; `oldKey`: `string`; \}
+
+###### kind
+
+> `readonly` **kind**: `"rename-citation-globally"`
+
+Rename a citation key across `\bibitem{oldKey}` definitions and `\cite`/`\citep`/`\citet` occurrences.
+
+###### newKey
+
+> `readonly` **newKey**: `string`
+
+Replacement citation key.
+
+###### oldKey
+
+> `readonly` **oldKey**: `string`
+
+Existing citation key.
+
+***
+
+##### Type Literal
+
+\{ `field`: `"title"` \| `"author"` \| `"date"` \| `"abstract"`; `kind`: `"edit-metadata"`; `newValue`: `string`; `shortValue?`: `string` \| `null`; \}
+
+###### field
+
+> `readonly` **field**: `"title"` \| `"author"` \| `"date"` \| `"abstract"`
+
+Target metadata field.
+
+###### kind
+
+> `readonly` **kind**: `"edit-metadata"`
+
+Edit a document metadata field (`title`, `author`, `date`, or `abstract`) in-place.
+
+###### newValue
+
+> `readonly` **newValue**: `string`
+
+Replacement LaTeX interior content.
+
+###### shortValue?
+
+> `readonly` `optional` **shortValue?**: `string` \| `null`
+
+Optional updated `[short]` title/author argument (`null` removes `[short]`).
+
+***
+
 ### SyntaxFact
 
-> **SyntaxFact** = [`SyntaxFactBase`](#syntaxfactbase) & \{ `arguments`: readonly [`SourceRange`](#sourcerange)[]; `body`: [`SourceRange`](#sourcerange) \| `null`; `form`: `string`; `kind`: `"definition"`; `name`: `string` \| `null`; `starred`: `boolean`; \} \| \{ `kind`: `"command-use"`; `name`: `string`; \} \| \{ `key`: [`LiteralArgument`](#literalargument); `kind`: `"label"`; \} \| \{ `command`: `"ref"` \| `"pageref"` \| `"eqref"`; `key`: [`LiteralArgument`](#literalargument); `kind`: `"reference"`; \} \| \{ `kind`: `"condition-declaration"`; `name`: `string` \| `null`; \} \| \{ `command`: `string`; `kind`: `"condition-test"`; `testKind`: `"literal"` \| `"primitive"` \| `"named-candidate"`; \} \| \{ `delimiter`: `"else"` \| `"fi"`; `kind`: `"condition-delimiter"`; \} \| \{ `kind`: `"condition-assignment"`; `name`: `string`; `value`: `boolean`; \} \| \{ `kind`: `"input"`; `target`: [`LiteralArgument`](#literalargument); \} \| \{ `command`: `string`; `kind`: `"opaque"`; \}
+> **SyntaxFact** = [`SyntaxFactBase`](#syntaxfactbase) & \{ `arguments`: readonly [`SourceRange`](#sourcerange)[]; `body`: [`SourceRange`](#sourcerange) \| `null`; `defaultArg`: `string` \| `null`; `form`: `string`; `kind`: `"definition"`; `name`: `string` \| `null`; `nameRange`: [`SourceRange`](#sourcerange) \| `null`; `numArgs`: `number`; `starred`: `boolean`; \} \| \{ `arguments`: readonly [`SourceRange`](#sourcerange)[]; `beginBody`: [`SourceRange`](#sourcerange) \| `null`; `defaultArg`: `string` \| `null`; `endBody`: [`SourceRange`](#sourcerange) \| `null`; `form`: `string`; `kind`: `"environment-definition"`; `name`: `string` \| `null`; `nameRange`: [`SourceRange`](#sourcerange) \| `null`; `numArgs`: `number`; `starred`: `boolean`; \} \| \{ `kind`: `"command-use"`; `name`: `string`; \} \| \{ `key`: [`LiteralArgument`](#literalargument); `kind`: `"label"`; \} \| \{ `command`: `"ref"` \| `"pageref"` \| `"eqref"` \| `"autoref"` \| `"cref"` \| `"Cref"`; `key`: [`LiteralArgument`](#literalargument); `keys`: readonly [`LiteralArgument`](#literalargument)[]; `kind`: `"reference"`; \} \| \{ `key`: [`LiteralArgument`](#literalargument); `kind`: `"bibitem"`; `optionalLabel`: [`SourceRange`](#sourcerange) \| `null`; \} \| \{ `command`: `string`; `keys`: readonly [`LiteralArgument`](#literalargument)[]; `kind`: `"citation"`; `starred`: `boolean`; \} \| \{ `kind`: `"condition-declaration"`; `name`: `string` \| `null`; \} \| \{ `command`: `string`; `kind`: `"condition-test"`; `testKind`: `"literal"` \| `"primitive"` \| `"named-candidate"`; \} \| \{ `delimiter`: `"else"` \| `"fi"`; `kind`: `"condition-delimiter"`; \} \| \{ `kind`: `"condition-assignment"`; `name`: `string`; `value`: `boolean`; \} \| \{ `kind`: `"input"`; `target`: [`LiteralArgument`](#literalargument); \} \| \{ `command`: `string`; `kind`: `"opaque"`; \}
 
 Exhaustive inventory facts; definition targets are excluded from command uses.
 
@@ -3527,6 +5371,45 @@ A frozen new snapshot. Changed file revisions advance by one; non-advancing/over
 #### Throws
 
 [ProjectOperationError](#projectoperationerror) for stale results, invalid edits, or occurrence conflicts; nothing is applied on failure.
+
+***
+
+### buildCoarseViewTree()
+
+> **buildCoarseViewTree**(`view`, `options?`): [`CoarseTree`](#coarsetree)
+
+Derive a readable, structural [CoarseTree](#coarsetree) projection from a ready [ProjectView](#projectview).
+
+Strips lexical token clutter by default while preserving `NodeSelection` and `NodeLocation`
+provenance on every structural node so selections remain directly editable.
+
+#### Parameters
+
+##### view
+
+[`ProjectView`](#projectview)
+
+A ready configured view.
+
+##### options?
+
+[`CoarseTreeOptions`](#coarsetreeoptions-1)
+
+Optional coarsening and visibility filters.
+
+#### Returns
+
+[`CoarseTree`](#coarsetree)
+
+Deeply frozen [CoarseTree](#coarsetree).
+
+#### Throws
+
+[ProjectOperationError](#projectoperationerror) when `view.status !== 'ready'`.
+
+#### Throws
+
+[PrepTexError](#preptexerror) with `InvalidArgument` for malformed views or options.
 
 ***
 
@@ -3625,6 +5508,33 @@ nodes with several origins are indexed separately and repeated inclusions remain
 
 ***
 
+### extractProjectMetadata()
+
+> **extractProjectMetadata**(`model`): [`ProjectMetadata`](#projectmetadata)
+
+Extract structured document metadata (`title`, `authors`, `date`, `abstract`, `documentClass`,
+`packages`, `bibliography`, `keywords`, and structural statistics) from a snapshot or view.
+
+#### Parameters
+
+##### model
+
+[`ProjectSnapshot`](#projectsnapshot) \| [`ProjectView`](#projectview)
+
+Source snapshot or configured view.
+
+#### Returns
+
+[`ProjectMetadata`](#projectmetadata)
+
+Frozen [ProjectMetadata](#projectmetadata).
+
+#### Throws
+
+[PrepTexError](#preptexerror) with `InvalidArgument` for malformed models.
+
+***
+
 ### getSelectedEnvironment()
 
 > **getSelectedEnvironment**(`snapshot`, `selection`): [`SourceEnvironment`](#sourceenvironment)
@@ -3641,7 +5551,7 @@ Exact owning snapshot.
 
 ##### selection
 
-[`EnvironmentSelection`](#environmentselection)
+[`EnvironmentSelection`](#environmentselection-1)
 
 Public inventory identity and file revision.
 
@@ -3747,6 +5657,46 @@ Frozen inventory, exact result identity, and coverage for only the requested fil
 
 ***
 
+### inspectProjectCatalog()
+
+> **inspectProjectCatalog**(`model`, `options?`): [`ProjectCatalog`](#projectcatalog)
+
+Inspect all introduced (defined/declared) and used commands, environments, conditions,
+labels/references, and citations across a [ProjectSnapshot](#projectsnapshot) or [ProjectView](#projectview),
+maintaining an ordered list of all occurrences for each symbol.
+
+#### Parameters
+
+##### model
+
+[`ProjectSnapshot`](#projectsnapshot) \| [`ProjectView`](#projectview)
+
+Source snapshot or configured view.
+
+##### options?
+
+Optional file scope (for snapshots) and custom command signatures.
+
+###### customCommands?
+
+readonly [`CustomCommandSignature`](#customcommandsignature)[]
+
+###### scope?
+
+[`SourceScope`](#sourcescope)
+
+#### Returns
+
+[`ProjectCatalog`](#projectcatalog)
+
+Frozen [ProjectCatalog](#projectcatalog) with grouped symbol inventories and occurrence lists.
+
+#### Throws
+
+[PrepTexError](#preptexerror) with `InvalidArgument` for invalid models or options.
+
+***
+
 ### inspectProjectEnvironments()
 
 > **inspectProjectEnvironments**(`snapshot`, `scope?`): [`EnvironmentInventory`](#environmentinventory)
@@ -3827,6 +5777,60 @@ A multi-span node contributes each intersecting span. EOF point queries return n
 #### Throws
 
 [PrepTexError](#preptexerror) for invalid bounds, paths, filters or index identity.
+
+***
+
+### planCompositeTransformation()
+
+> **planCompositeTransformation**(`model`, `options`): [`TransformationResult`](#transformationresult)
+
+Execute and compose an ordered sequence of transformations (`realize-conditions`,
+`refactor-symbols`, `edit-nodes`, `remove-environments`, `suppress-comments`, `export-project`)
+into a unified [ProjectEditPlan](#projecteditplan) against the starting snapshot (or final exported artifacts).
+
+#### Parameters
+
+##### model
+
+[`ProjectSnapshot`](#projectsnapshot) \| [`ProjectView`](#projectview)
+
+Starting snapshot or configured view.
+
+##### options
+
+Configuration and ordered transformation steps.
+
+###### configuration?
+
+[`ViewConfiguration`](#viewconfiguration)
+
+View configuration used when resolving intermediate views.
+
+###### maxOutputCodeUnits?
+
+`number`
+
+Total UTF-16 output limit, default 10000000; maximum 100000000.
+
+###### steps
+
+readonly [`CompositeStepRequest`](#compositesteprequest)[]
+
+Ordered sequence of 1–100 transformation steps.
+
+#### Returns
+
+[`TransformationResult`](#transformationresult)
+
+Frozen [TransformationResult](#transformationresult) with unified `editPlan` (when all steps are in-place) and final `artifacts`.
+
+#### Throws
+
+[PrepTexError](#preptexerror) with `InvalidArgument` for invalid options or step sequences.
+
+#### Throws
+
+[ProjectOperationError](#projectoperationerror) when an intermediate view or step fails.
 
 ***
 

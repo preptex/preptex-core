@@ -14,6 +14,8 @@ import {
   matchVerbatimTokens,
   readBracedGroupTokens,
   readDefinitionTokens,
+  readEnvironmentDefinitionTokens,
+  readOptionalBracketTokens,
   skipTriviaTokens,
   spliceVerbatimMatch,
   tokenizeFile,
@@ -21,6 +23,17 @@ import {
 } from './tokenize.js';
 
 export const DEFINITIONS = new Set(['newcommand', 'renewcommand', 'providecommand', 'def']);
+export const ENV_DEFINITIONS = new Set(['newenvironment', 'renewenvironment', 'newtheorem']);
+export const REFERENCE_COMMANDS = new Set(['ref', 'pageref', 'eqref', 'autoref', 'cref', 'Cref']);
+export const CITATION_COMMANDS = new Set([
+  'cite',
+  'citep',
+  'citet',
+  'Citep',
+  'Citet',
+  'citeauthor',
+  'citeyear',
+]);
 export const UNSUPPORTED_DEFINITIONS = new Set([
   'gdef',
   'edef',
@@ -50,6 +63,49 @@ export function literalFromGroup(
     source: arg?.text ?? '',
     range: arg ? rangeAt(starts, arg.innerStart, arg.innerEnd) : null,
   };
+}
+
+export function splitLiteralKeys(
+  arg: BracedGroupTokenMatch | null,
+  starts: readonly number[]
+): LiteralArgument[] {
+  if (!arg) {
+    return [{ kind: 'unresolved', source: '', range: null }];
+  }
+  if (arg.text.length === 0 || /[\\{}%#\r\n]/.test(arg.text)) {
+    return [
+      {
+        kind: 'unresolved',
+        source: arg.text,
+        range: rangeAt(starts, arg.innerStart, arg.innerEnd),
+      },
+    ];
+  }
+  const keys: LiteralArgument[] = [];
+  let offset = 0;
+  for (const raw of arg.text.split(',')) {
+    const leading = /^\s*/.exec(raw)?.[0].length ?? 0;
+    const trimmed = raw.trim();
+    if (trimmed.length > 0) {
+      const start = arg.innerStart + offset + leading;
+      keys.push({
+        kind: 'literal',
+        value: trimmed,
+        range: rangeAt(starts, start, start + trimmed.length - 1),
+      });
+    }
+    offset += raw.length + 1;
+  }
+  if (keys.length === 0) {
+    return [
+      {
+        kind: 'unresolved',
+        source: arg.text,
+        range: rangeAt(starts, arg.innerStart, arg.innerEnd),
+      },
+    ];
+  }
+  return keys;
 }
 
 export function scanFile(
@@ -132,9 +188,15 @@ export function scanFile(
           ...makeBase(def.endOffset, def.valid ? 'recognized' : 'candidate'),
           kind: 'definition',
           name: def.name,
+          nameRange:
+            def.nameStart !== null && def.nameEnd !== null
+              ? rangeAt(starts, def.nameStart, def.nameEnd)
+              : null,
           form: token.name,
           starred: def.starred,
           arguments: def.arguments.map((a) => rangeAt(starts, a.innerStart, a.innerEnd)),
+          numArgs: def.numArgs,
+          defaultArg: def.defaultArg,
           body: def.body ? rangeAt(starts, def.body.innerStart, def.body.innerEnd) : null,
         });
         let nextIndex = def.body ? def.nextIndex : untilIndex;
@@ -197,14 +259,99 @@ export function scanFile(
         continue;
       }
 
+      if (ENV_DEFINITIONS.has(token.name)) {
+        const envDef = readEnvironmentDefinitionTokens(scanTokens, token.index, untilIndex);
+        facts.push({
+          ...makeBase(envDef.endOffset, envDef.valid ? 'recognized' : 'candidate'),
+          kind: 'environment-definition',
+          name: envDef.name,
+          nameRange:
+            envDef.nameStart !== null && envDef.nameEnd !== null
+              ? rangeAt(starts, envDef.nameStart, envDef.nameEnd)
+              : null,
+          form: token.name,
+          starred: envDef.starred,
+          arguments: envDef.arguments.map((a) => rangeAt(starts, a.innerStart, a.innerEnd)),
+          numArgs: envDef.numArgs,
+          defaultArg: envDef.defaultArg,
+          beginBody: envDef.beginBody
+            ? rangeAt(starts, envDef.beginBody.innerStart, envDef.beginBody.innerEnd)
+            : null,
+          endBody: envDef.endBody
+            ? rangeAt(starts, envDef.endBody.innerStart, envDef.endBody.innerEnd)
+            : null,
+        });
+        let nextIndex = envDef.valid ? envDef.nextIndex : untilIndex;
+        if (envDef.beginBody) {
+          let shift = 0;
+          const beginRange = rangeAt(
+            starts,
+            envDef.beginBody.innerStart,
+            envDef.beginBody.innerEnd
+          );
+          shift += scan(
+            envDef.beginBody.innerStartIndex,
+            envDef.beginBody.innerEndIndex + 1,
+            envDef.beginBody.innerStart,
+            envDef.beginBody.innerEnd + 1,
+            {
+              ...context,
+              branches: [...branches],
+              definitionBodies: [...context.definitionBodies, beginRange],
+            },
+            depth + 1
+          );
+          if (envDef.endBody) {
+            const endRange = rangeAt(starts, envDef.endBody.innerStart, envDef.endBody.innerEnd);
+            shift += scan(
+              envDef.endBody.innerStartIndex + shift,
+              envDef.endBody.innerEndIndex + 1 + shift,
+              envDef.endBody.innerStart,
+              envDef.endBody.innerEnd + 1,
+              {
+                ...context,
+                branches: [...branches],
+                definitionBodies: [...context.definitionBodies, endRange],
+              },
+              depth + 1
+            );
+          }
+          untilIndex += shift;
+          totalDelta += shift;
+          nextIndex += shift;
+        }
+        if (!envDef.valid) {
+          issues.push(
+            issue(
+              'malformed-syntax',
+              'Unrecognized or unterminated environment definition.',
+              {
+                path: file.path,
+                range: rangeAt(
+                  starts,
+                  token.range.start,
+                  Math.max(token.range.end + 1, envDef.endOffset) - 1
+                ),
+              },
+              'error'
+            )
+          );
+        }
+        idx = nextIndex;
+        continue;
+      }
+
       if (UNSUPPORTED_DEFINITIONS.has(token.name)) {
         facts.push({
           ...makeBase(token.range.end + 1, 'candidate'),
           kind: 'definition',
           name: null,
+          nameRange: null,
           form: token.name,
           starred: false,
           arguments: [],
+          numArgs: 0,
+          defaultArg: null,
           body: null,
         });
         issues.push(
@@ -283,22 +430,34 @@ export function scanFile(
       if (kind || setter || token.name === 'else' || token.name === 'fi' || token.name === 'global')
         continue;
 
-      if (
-        token.name === 'input' ||
-        token.name === 'label' ||
-        token.name === 'ref' ||
-        token.name === 'pageref' ||
-        token.name === 'eqref'
-      ) {
-        const arg = readBracedGroupTokens(scanTokens, idx, untilIndex);
+      if (token.name === 'input' || token.name === 'label' || REFERENCE_COMMANDS.has(token.name)) {
+        let argStartIdx = idx;
+        if (
+          (token.name === 'autoref' || token.name === 'cref' || token.name === 'Cref') &&
+          argStartIdx < untilIndex
+        ) {
+          const starPos = skipTriviaTokens(scanTokens, argStartIdx, untilIndex);
+          if (
+            starPos < untilIndex &&
+            scanTokens[starPos]!.kind === 'text' &&
+            scanTokens[starPos]!.value === '*'
+          ) {
+            argStartIdx = starPos + 1;
+          }
+        }
+        const arg = readBracedGroupTokens(scanTokens, argStartIdx, untilIndex);
         const key = literalFromGroup(arg, starts);
+        const keys = REFERENCE_COMMANDS.has(token.name) ? splitLiteralKeys(arg, starts) : [key];
         const base = makeBase(
           arg?.end ?? token.range.end + 1,
-          key.kind === 'literal' ? 'recognized' : 'candidate'
+          keys.every((k) => k.kind === 'literal') ? 'recognized' : 'candidate'
         );
         if (token.name === 'input') facts.push({ ...base, kind: 'input', target: key });
         else if (token.name === 'label') facts.push({ ...base, kind: 'label', key });
-        else facts.push({ ...base, kind: 'reference', command: token.name, key });
+        else {
+          const refCmd = token.name as 'ref' | 'pageref' | 'eqref' | 'autoref' | 'cref' | 'Cref';
+          facts.push({ ...base, kind: 'reference', command: refCmd, key: keys[0]!, keys });
+        }
         if (!arg) {
           issues.push(
             issue(
@@ -328,10 +487,81 @@ export function scanFile(
         continue;
       }
 
+      if (token.name === 'bibitem') {
+        const opt = readOptionalBracketTokens(scanTokens, idx, untilIndex);
+        const afterOpt = opt ? opt.nextIndex : idx;
+        const arg = readBracedGroupTokens(scanTokens, afterOpt, untilIndex);
+        const key = literalFromGroup(arg, starts);
+        const base = makeBase(
+          arg?.end ?? opt?.end ?? token.range.end + 1,
+          key.kind === 'literal' ? 'recognized' : 'candidate'
+        );
+        facts.push({
+          ...base,
+          kind: 'bibitem',
+          optionalLabel: opt ? rangeAt(starts, opt.innerStart, opt.innerEnd) : null,
+          key,
+        });
+        let shift = 0;
+        if (opt) {
+          const optRegion = rangeAt(starts, opt.innerStart, opt.innerEnd);
+          shift += scan(
+            opt.innerStartIndex,
+            opt.innerEndIndex + 1,
+            opt.innerStart,
+            opt.innerEnd + 1,
+            {
+              ...context,
+              branches: [...branches],
+              opaqueArguments: [...context.opaqueArguments, optRegion],
+            },
+            depth + 1
+          );
+        }
+        if (arg) {
+          const keyRegion = rangeAt(starts, arg.innerStart, arg.innerEnd);
+          shift += scan(
+            arg.innerStartIndex + shift,
+            arg.innerEndIndex + 1 + shift,
+            arg.innerStart,
+            arg.innerEnd + 1,
+            {
+              ...context,
+              branches: [...branches],
+              opaqueArguments: [...context.opaqueArguments, keyRegion],
+            },
+            depth + 1
+          );
+          untilIndex += shift;
+          totalDelta += shift;
+          idx = arg.nextIndex + shift;
+        } else {
+          untilIndex += shift;
+          totalDelta += shift;
+          if (opt) idx = opt.nextIndex + shift;
+        }
+        continue;
+      }
+
       const sig = getCommandSignature(token.name);
       if (!sig) continue;
 
       const call = scanCommandTokens(scanTokens, token.index, sig, untilIndex);
+      if (CITATION_COMMANDS.has(token.name)) {
+        const mand = call.args.find((a) => a.spec.kind === 'mandatory');
+        const keys = mand ? splitLiteralKeys(mand.braced, starts) : [];
+        const endTok = scanTokens[call.endIndex]!;
+        facts.push({
+          ...makeBase(
+            endTok.range.end + 1,
+            keys.length > 0 && keys.every((k) => k.kind === 'literal') ? 'recognized' : 'candidate'
+          ),
+          kind: 'citation',
+          command: token.name,
+          starred: call.starred,
+          keys: keys.length > 0 ? keys : [{ kind: 'unresolved', source: '', range: null }],
+        });
+      }
       let argShift = 0;
       for (const arg of call.args) {
         const region = rangeAt(starts, arg.innerStart, arg.innerEnd);

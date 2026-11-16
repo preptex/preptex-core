@@ -1285,9 +1285,9 @@ describe('Unified command-with-arguments model and lookahead regressions', () =>
       2,
     ]);
     if (sec?.kind === 'section') {
-      const headingMath = sec.children.filter((c) => c.kind === 'math');
+      const headingMath = walkConfiguredNodes(sec).filter((c) => c.kind === 'math');
       expect(headingMath).toHaveLength(2);
-      expect(sec.children.some((c) => c.kind === 'group')).toBe(true);
+      expect(walkConfiguredNodes(sec).some((c) => c.kind === 'group')).toBe(true);
     }
     const cmds = walkConfiguredNodes(v.root).filter((n) => n.kind === 'command');
     expect(cmds.map((c) => c.kind === 'command' && c.name)).toEqual([
@@ -1331,7 +1331,13 @@ describe('Unified command-with-arguments model and lookahead regressions', () =>
     expect(
       surCmd?.kind === 'command' &&
         surCmd.children.map((c) => (c.kind === 'token' ? c.token.value : c.kind))
-    ).toEqual(['\\textbf', ' ', '😀']);
+    ).toEqual(['\\textbf', ' ', 'argument']);
+    expect(
+      surCmd?.kind === 'command' &&
+        surCmd.children[2]?.kind === 'argument' &&
+        surCmd.children[2].children[0]?.kind === 'token' &&
+        surCmd.children[2].children[0].token.value
+    ).toBe('😀');
     expect(surrogate.root.children.some((n) => n.kind === 'token' && n.token.value === 'x')).toBe(
       true
     );
@@ -1346,9 +1352,9 @@ describe('Unified command-with-arguments model and lookahead regressions', () =>
       '\\newcommand{\\mybold}[1]{\\textbf{#1}\\label{x}}\\def\\g#1{\\cite{#1}}\\mybold{hi}'
     );
     ready(macroBody);
-    // \textbf and \label inside macro bodies stay opaque leaves, not document command nodes.
+    // \textbf and \label inside macro bodies stay opaque leaves, while \mybold is inferred.
     const docCmds = walkConfiguredNodes(macroBody.root).filter((n) => n.kind === 'command');
-    expect(docCmds).toEqual([]);
+    expect(docCmds.map((c) => c.kind === 'command' && c.name)).toEqual(['mybold']);
 
     // INV-3: Pipeline B ignores malformed non-condition commands.
     const cond = realizeProjectConditions(snapshot('\\iftrue\\textbf{\\else\\frac{a}\\fi'));

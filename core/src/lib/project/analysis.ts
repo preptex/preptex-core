@@ -165,51 +165,57 @@ export function runAnalysis(
         }
       }
       if (fact.kind !== 'reference') return;
-      if (fact.key.kind === 'unresolved') {
-        references.push({
-          reference: entry.origin,
-          key: null,
-          status: 'unresolved',
-          targets: [],
-          forward: null,
-        });
-        findings.push({
-          code: 'unresolved-key',
-          severity: 'information',
-          message: 'This reference key requires expansion.',
-          primary: entry.origin,
-          related: [],
-        });
-        return;
+      for (const refKey of fact.keys) {
+        const refOrigin =
+          fact.keys.length > 1 && refKey.range
+            ? { ...entry.origin, range: refKey.range }
+            : entry.origin;
+        if (refKey.kind === 'unresolved') {
+          references.push({
+            reference: refOrigin,
+            key: null,
+            status: 'unresolved',
+            targets: [],
+            forward: null,
+          });
+          findings.push({
+            code: 'unresolved-key',
+            severity: 'information',
+            message: 'This reference key requires expansion.',
+            primary: refOrigin,
+            related: [],
+          });
+          continue;
+        }
+        const candidates = labels.get(refKey.value) ?? [];
+        const targets = candidates.map((e) => e.origin);
+        const forward = candidates.length === 1 ? candidates[0]!.order > order : null;
+        const status =
+          candidates.length > 1
+            ? 'duplicate'
+            : candidates.length === 1
+              ? 'matched'
+              : normalized.status === 'ready'
+                ? 'missing'
+                : 'unknown-coverage';
+        references.push({ reference: refOrigin, key: refKey.value, status, targets, forward });
+        if (status === 'missing')
+          findings.push({
+            code: 'missing-reference',
+            severity: 'warning',
+            message: `No recognized reached target for ${refKey.value} within the supported profile. Macro-generated targets are not established by this analysis.`,
+            primary: refOrigin,
+            related: [],
+          });
+        if (forward)
+          findings.push({
+            code: 'forward-reference',
+            severity: 'information',
+            message: `The recognized target for ${refKey.value} occurs later in input order. Forward references are valid LaTeX.`,
+            primary: refOrigin,
+            related: targets,
+          });
       }
-      const candidates = labels.get(fact.key.value) ?? [];
-      const targets = candidates.map((e) => e.origin);
-      const forward = candidates.length === 1 ? candidates[0]!.order > order : null;
-      const status =
-        candidates.length > 1
-          ? 'duplicate'
-          : candidates.length === 1
-            ? 'matched'
-            : normalized.status === 'ready'
-              ? 'missing'
-              : 'unknown-coverage';
-      references.push({ reference: entry.origin, key: fact.key.value, status, targets, forward });
-      if (status === 'missing')
-        findings.push({
-          code: 'missing-reference',
-          severity: 'warning',
-          message: `No recognized reached target for ${fact.key.value} within the supported profile. Macro-generated targets are not established by this analysis.`,
-          primary: entry.origin,
-          related: [],
-        });
-      if (forward)
-        findings.push({
-          code: 'forward-reference',
-          severity: 'information',
-          message: `The recognized target for ${fact.key.value} occurs later in input order. Forward references are valid LaTeX.`,
-          primary: entry.origin,
-          related: targets,
-        });
     });
   } else {
     interface Located {

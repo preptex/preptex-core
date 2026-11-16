@@ -32,9 +32,12 @@ export type ProjectCliOptions = Common &
 
 const factKinds: readonly SyntaxFact['kind'][] = [
   'definition',
+  'environment-definition',
   'command-use',
   'label',
   'reference',
+  'bibitem',
+  'citation',
   'input',
   'condition-declaration',
   'condition-assignment',

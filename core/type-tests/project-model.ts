@@ -12,12 +12,21 @@ import {
   runAnalysis,
   planTransformation,
   applyProjectEdits,
+  buildCoarseViewTree,
+  extractProjectMetadata,
+  inspectProjectCatalog,
+  planCompositeTransformation,
   ProjectOperationError,
   runProjectPipeline,
+  type CoarseTree,
   type ConditionRealizationRequest,
   type ConditionRealizationResult,
+  type ConfiguredArgumentNode,
   type ConfiguredCommandArgument,
   type ConfiguredNode,
+  type CustomCommandSignature,
+  type ProjectCatalog,
+  type ProjectMetadata,
   type SyntaxFact,
   type ProjectSnapshot,
   type ProjectView,
@@ -101,6 +110,8 @@ function visit(node: ConfiguredNode): string {
       void [args, starred];
       return node.name;
     }
+    case 'argument':
+      return `${node.argKind}:${node.slot}`;
     case 'math':
       return node.delimiter;
     default: {
@@ -112,6 +123,7 @@ function visit(node: ConfiguredNode): string {
 function factName(fact: SyntaxFact): string {
   switch (fact.kind) {
     case 'definition':
+    case 'environment-definition':
     case 'condition-declaration':
       return fact.name ?? '';
     case 'command-use':
@@ -119,11 +131,13 @@ function factName(fact: SyntaxFact): string {
       return fact.name;
     case 'condition-test':
     case 'reference':
+    case 'citation':
     case 'opaque':
       return fact.command;
     case 'condition-delimiter':
       return fact.delimiter;
     case 'label':
+    case 'bibitem':
       return fact.key.kind === 'literal' ? fact.key.value : fact.key.source;
     case 'input':
       return fact.target.kind === 'literal' ? fact.target.value : fact.target.source;
@@ -208,3 +222,26 @@ runProjectPipeline(sourceFiles, {
   // @ts-expect-error Static legacy condition whitelists are not pipeline settings.
   enabledConditions: [],
 });
+
+const customSig: CustomCommandSignature = { name: 'mycmd', mandatoryArgs: 1, optionalArgs: 1 };
+const customView = resolveProjectView(snapshot, {
+  entryPath: 'main.tex',
+  customCommands: [customSig],
+});
+if (customView.status === 'ready') {
+  const coarse: CoarseTree = buildCoarseViewTree(customView);
+  // @ts-expect-error Coarse nodes are readonly.
+  coarse.root.children.pop();
+  const argCheck = (n: ConfiguredArgumentNode) => n.argKind;
+  void argCheck;
+}
+const catalog: ProjectCatalog = inspectProjectCatalog(snapshot);
+// @ts-expect-error Catalog commands are readonly.
+catalog.commands.pop();
+const metadata: ProjectMetadata = extractProjectMetadata(snapshot);
+// @ts-expect-error Metadata packages are readonly.
+metadata.packages.pop();
+const composite = planCompositeTransformation(snapshot, {
+  steps: [{ operation: 'realize-conditions', options: { conditions: { mode: 'source' } } }],
+});
+void composite;

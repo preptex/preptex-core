@@ -1,6 +1,6 @@
 # PrepTeX Core architecture
 
-PrepTeX Core (`@preptex/core@0.4.0`) processes virtual LaTeX projects using **two separate, composable pipelines** built on top of **one stateless whole-file tokenizer**:
+PrepTeX Core (`@preptex/core@0.5.0`) processes virtual LaTeX projects using **two separate, composable pipelines** built on top of **one stateless whole-file tokenizer**:
 
 1. **Stage 0 — Whole-File Stateless Tokenizer (`tokenizeFile` in `core/src/lib/project/tokenize.ts`)**:
    - Scans each `.tex` file once from offset `0` to `source.length` and emits a flat, lossless array of primitive tokens (`SourceToken[]`).
@@ -11,8 +11,8 @@ PrepTeX Core (`@preptex/core@0.4.0`) processes virtual LaTeX projects using **tw
    - Outputs both a checked in-place `ProjectEditPlan` (removing condition commands and inactive branches) and realized condition-free `GeneratedArtifact[]` files.
 3. **Pipeline A — Structural View, Analytics, and Transformations (`resolveProjectView` $\rightarrow$ `parseConfiguredStructure` $\rightarrow$ `runAnalysis` / `planTransformation`)**:
    - **Step 1 (View Preprocessor)**: Uses the shared condition realization engine (`evaluateConditionStream`) when `conditions.mode !== 'none'`, or passes tokens directly when `conditions.mode === 'none'`, producing a condition-free `SelectedToken[]` stream with `SourceOrigin` provenance back to the original source files.
-   - **Step 2 (Condition-Free AST Parser)**: Builds the structural AST (`ConfiguredNode`: `root | section | command | environment | group | math | token`) from `SelectedToken[]`. **Blocks with `reason.code === 'unrealized-condition'` if any unrealized condition token is encountered.**
-   - **Step 3 (Analytics & Structural Transforms)**: Runs `references`, `unused-commands`, `suppress-comments`, `remove-environments`, `edit-nodes`, and `export-project` exclusively on the realized `ProjectView`.
+   - **Step 2 (Condition-Free AST Parser)**: Builds the structural AST (`ConfiguredNode`: `root | section | command | environment | argument | group | math | token`) from `SelectedToken[]` using built-in, auto-inferred (`\newcommand`/`\def`), and caller-supplied `customCommands` signatures. **Blocks with `reason.code === 'unrealized-condition'` if any unrealized condition token is encountered.**
+   - **Step 3 (Views, Catalogs, Metadata & Transforms)**: Exposes `buildCoarseViewTree`, `inspectProjectCatalog`, `extractProjectMetadata`, analyses (`references`, `unused-commands`), single-operation transforms (`suppress-comments`, `remove-environments`, `edit-nodes`, `refactor-symbols`, `export-project`), and composable multi-step pipelines (`planCompositeTransformation` / `compose-transformations`).
 
 ---
 
@@ -79,7 +79,12 @@ flowchart TD
 | `core/src/lib/project/environments.ts`   | `inspectProjectEnvironments`, `getSelectedEnvironment`, and binary-searched token delimiter resolution                  |
 | `core/src/lib/project/source-index.ts`   | `createProjectSourceIndex`, `lookupProjectSource`, and `sourceOffsetAt`                                                 |
 | `core/src/lib/project/selection.ts`      | `selectProjectNode` and `getSelectedNode`                                                                               |
-| `core/src/lib/project/node-edits.ts`     | Selected-node removal, environment renaming, and wrapping                                                               |
+| `core/src/lib/project/node-edits.ts`     | Selected-node removal, renaming (`rename-environment`, `rename-command`, `rename-section`), unwrapping, and wrapping    |
+| `core/src/lib/project/coarse-tree.ts`    | Structural outline builder (`buildCoarseViewTree`) projecting sections, environments, and commands with argument nodes  |
+| `core/src/lib/project/catalog.ts`        | Aggregated symbol catalog (`inspectProjectCatalog`) for commands, environments, conditions, labels, and citations       |
+| `core/src/lib/project/metadata.ts`       | Document metadata extractor (`extractProjectMetadata`) for `title`, `author`, `date`, `abstract`, and helpers           |
+| `core/src/lib/project/refactor.ts`       | Global symbol refactoring and metadata editing (`refactor-symbols`) across source and projected views                   |
+| `core/src/lib/project/composite.ts`      | Composable multi-step transformation pipeline (`planCompositeTransformation` / `compose-transformations`)               |
 | `core/src/lib/project/pipeline.ts`       | `runProjectPipeline` end-to-end composition                                                                             |
 | `cli/`                                   | Node.js CLI adapter (`inventory`, `analyze`, `transform`, `ast`) using only `@preptex/core`                             |
 | `docs/api/`                              | TypeDoc Markdown reference generated from TSDoc                                                                         |

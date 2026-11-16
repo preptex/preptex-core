@@ -27,7 +27,13 @@ import {
 import { validateView } from './view.js';
 import { reject } from './fail.js';
 import { validateOccurrenceEdits } from './safety.js';
-import { normalizeNodeActions, normalizeNodeOperation } from './node-options.js';
+import {
+  normalizeNodeActions,
+  normalizeNodeOperation,
+  normalizeSymbolRefactorOperation,
+} from './node-options.js';
+import { normalizeCompositeOptions, runCompositeTransformation } from './composite.js';
+import { symbolRefactorProjectionChanges } from './refactor.js';
 import { sourceOperationEdits } from './source-operations.js';
 import { environmentActions, projectionChanges } from './node-edits.js';
 import { ProjectOperationError } from '../../errors.js';
@@ -49,6 +55,15 @@ export const projectOperations: readonly OperationDescriptor[] = freeze([
     implemented: true,
     representation: 'view',
     scopes: ['configured'],
+    coverage: 'ready-view',
+    resultKind: 'transformation',
+  },
+  {
+    id: 'refactor-symbols',
+    version: 1,
+    implemented: true,
+    representation: 'view',
+    scopes: ['all-files', 'configured'],
     coverage: 'ready-view',
     resultKind: 'transformation',
   },
@@ -115,6 +130,15 @@ export const projectOperations: readonly OperationDescriptor[] = freeze([
     coverage: 'ready-view',
     resultKind: 'artifacts',
   },
+  {
+    id: 'compose-transformations',
+    version: 1,
+    implemented: true,
+    representation: 'snapshot',
+    scopes: ['all-files', 'configured'],
+    coverage: 'recognized',
+    resultKind: 'transformation',
+  },
 ]);
 
 export function validateOperation(value: unknown): OperationRequest {
@@ -123,6 +147,9 @@ export function validateOperation(value: unknown): OperationRequest {
   const operation = request['operation'];
   if (operation === 'edit-nodes' || operation === 'remove-environments')
     return normalizeNodeOperation(operation, request['options']);
+  if (operation === 'refactor-symbols') return normalizeSymbolRefactorOperation(request['options']);
+  if (operation === 'compose-transformations')
+    return { operation, options: normalizeCompositeOptions(request['options']) };
   if (operation === 'source-inventory')
     return { operation, options: normalizeInventory(request['options']) };
   if (operation === 'realize-conditions')
@@ -251,7 +278,12 @@ export function checkOperationCapability(
       code: 'not-implemented',
       message: `${descriptor.id} is reserved for a later implementation phase.`,
     });
-  if (descriptor.representation !== model.kind)
+  const snapshotRefactor =
+    operation.operation === 'refactor-symbols' &&
+    model.kind === 'snapshot' &&
+    (operation.options.target === undefined || operation.options.target === 'source');
+  const viewComposite = operation.operation === 'compose-transformations' && model.kind === 'view';
+  if (descriptor.representation !== model.kind && !snapshotRefactor && !viewComposite)
     reasons.push({
       code: 'wrong-model',
       message: `This operation requires a ${descriptor.representation}.`,
@@ -316,6 +348,23 @@ export function checkOperationCapability(
             model.kind === 'view' ? model : undefined
           );
       }
+      if (operation.operation === 'refactor-symbols') {
+        if (operation.options.target === 'artifact' && model.kind === 'view') {
+          symbolRefactorProjectionChanges(model, operation.options.actions);
+        } else {
+          if (model.kind === 'view' && operation.options.target === 'source') {
+            reject('unavailable', 'Use a snapshot for source-wide refactor-symbols target.');
+          }
+          sourceOperationEdits(
+            model.kind === 'snapshot' ? model : model.snapshot,
+            operation,
+            model.kind === 'view' ? model : undefined
+          );
+        }
+      }
+      if (operation.operation === 'compose-transformations') {
+        runCompositeTransformation(model, operation.options);
+      }
       if (operation.operation === 'export-project' && model.kind === 'view') {
         if (operation.options.nodeEdits?.length) {
           if (operation.options.inputs !== 'inline')
@@ -369,11 +418,15 @@ export function validateProjectEditPlan(
     request.operation !== 'realize-conditions' &&
     request.operation !== 'suppress-comments' &&
     request.operation !== 'edit-nodes' &&
-    request.operation !== 'remove-environments'
+    request.operation !== 'remove-environments' &&
+    request.operation !== 'refactor-symbols' &&
+    request.operation !== 'compose-transformations'
   )
     invalid('This operation does not produce source edits.');
   if (
-    (request.operation === 'edit-nodes' || request.operation === 'remove-environments') &&
+    (request.operation === 'edit-nodes' ||
+      request.operation === 'remove-environments' ||
+      request.operation === 'refactor-symbols') &&
     request.options.target === 'artifact'
   )
     invalid('Artifact operations do not produce source edits.');
@@ -382,7 +435,12 @@ export function validateProjectEditPlan(
   const scope = request.operation === 'realize-conditions' ? request.options.scope : undefined;
   const viewId = provenance['viewId'];
   if (view) view = validateView(view);
-  if (request.operation === 'realize-conditions') {
+  if (
+    request.operation === 'realize-conditions' ||
+    ((request.operation === 'refactor-symbols' ||
+      request.operation === 'compose-transformations') &&
+      viewId === null)
+  ) {
     if (viewId !== null) invalid('Source-local edits must not depend on a view.');
   } else {
     if (
@@ -466,6 +524,8 @@ export function validateProjectEditPlan(
     request.operation === 'realize-conditions' ||
     request.operation === 'edit-nodes' ||
     request.operation === 'remove-environments' ||
+    request.operation === 'refactor-symbols' ||
+    request.operation === 'compose-transformations' ||
     (request.operation === 'suppress-comments' && request.options?.suppressCommentEnvironments)
   ) {
     const expected = sourceOperationEdits(source, request, view);

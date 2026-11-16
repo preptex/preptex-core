@@ -1,7 +1,9 @@
 import type { ConfiguredNode, ProjectEdit, ProjectView } from '../../project-types.js';
 import type { NodeEditAction } from '../../node-types.js';
 import { getSelectedNode, nodeMap, selectProjectNode } from './selection.js';
+import { sectionLevel } from './commands.js';
 import { reject } from './fail.js';
+import { testKind } from './shared.js';
 import { normalizeChanges, sourceChanges, type TextChange } from './text-edits.js';
 
 interface Action {
@@ -22,10 +24,12 @@ function protectedTokenKeys(view: ProjectView): ReadonlySet<string> {
   const pending: ConfiguredNode[] = view.root ? [view.root] : [];
   while (pending.length > 0) {
     const node = pending.pop()!;
-    if (node.kind === 'command' || node.kind === 'section') {
+    if (node.kind === 'command' || node.kind === 'section' || node.kind === 'environment') {
       const firstArgStart = node.arguments[0]?.childStart ?? node.children.length;
-      if (node.children[0]) keys.add(node.children[0].occurrenceKey);
-      if (node.starred) {
+      if (node.kind !== 'environment' && node.children[0]) {
+        keys.add(node.children[0].occurrenceKey);
+      }
+      if (node.kind !== 'environment' && node.starred) {
         const headerLimit =
           node.kind === 'command'
             ? node.children.length
@@ -39,7 +43,19 @@ function protectedTokenKeys(view: ProjectView): ReadonlySet<string> {
         }
       }
       for (const arg of node.arguments) {
-        if (arg.childStart === arg.childEnd) {
+        const argNode = node.children[arg.childStart];
+        if (argNode?.kind === 'argument') {
+          keys.add(argNode.occurrenceKey);
+          if (argNode.delimiter === 'bare') {
+            const direct = argNode.children[0];
+            if (direct?.kind === 'token') keys.add(direct.occurrenceKey);
+          } else {
+            const open = argNode.children[0];
+            const close = argNode.children[argNode.children.length - 1];
+            if (open) keys.add(open.occurrenceKey);
+            if (close) keys.add(close.occurrenceKey);
+          }
+        } else if (arg.childStart === arg.childEnd) {
           const direct = node.children[arg.childStart];
           if (direct?.kind === 'token') keys.add(direct.occurrenceKey);
         } else {
@@ -65,18 +81,44 @@ export function plannedActions(view: ProjectView, actions: readonly NodeEditActi
   const protectedTokens = protectedTokenKeys(view);
   actions.forEach((action, order) => {
     const node = getSelectedNode(view, action.selection);
-    if (node.kind === 'root') reject('unavailable', 'The synthetic root cannot be edited.');
+    if (node.kind === 'root' || node.kind === 'argument') {
+      if (node.kind === 'root') reject('unavailable', 'The synthetic root cannot be edited.');
+      reject(
+        'unavailable',
+        'Select a complete construct, not a protected argument or structural delimiter token.',
+        node.origins
+      );
+    }
+    if (action.kind !== 'rename-command' && protectedTokens.has(node.occurrenceKey)) {
+      reject(
+        'unavailable',
+        'Select a complete construct, not a protected argument or structural delimiter token.',
+        node.origins
+      );
+    }
     if (node.kind === 'token') {
       const token = view.selectedTokens.find(
         (t) =>
           t.projectedRange.start <= node.projectedRange.start &&
           t.projectedRange.end >= node.projectedRange.end
       );
+      const isRenameableCommandToken =
+        action.kind === 'rename-command' &&
+        token &&
+        token.interpretation === 'structure' &&
+        node.token.kind === 'command' &&
+        !protectedTokens.has(node.occurrenceKey) &&
+        !['begin', 'end', 'input', 'newif', 'else', 'fi', 'verb', 'global'].includes(
+          node.token.name
+        ) &&
+        sectionLevel(node.token.name) === undefined &&
+        testKind(node.token.name) === null;
       if (
-        !token ||
-        token.interpretation === 'opaque' ||
-        protectedTokens.has(node.occurrenceKey) ||
-        ['command', 'open', 'close', 'math'].includes(node.token.kind)
+        !isRenameableCommandToken &&
+        (!token ||
+          token.interpretation === 'opaque' ||
+          protectedTokens.has(node.occurrenceKey) ||
+          ['command', 'open', 'close', 'math'].includes(node.token.kind))
       )
         reject(
           'unavailable',
@@ -86,25 +128,71 @@ export function plannedActions(view: ProjectView, actions: readonly NodeEditActi
     }
     if (
       action.kind === 'rename-environment' &&
-      (node.kind !== 'environment' ||
-        !node.syntax.opening ||
-        !node.syntax.closing ||
-        node.syntax.hasArguments)
+      (node.kind !== 'environment' || !node.syntax.opening || !node.syntax.closing)
     )
+      reject('unavailable', 'Renaming requires two literal environment delimiters.', node.origins);
+    if (
+      action.kind === 'rename-command' &&
+      !(node.kind === 'command' || (node.kind === 'token' && node.token.kind === 'command'))
+    ) {
       reject(
         'unavailable',
-        'Renaming requires two literal argument-free environment delimiters.',
+        'Command renaming requires selecting a command node or command token.',
         node.origins
       );
+    }
+    if (action.kind === 'rename-section' && node.kind !== 'section') {
+      reject('unavailable', 'Section renaming requires selecting a section node.', node.origins);
+    }
+    if (action.kind === 'unwrap-node') {
+      if (node.kind === 'environment') {
+        if (!node.syntax.opening || !node.syntax.closing) {
+          reject(
+            'unavailable',
+            'Unwrapping an environment requires two literal delimiters.',
+            node.origins
+          );
+        }
+      } else if (node.kind === 'command') {
+        const argNode =
+          node.arguments.length === 1 ? node.children[node.arguments[0]!.childStart] : undefined;
+        if (
+          node.starred ||
+          node.arguments.length !== 1 ||
+          node.arguments[0]!.kind !== 'mandatory' ||
+          node.arguments[0]!.opaque ||
+          argNode?.kind !== 'argument'
+        ) {
+          reject(
+            'unavailable',
+            'Only single mandatory non-opaque argument commands can be unwrapped.',
+            node.origins
+          );
+        }
+      } else if (node.kind !== 'group') {
+        reject(
+          'unavailable',
+          'Only environments, brace groups, or single-argument commands can be unwrapped.',
+          node.origins
+        );
+      }
+    }
     const key = `${action.kind}:${node.occurrenceKey}`;
     const old = unique.get(key);
     if (old && action.kind !== 'wrap-node') {
       if (
-        old.action.kind === 'rename-environment' &&
-        action.kind === 'rename-environment' &&
-        old.action.name !== action.name
+        (old.action.kind === 'rename-environment' &&
+          action.kind === 'rename-environment' &&
+          old.action.name !== action.name) ||
+        (old.action.kind === 'rename-command' &&
+          action.kind === 'rename-command' &&
+          old.action.name !== action.name) ||
+        (old.action.kind === 'rename-section' &&
+          action.kind === 'rename-section' &&
+          (old.action.sectionCommand !== action.sectionCommand ||
+            old.action.starred !== action.starred))
       )
-        reject('edit-conflict', 'One environment has incompatible renames.', node.origins);
+        reject('edit-conflict', 'One node has incompatible renames.', node.origins);
       return;
     }
     const value = { action, node, order };
@@ -187,6 +275,86 @@ export function projectionChanges(
           end: boundary(d.origin.occurrenceId, d.nameRange.end) + 1,
           text: action.name,
         });
+    if (action.kind === 'rename-command') {
+      const cmdTok = node.kind === 'token' ? node : node.children[0]!;
+      result.push({
+        start: cmdTok.projectedRange.start,
+        end: cmdTok.projectedRange.end + 1,
+        text: `\\${action.name}`,
+      });
+    }
+    if (action.kind === 'rename-section' && node.kind === 'section') {
+      const cmdTok = node.children[0]!;
+      const starTok = node.starred
+        ? node.children.find((c) => c.kind === 'token' && c.token.value === '*')
+        : undefined;
+      const targetStar = action.starred ?? node.starred;
+      if (node.starred && !targetStar && starTok) {
+        result.push({
+          start: cmdTok.projectedRange.start,
+          end: starTok.projectedRange.end + 1,
+          text: `\\${action.sectionCommand}`,
+        });
+      } else {
+        result.push({
+          start: cmdTok.projectedRange.start,
+          end: cmdTok.projectedRange.end + 1,
+          text: `\\${action.sectionCommand}${targetStar && !node.starred ? '*' : ''}`,
+        });
+      }
+    }
+    if (action.kind === 'unwrap-node') {
+      if (node.kind === 'group') {
+        result.push({
+          start: node.projectedRange.start,
+          end: node.projectedRange.start + 1,
+          text: '',
+        });
+        result.push({
+          start: node.projectedRange.end,
+          end: node.projectedRange.end + 1,
+          text: '',
+        });
+      } else if (node.kind === 'environment') {
+        const op = node.syntax.opening!;
+        const cl = node.syntax.closing!;
+        const lastArg = node.arguments[node.arguments.length - 1];
+        const openStart = boundary(op.origin.occurrenceId, op.range.start);
+        const openEnd = lastArg
+          ? lastArg.projectedRange.end + 1
+          : boundary(op.origin.occurrenceId, op.range.end) + 1;
+        result.push({ start: openStart, end: openEnd, text: '' });
+        result.push({
+          start: boundary(cl.origin.occurrenceId, cl.range.start),
+          end: boundary(cl.origin.occurrenceId, cl.range.end) + 1,
+          text: '',
+        });
+      } else if (node.kind === 'command') {
+        const argNode = node.children[node.arguments[0]!.childStart]!;
+        if (argNode.kind === 'argument') {
+          if (argNode.delimiter === 'braced') {
+            const openBrace = argNode.children[0]!;
+            const closeBrace = argNode.children[argNode.children.length - 1]!;
+            result.push({
+              start: node.projectedRange.start,
+              end: openBrace.projectedRange.end + 1,
+              text: '',
+            });
+            result.push({
+              start: closeBrace.projectedRange.start,
+              end: closeBrace.projectedRange.end + 1,
+              text: '',
+            });
+          } else {
+            result.push({
+              start: node.projectedRange.start,
+              end: argNode.projectedRange.start,
+              text: '',
+            });
+          }
+        }
+      }
+    }
   }
   // At shared boundaries, close the preceding subtree before opening the next.
   for (const close of [true, false])
@@ -229,7 +397,13 @@ export function nodeSourceEdits(
     groups.set(key, group);
   }
   for (const a of planned) {
-    if (a.action.kind !== 'rename-environment' && a.node.location.kind !== 'single')
+    if (
+      a.action.kind !== 'rename-environment' &&
+      a.action.kind !== 'rename-command' &&
+      a.action.kind !== 'rename-section' &&
+      a.action.kind !== 'unwrap-node' &&
+      a.node.location.kind !== 'single'
+    )
       reject(
         'edit-conflict',
         'A source removal/wrapper requires one contiguous original extent; use materialized inline artifacts.',
@@ -245,7 +419,179 @@ export function nodeSourceEdits(
           occurrenceId: d.origin.occurrenceId,
           text: a.action.name,
         });
-    else {
+    else if (a.action.kind === 'rename-command') {
+      const cmdTok = a.node.kind === 'token' ? a.node : a.node.children[0]!;
+      if (cmdTok.location.kind !== 'single') {
+        reject(
+          'edit-conflict',
+          'Command token must have a single original extent.',
+          cmdTok.origins
+        );
+      }
+      const o = cmdTok.location.primary!;
+      add({
+        action: a,
+        path: o.path,
+        start: o.range.start,
+        end: o.range.end + 1,
+        occurrenceId: o.occurrenceId,
+        text: `\\${a.action.name}`,
+      });
+    } else if (a.action.kind === 'rename-section' && a.node.kind === 'section') {
+      const cmdTok = a.node.children[0]!;
+      const starTok = a.node.starred
+        ? a.node.children.find((c) => c.kind === 'token' && c.token.value === '*')
+        : undefined;
+      const targetStar = a.action.starred ?? a.node.starred;
+      if (cmdTok.location.kind !== 'single') {
+        reject(
+          'edit-conflict',
+          'Section command must have a single original extent.',
+          cmdTok.origins
+        );
+      }
+      const cmdO = cmdTok.location.primary!;
+      if (a.node.starred && !targetStar && starTok) {
+        if (starTok.location.kind !== 'single' || starTok.location.primary!.path !== cmdO.path) {
+          reject(
+            'edit-conflict',
+            'Section star must share the same file as the section command.',
+            starTok.origins
+          );
+        }
+        add({
+          action: a,
+          path: cmdO.path,
+          start: cmdO.range.start,
+          end: starTok.location.primary!.range.end + 1,
+          occurrenceId: cmdO.occurrenceId,
+          text: `\\${a.action.sectionCommand}`,
+        });
+      } else {
+        add({
+          action: a,
+          path: cmdO.path,
+          start: cmdO.range.start,
+          end: cmdO.range.end + 1,
+          occurrenceId: cmdO.occurrenceId,
+          text: `\\${a.action.sectionCommand}${targetStar && !a.node.starred ? '*' : ''}`,
+        });
+      }
+    } else if (a.action.kind === 'unwrap-node') {
+      if (a.node.kind === 'group') {
+        if (a.node.location.kind !== 'single') {
+          reject(
+            'edit-conflict',
+            'Source unwrapping of a brace group requires one contiguous original extent.',
+            a.node.origins
+          );
+        }
+        const o = a.node.location.primary!;
+        add({
+          action: a,
+          path: o.path,
+          start: o.range.start,
+          end: o.range.start + 1,
+          occurrenceId: o.occurrenceId,
+          text: '',
+        });
+        add({
+          action: a,
+          path: o.path,
+          start: o.range.end,
+          end: o.range.end + 1,
+          occurrenceId: o.occurrenceId,
+          text: '',
+        });
+      } else if (a.node.kind === 'environment') {
+        const op = a.node.syntax.opening!;
+        const cl = a.node.syntax.closing!;
+        const lastArg = a.node.arguments[a.node.arguments.length - 1];
+        const openEnd = lastArg
+          ? lastArg.location.kind === 'single' && lastArg.location.primary!.path === op.path
+            ? lastArg.location.primary!.range.end + 1
+            : reject(
+                'edit-conflict',
+                'Environment arguments must share the opener file for source unwrapping.',
+                lastArg.location.spans
+              )
+          : op.range.end + 1;
+        add({
+          action: a,
+          path: op.path,
+          start: op.range.start,
+          end: openEnd,
+          occurrenceId: op.origin.occurrenceId,
+          text: '',
+        });
+        add({
+          action: a,
+          path: cl.path,
+          start: cl.range.start,
+          end: cl.range.end + 1,
+          occurrenceId: cl.origin.occurrenceId,
+          text: '',
+        });
+      } else if (a.node.kind === 'command') {
+        const argNode = a.node.children[a.node.arguments[0]!.childStart]!;
+        const cmdTok = a.node.children[0]!;
+        if (cmdTok.location.kind !== 'single' || argNode.kind !== 'argument') {
+          reject(
+            'edit-conflict',
+            'Unwrapping command requires contiguous delimiters.',
+            a.node.origins
+          );
+        }
+        const cmdO = cmdTok.location.primary!;
+        if (argNode.delimiter === 'braced') {
+          const openBrace = argNode.children[0]!;
+          const closeBrace = argNode.children[argNode.children.length - 1]!;
+          if (
+            openBrace.location.kind !== 'single' ||
+            closeBrace.location.kind !== 'single' ||
+            openBrace.location.primary!.path !== cmdO.path
+          ) {
+            reject(
+              'edit-conflict',
+              'Command and opening brace must share the same file.',
+              a.node.origins
+            );
+          }
+          add({
+            action: a,
+            path: cmdO.path,
+            start: cmdO.range.start,
+            end: openBrace.location.primary!.range.end + 1,
+            occurrenceId: cmdO.occurrenceId,
+            text: '',
+          });
+          add({
+            action: a,
+            path: closeBrace.location.primary!.path,
+            start: closeBrace.location.primary!.range.start,
+            end: closeBrace.location.primary!.range.end + 1,
+            occurrenceId: closeBrace.location.primary!.occurrenceId,
+            text: '',
+          });
+        } else {
+          if (argNode.location.kind !== 'single' || argNode.location.primary!.path !== cmdO.path) {
+            reject(
+              'edit-conflict',
+              'Bare command argument must share the command file.',
+              a.node.origins
+            );
+          }
+          add({
+            action: a,
+            path: cmdO.path,
+            start: cmdO.range.start,
+            end: argNode.location.primary!.range.start,
+            occurrenceId: cmdO.occurrenceId,
+            text: '',
+          });
+        }
+      }
+    } else {
       const o = a.node.location.primary!;
       add({
         action: a,

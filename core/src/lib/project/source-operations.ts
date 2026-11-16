@@ -8,6 +8,8 @@ import { commentEdits } from './comment-edits.js';
 import { realizeProjectConditions } from './conditions.js';
 import { reject } from './fail.js';
 import { environmentActions, nodeSourceEdits } from './node-edits.js';
+import { runCompositeTransformation } from './composite.js';
+import { symbolRefactorSourceEdits } from './refactor.js';
 import { sourceChanges, type TextChange } from './text-edits.js';
 import { invalid } from './shared.js';
 
@@ -35,6 +37,15 @@ export function sourceOperationEdits(
   if (request.operation === 'remove-environments') {
     if (!view || request.options.target !== 'selected') invalid('Expected selected source edits.');
     return nodeSourceEdits(view, environmentActions(view, request.options.names));
+  }
+  if (request.operation === 'refactor-symbols') {
+    if (request.options.target === 'artifact') invalid('Expected source edits.');
+    return symbolRefactorSourceEdits(view ?? source, request.options.actions);
+  }
+  if (request.operation === 'compose-transformations') {
+    const res = runCompositeTransformation(view ?? source, request.options);
+    if (!res.editPlan) invalid('Composite transformation did not produce source edits.');
+    return [...res.editPlan.edits];
   }
   if (request.operation !== 'suppress-comments')
     invalid('This operation does not produce source edits.');

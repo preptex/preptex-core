@@ -291,11 +291,13 @@ describe('C7a selected-node edit batches', () => {
     );
     expect(() => edit(v, [rename(v, a, 'E'), rename(v, a, 'F')])).toThrow();
   });
-  it('rejects root/delimiter edits, invalid names, argument adaptation and forged proposals', () => {
+  it('rejects root/delimiter edits, invalid names, and forged proposals while renaming environments with arguments', () => {
     const v = view(String.raw`\begin{itemize}[x]\item X\end{itemize}`),
       n = env(v, 'itemize');
     expect(() => edit(v, [remove(v, v.root!)])).toThrow();
-    expect(() => edit(v, [rename(v, n, 'enumerate')])).toThrow();
+    expect(applied(v, edit(v, [rename(v, n, 'enumerate')]))).toBe(
+      String.raw`\begin{enumerate}[x]\item X\end{enumerate}`
+    );
     expect(() => edit(v, [wrap(v, n, 'C}evil')])).toThrow();
     const r = edit(v, [remove(v, n)]),
       e = r.editPlan!.edits[0]!;

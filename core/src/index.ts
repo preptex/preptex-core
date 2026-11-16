@@ -16,15 +16,34 @@ export type {
   BooleanValues,
   BranchContext,
   CapabilityReason,
+  CatalogCitationEntry,
+  CatalogCommandEntry,
+  CatalogConditionEntry,
+  CatalogEnvironmentEntry,
+  CatalogLabelEntry,
+  CoarseNode,
+  CoarseNodeKind,
+  CoarseTree,
+  CoarseTreeOptions,
+  CommandDefinitionItem,
+  CommandOccurrenceItem,
+  CompositeStepRequest,
+  CompositeTransformationRequest,
   ConditionDecision,
   ConditionPolicy,
   ConditionRealizationRequest,
   ConditionRealizationResult,
+  ConfiguredArgumentDelimiter,
+  ConfiguredArgumentNode,
   ConfiguredCommandArgument,
   ConfiguredContainerNode,
   ConfiguredNode,
   ConfiguredNodeBase,
   Coverage,
+  CustomCommandParameterSpec,
+  CustomCommandSignature,
+  EnvironmentDefinitionItem,
+  EnvironmentOccurrenceItem,
   FactContext,
   GeneratedArtifact,
   InputOccurrence,
@@ -32,6 +51,9 @@ export type {
   InventoryRequest,
   InventoryResult,
   LiteralArgument,
+  MetadataAuthor,
+  MetadataField,
+  NormalizedCoarseTreeOptions,
   NormalizedScanOptions,
   NormalizedViewConfiguration,
   OccurrenceId,
@@ -39,10 +61,12 @@ export type {
   OperationDescriptor,
   OperationProvenance,
   OperationRequest,
+  ProjectCatalog,
   ProjectEdit,
   ProjectEditPlan,
   ProjectIssue,
   ProjectIssueCode,
+  ProjectMetadata,
   ProjectSnapshot,
   ProjectSourceChange,
   ProjectView,
@@ -71,8 +95,12 @@ export {
 } from './lib/project/snapshot.js';
 export { realizeProjectConditions } from './lib/project/conditions.js';
 export { resolveProjectView } from './lib/project/view.js';
+export { buildCoarseViewTree } from './lib/project/coarse-tree.js';
+export { inspectProjectCatalog } from './lib/project/catalog.js';
+export { extractProjectMetadata } from './lib/project/metadata.js';
 export { indexProjectView, runAnalysis } from './lib/project/analysis.js';
 export { applyProjectEdits, planTransformation } from './lib/project/transformation.js';
+export { planCompositeTransformation } from './lib/project/composite.js';
 export { runProjectPipeline } from './lib/project/pipeline.js';
 export type { ProjectPipelineOptions, ProjectPipelineResult } from './project-types.js';
 export type {
@@ -106,6 +134,8 @@ export type {
   EnvironmentSelection,
   NodeEditAction,
   NodeTransformationRequest,
+  SymbolRefactorAction,
+  SymbolRefactorRequest,
   SourceLookupHit,
   SourceInterval,
   SourceLookupFile,

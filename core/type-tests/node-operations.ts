@@ -14,6 +14,7 @@ import {
   type NodeLocation,
   type NodeEditAction,
   type SourceLookupHit,
+  type SymbolRefactorAction,
   type VersionedSourceOrigin,
 } from '@preptex/core';
 
@@ -108,6 +109,17 @@ const wrong: NodeEditAction = {
 };
 // @ts-expect-error A wrapper always requires a literal environment name.
 const missingName: NodeEditAction = { kind: 'wrap-node', selection: selectProjectNode(view, 'n1') };
+const renameCmdAction: NodeEditAction = {
+  kind: 'rename-command',
+  selection: selectProjectNode(view, 'n1'),
+  name: 'textbf',
+};
+const refactorAction: SymbolRefactorAction = {
+  kind: 'rename-label-globally',
+  oldKey: 'a',
+  newKey: 'b',
+};
+void [renameCmdAction, refactorAction];
 // @ts-expect-error Artifact selections do not accept source mode.
 planTransformation(view, { operation: 'edit-nodes', options: { target: 'source', actions: [] } });
 void primary;
