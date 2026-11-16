@@ -60,3 +60,111 @@ test('CLI preserve, flatten, separate and AST commands operate on realized proje
   assert.equal(parsed.status, 'ready');
   assert.equal(parsed.root.kind, 'root');
 });
+
+test('transform supports condition policies, comment environments, and recursive suppression', async (context) => {
+  const workspace = await mkdtemp(path.join(tmpdir(), 'preptex-cli-040-'));
+  context.after(async () => rm(workspace, { recursive: true, force: true }));
+  await writeFile(
+    path.join(workspace, 'main.tex'),
+    String.raw`\newif\ifdraft\drafttrue\ifdraft A\else B\fi\begin{comment}C\end{comment}% tail` +
+      '\n\\input{part}',
+    'utf8'
+  );
+  await writeFile(path.join(workspace, 'part.tex'), 'P% comment\nQ', 'utf8');
+
+  const run = (...args) => {
+    const result = spawnSync(process.execPath, [cliPath, ...args], { encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return result;
+  };
+
+  run(
+    'transform',
+    '--work-dir',
+    workspace,
+    '--input',
+    'main.tex',
+    '--condition-mode',
+    'manual',
+    '--condition',
+    'draft=false',
+    '--suppress-comments',
+    '--suppress-comment-environments'
+  );
+  assert.equal(
+    await readFile(path.join(workspace, 'transform', 'main.tex'), 'utf8'),
+    String.raw`B\input{part}`
+  );
+  assert.equal(await readFile(path.join(workspace, 'transform', 'part.tex'), 'utf8'), 'PQ');
+
+  run(
+    'transform',
+    '--work-dir',
+    workspace,
+    '--input',
+    'main.tex',
+    '--recursive',
+    '--suppress-comments',
+    '--out-dir',
+    path.join(workspace, 'rec-out')
+  );
+  assert.equal(await readFile(path.join(workspace, 'rec-out', 'part.tex'), 'utf8'), 'PQ');
+
+  const astNone = run(
+    'ast',
+    '--work-dir',
+    workspace,
+    '--input',
+    'main.tex',
+    '--condition-mode',
+    'none'
+  );
+  const parsedNone = JSON.parse(astNone.stdout);
+  assert.equal(parsedNone.status, 'blocked');
+  assert.equal(parsedNone.reason.code, 'unrealized-condition');
+});
+
+test('realize realizes conditions independently of AST balance (Pipeline B)', async (context) => {
+  const workspace = await mkdtemp(path.join(tmpdir(), 'preptex-cli-realize-'));
+  context.after(async () => rm(workspace, { recursive: true, force: true }));
+  await writeFile(
+    path.join(workspace, 'main.tex'),
+    String.raw`\newif\ifok\oktrue\ifok {unbalanced \begin{a}\end{b} \input{sub}\fi`,
+    'utf8'
+  );
+  await writeFile(path.join(workspace, 'sub.tex'), String.raw`\ifok sub-ok\fi`, 'utf8');
+
+  const jsonResult = spawnSync(
+    process.execPath,
+    [cliPath, 'realize', '--work-dir', workspace, '--input', 'main.tex', '--flatten', '--json'],
+    { encoding: 'utf8' }
+  );
+  assert.equal(jsonResult.status, 0, jsonResult.stderr);
+  const parsed = JSON.parse(jsonResult.stdout);
+  assert.equal(parsed.kind, 'condition-realization');
+  assert.equal(parsed.status, 'ready');
+  assert.equal(parsed.artifacts[0].source, String.raw`{unbalanced \begin{a}\end{b} sub-ok`);
+
+  const writeResult = spawnSync(
+    process.execPath,
+    [
+      cliPath,
+      'realize',
+      '--work-dir',
+      workspace,
+      '--input',
+      'main.tex',
+      '--flatten',
+      '--out-dir',
+      path.join(workspace, 'out'),
+      '--output',
+      'realized.tex',
+    ],
+    { encoding: 'utf8' }
+  );
+  assert.equal(writeResult.status, 0, writeResult.stderr);
+  assert.equal(
+    await readFile(path.join(workspace, 'out', 'realized.tex'), 'utf8'),
+    String.raw`{unbalanced \begin{a}\end{b} sub-ok`
+  );
+});

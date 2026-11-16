@@ -134,24 +134,40 @@ test('new CLI options reject mixed policies, invalid scopes and output destinati
     ['analyze', '--entry', 'main.tex', '--if-branches', 'draft'],
   ];
   for (const args of cases) failure(run(args[0], '--work-dir', root, ...args.slice(1)));
-  const legacy = run(
+  const mixed = run(
     'transform',
     '--work-dir',
     root,
     '--input',
     'main.tex',
+    '--if-branches',
+    'draft',
     '--condition-mode',
     'source'
   );
-  assert.equal(legacy.status, 1);
-  assert.match(legacy.stderr, /cannot use --condition-mode/);
+  assert.equal(mixed.status, 1);
+  assert.match(mixed.stderr, /Cannot mix --if-branches/);
 });
 
 test('CLI help needs no project files and I/O failures do not expose stacks', async () => {
-  for (const command of ['inventory', 'analyze']) assert.equal(run(command, '--help').status, 0);
+  for (const command of ['inventory', 'analyze', 'realize', 'ast', 'transform']) {
+    assert.equal(run(command, '--help').status, 0);
+  }
   failure(
     run('inventory', '--work-dir', path.join(tmpdir(), 'preptex-does-not-exist-root')),
     'cli-error'
+  );
+});
+
+test('inventory --environments inspects active, conditional, and definition-body environments', async (context) => {
+  const root = await fixture(context, {
+    'main.tex': String.raw`\ifunknown\begin{a}\end{a}\fi\def\f{\begin{b}\end{b}}`,
+  });
+  const result = success(run('inventory', '--work-dir', root, '--environments'));
+  assert.equal(result.kind, 'environments');
+  assert.deepEqual(
+    result.environments.map((env) => env.name),
+    ['a', 'b']
   );
 });
 

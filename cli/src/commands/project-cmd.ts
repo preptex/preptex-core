@@ -1,6 +1,7 @@
 import {
   createProjectSnapshot,
   inspectProject,
+  inspectProjectEnvironments,
   resolveProjectView,
   runAnalysis,
   PrepTexError,
@@ -25,9 +26,11 @@ export async function handleProjectCommand(
     const files = await readAllTexFiles(path.resolve(options.workDir));
     const snapshot = createProjectSnapshot(files);
     if (options.command === 'inventory') {
-      process.stdout.write(
-        `${JSON.stringify(inspectProject(snapshot, options.request), null, 2)}\n`
-      );
+      const result =
+        options.mode === 'environments'
+          ? inspectProjectEnvironments(snapshot, options.scope)
+          : inspectProject(snapshot, options.request);
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     } else {
       view = resolveProjectView(snapshot, options.configuration!);
       process.stdout.write(`${JSON.stringify(runAnalysis(view, options.request), null, 2)}\n`);
