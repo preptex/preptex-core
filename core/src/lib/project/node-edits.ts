@@ -3,6 +3,7 @@ import type {
   ProjectEdit,
   ProjectSnapshot,
   ProjectView,
+  SourceScope,
 } from '../../project-types.js';
 import type { NodeEditAction } from '../../node-types.js';
 import { getSelectedNode, nodeMap, selectProjectNode } from './selection.js';
@@ -652,9 +653,10 @@ export function environmentActions(view: ProjectView, names: readonly string[]):
 
 export function snapshotEnvironmentRemovalEdits(
   snapshot: ProjectSnapshot,
-  names: readonly string[]
+  names: readonly string[],
+  scope: SourceScope = { kind: 'all-files' }
 ): ProjectEdit[] {
-  const inventory = inspectProjectEnvironments(snapshot, { kind: 'all-files' });
+  const inventory = inspectProjectEnvironments(snapshot, scope);
   const matches = inventory.environments.filter(
     (env) =>
       env.name !== null &&

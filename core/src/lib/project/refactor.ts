@@ -3,7 +3,7 @@ import type {
   ProjectEdit,
   ProjectSnapshot,
   ProjectView,
-  SelectedToken,
+  SourceScope,
 } from '../../project-types.js';
 import type { SymbolRefactorAction } from '../../node-types.js';
 import { inspectProjectCatalog } from './catalog.js';
@@ -28,12 +28,13 @@ function addFileChange(byPath: Map<string, TextChange[]>, path: string, change: 
 
 function collectPhysicalEdits(
   model: ProjectSnapshot | ProjectView,
-  actions: readonly SymbolRefactorAction[]
+  actions: readonly SymbolRefactorAction[],
+  scope?: SourceScope
 ): Map<string, TextChange[]> {
   const snapshot = model.kind === 'snapshot' ? model : model.snapshot;
   const view = model.kind === 'view' ? model : null;
   const filesByPath = new Map(snapshot.files.map((f) => [f.path, f]));
-  const catalog = inspectProjectCatalog(model);
+  const catalog = inspectProjectCatalog(model, scope ? { scope } : {});
   const byPath = new Map<string, TextChange[]>();
   const collected: PhysicalSpanEdit[] = [];
 
@@ -388,10 +389,11 @@ function collectPhysicalEdits(
 
 export function symbolRefactorSourceEdits(
   model: ProjectSnapshot | ProjectView,
-  actions: readonly SymbolRefactorAction[]
+  actions: readonly SymbolRefactorAction[],
+  scope?: SourceScope
 ): ProjectEdit[] {
   const snapshot = model.kind === 'snapshot' ? model : model.snapshot;
-  const byPath = collectPhysicalEdits(model, actions);
+  const byPath = collectPhysicalEdits(model, actions, scope);
   return sourceChanges(snapshot, byPath);
 }
 

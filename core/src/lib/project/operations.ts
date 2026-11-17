@@ -33,6 +33,7 @@ import {
   normalizeSymbolRefactorOperation,
 } from './node-options.js';
 import { normalizeCompositeOptions, runCompositeTransformation } from './composite.js';
+import { planExpandInputs } from './input-edits.js';
 import { symbolRefactorProjectionChanges } from './refactor.js';
 import { sourceOperationEdits } from './source-operations.js';
 import { environmentActions, projectionChanges } from './node-edits.js';
@@ -131,6 +132,15 @@ export const projectOperations: readonly OperationDescriptor[] = freeze([
     resultKind: 'artifacts',
   },
   {
+    id: 'expand-inputs',
+    version: 1,
+    implemented: true,
+    representation: 'view',
+    scopes: ['all-files', 'configured'],
+    coverage: 'ready-view',
+    resultKind: 'transformation',
+  },
+  {
     id: 'compose-transformations',
     version: 1,
     implemented: true,
@@ -176,7 +186,7 @@ export function validateOperation(value: unknown): OperationRequest {
   if (operation === 'suppress-comments') {
     fields(
       options,
-      ['target', 'maxOutputCodeUnits', 'suppressCommentEnvironments'],
+      ['target', 'maxOutputCodeUnits', 'suppressCommentEnvironments', 'entryPath', 'traversal'],
       'source edit options'
     );
     if (
@@ -191,6 +201,17 @@ export function validateOperation(value: unknown): OperationRequest {
     const target = options['target'] === undefined ? 'selected' : options['target'];
     if (target !== 'selected' && target !== 'source')
       invalid('Invalid comment transformation target.');
+    const entryPath =
+      options['entryPath'] === undefined
+        ? undefined
+        : normalizeProjectFilePath(options['entryPath'], 'entryPath');
+    const traversal = options['traversal'];
+    if (traversal !== undefined && traversal !== 'project' && traversal !== 'file-only') {
+      invalid('Invalid comment transformation traversal mode.');
+    }
+    if ((entryPath !== undefined || traversal !== undefined) && target !== 'source') {
+      invalid('entryPath and traversal are only supported with source target.');
+    }
     const maxOutputCodeUnits = bounded(
       options['maxOutputCodeUnits'],
       10000000,
@@ -199,7 +220,48 @@ export function validateOperation(value: unknown): OperationRequest {
     );
     return {
       operation,
-      options: { target, maxOutputCodeUnits, ...commentOptions },
+      options: {
+        target,
+        ...(entryPath !== undefined ? { entryPath } : {}),
+        ...(traversal !== undefined ? { traversal } : {}),
+        maxOutputCodeUnits,
+        ...commentOptions,
+      },
+    };
+  }
+  if (operation === 'expand-inputs') {
+    fields(options, ['mode', 'target', 'entryPath', 'maxOutputCodeUnits'], 'expand-inputs options');
+    const mode = options['mode'];
+    if (mode !== 'single' && mode !== 'recursive') {
+      invalid('Invalid expand-inputs mode.');
+    }
+    const target = options['target'];
+    if (
+      target !== undefined &&
+      target !== 'selected' &&
+      target !== 'source' &&
+      target !== 'artifact'
+    ) {
+      invalid('Invalid expand-inputs target.');
+    }
+    const entryPath =
+      options['entryPath'] === undefined
+        ? undefined
+        : normalizeProjectFilePath(options['entryPath'], 'entryPath');
+    const maxOutputCodeUnits = bounded(
+      options['maxOutputCodeUnits'],
+      10000000,
+      100000000,
+      'maxOutputCodeUnits'
+    );
+    return {
+      operation,
+      options: {
+        mode,
+        ...(target !== undefined ? { target } : {}),
+        ...(entryPath !== undefined ? { entryPath } : {}),
+        maxOutputCodeUnits,
+      },
     };
   }
   if (operation === 'export-project') {
@@ -297,6 +359,8 @@ export function checkOperationCapability(
       (operation.options.target === undefined || operation.options.target === 'source')) ||
       (operation.operation === 'suppress-comments' && operation.options?.target === 'source') ||
       (operation.operation === 'remove-environments' && operation.options.target === 'source') ||
+      (operation.operation === 'expand-inputs' &&
+        (operation.options.target === 'source' || operation.options.target === 'artifact')) ||
       operation.operation === 'export-project');
   const viewComposite = operation.operation === 'compose-transformations' && model.kind === 'view';
   if (descriptor.representation !== model.kind && !snapshotSourceOp && !viewComposite)
@@ -378,6 +442,30 @@ export function checkOperationCapability(
           );
         }
       }
+      if (operation.operation === 'expand-inputs') {
+        const target = operation.options.target ?? 'selected';
+        if (model.kind === 'view' && target === 'source') {
+          reject('unavailable', 'Use a snapshot for source-wide expand-inputs target.');
+        }
+        const source = model.kind === 'snapshot' ? model : model.snapshot;
+        planExpandInputs(
+          model,
+          {
+            mode: operation.options.mode,
+            target,
+            ...(operation.options.entryPath !== undefined
+              ? { entryPath: operation.options.entryPath }
+              : {}),
+            maxOutputCodeUnits: operation.options.maxOutputCodeUnits ?? 10000000,
+          },
+          {
+            snapshotId: source.id,
+            viewId: model.kind === 'view' ? model.id : null,
+            request: operation,
+            operationVersion: 1,
+          }
+        );
+      }
       if (operation.operation === 'compose-transformations') {
         runCompositeTransformation(model, operation.options);
       }
@@ -455,13 +543,15 @@ export function validateProjectEditPlan(
     request.operation !== 'edit-nodes' &&
     request.operation !== 'remove-environments' &&
     request.operation !== 'refactor-symbols' &&
+    request.operation !== 'expand-inputs' &&
     request.operation !== 'compose-transformations'
   )
     invalid('This operation does not produce source edits.');
   if (
     (request.operation === 'edit-nodes' ||
       request.operation === 'remove-environments' ||
-      request.operation === 'refactor-symbols') &&
+      request.operation === 'refactor-symbols' ||
+      request.operation === 'expand-inputs') &&
     request.options.target === 'artifact'
   )
     invalid('Artifact operations do not produce source edits.');
@@ -475,6 +565,7 @@ export function validateProjectEditPlan(
     ((request.operation === 'refactor-symbols' ||
       request.operation === 'suppress-comments' ||
       request.operation === 'remove-environments' ||
+      request.operation === 'expand-inputs' ||
       request.operation === 'compose-transformations') &&
       viewId === null)
   ) {
@@ -562,6 +653,7 @@ export function validateProjectEditPlan(
     request.operation === 'edit-nodes' ||
     request.operation === 'remove-environments' ||
     request.operation === 'refactor-symbols' ||
+    request.operation === 'expand-inputs' ||
     request.operation === 'compose-transformations' ||
     (request.operation === 'suppress-comments' && request.options?.suppressCommentEnvironments)
   ) {

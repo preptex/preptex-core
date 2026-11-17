@@ -8,6 +8,7 @@ import {
   snapshotEnvironmentRemovalEdits,
 } from './node-edits.js';
 import { runCompositeTransformation } from './composite.js';
+import { planExpandInputs } from './input-edits.js';
 import { symbolRefactorProjectionChanges } from './refactor.js';
 import { projectedEditor } from './projected-edits.js';
 import { normalizeChanges, type TextChange } from './text-edits.js';
@@ -172,6 +173,49 @@ export function planTransformation(
     operationVersion: 1,
   };
   const resultId = identity('transformation', provenance);
+  if (operation.operation === 'expand-inputs') {
+    const target = operation.options.target ?? 'selected';
+    if (normalized.kind !== 'view' && target === 'selected') {
+      invalid('Selected input expansion requires a configured view.');
+    }
+    const viewForEdits = normalized.kind === 'view' ? normalized : undefined;
+    const expanded = planExpandInputs(
+      normalized,
+      {
+        mode: operation.options.mode,
+        target,
+        ...(operation.options.entryPath !== undefined
+          ? { entryPath: operation.options.entryPath }
+          : {}),
+        maxOutputCodeUnits: operation.options.maxOutputCodeUnits ?? 10000000,
+      },
+      provenance
+    );
+    if (target === 'artifact') {
+      return freeze({
+        kind: 'transformation',
+        resultId,
+        provenance,
+        editPlan: null,
+        artifacts: expanded.artifacts,
+        entryPath: expanded.entryPath,
+        dependencies: expanded.dependencies,
+        coverage: coverage(expanded.warnings),
+      });
+    }
+    const plan = freeze({ kind: 'edits' as const, provenance, edits: expanded.edits });
+    validateProjectEditPlan(source, plan, viewForEdits);
+    return freeze({
+      kind: 'transformation',
+      resultId,
+      provenance,
+      editPlan: plan,
+      artifacts: expanded.artifacts,
+      entryPath: expanded.entryPath,
+      dependencies: expanded.dependencies,
+      coverage: coverage(expanded.warnings),
+    });
+  }
   if (
     operation.operation === 'suppress-comments' ||
     ((operation.operation === 'edit-nodes' || operation.operation === 'remove-environments') &&
@@ -367,7 +411,7 @@ function exportSnapshot(
       entryPath,
       occurrences: evaluation.occurrences,
       selectedTokens: evaluation.selectedTokens,
-      issues: [],
+      issues: evaluation.warnings,
     },
     options,
     provenance,

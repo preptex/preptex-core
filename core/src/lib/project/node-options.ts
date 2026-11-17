@@ -232,7 +232,11 @@ export function normalizeSymbolRefactorActions(value: unknown): readonly SymbolR
 
 export function normalizeSymbolRefactorOperation(value: unknown): SymbolRefactorRequest {
   const o = record(value, 'symbol refactor options');
-  fields(o, ['target', 'actions', 'maxOutputCodeUnits'], 'symbol refactor options');
+  fields(
+    o,
+    ['target', 'actions', 'entryPath', 'traversal', 'maxOutputCodeUnits'],
+    'symbol refactor options'
+  );
   const target = o['target'];
   if (
     target !== undefined &&
@@ -242,10 +246,27 @@ export function normalizeSymbolRefactorOperation(value: unknown): SymbolRefactor
   ) {
     invalid('Invalid symbol refactor target.');
   }
+  const entryPath =
+    o['entryPath'] === undefined
+      ? undefined
+      : normalizeProjectFilePath(o['entryPath'], 'entryPath');
+  const traversal = o['traversal'];
+  if (traversal !== undefined && traversal !== 'project' && traversal !== 'file-only') {
+    invalid('Invalid symbol refactor traversal mode.');
+  }
+  if (
+    (entryPath !== undefined || traversal !== undefined) &&
+    target !== undefined &&
+    target !== 'source'
+  ) {
+    invalid('entryPath and traversal are only supported with source target.');
+  }
   return {
     operation: 'refactor-symbols',
     options: {
       ...(target !== undefined ? { target } : {}),
+      ...(entryPath !== undefined ? { entryPath } : {}),
+      ...(traversal !== undefined ? { traversal } : {}),
       actions: normalizeSymbolRefactorActions(o['actions']),
       maxOutputCodeUnits: bounded(
         o['maxOutputCodeUnits'],
@@ -265,7 +286,7 @@ export function normalizeNodeOperation(
     o,
     operation === 'edit-nodes'
       ? ['target', 'actions', 'maxOutputCodeUnits']
-      : ['target', 'names', 'maxOutputCodeUnits'],
+      : ['target', 'names', 'entryPath', 'traversal', 'maxOutputCodeUnits'],
     'node operation options'
   );
   const target = o['target'];
@@ -292,6 +313,17 @@ export function normalizeNodeOperation(
       },
     };
   }
+  const entryPath =
+    o['entryPath'] === undefined
+      ? undefined
+      : normalizeProjectFilePath(o['entryPath'], 'entryPath');
+  const traversal = o['traversal'];
+  if (traversal !== undefined && traversal !== 'project' && traversal !== 'file-only') {
+    invalid('Invalid environment removal traversal mode.');
+  }
+  if ((entryPath !== undefined || traversal !== undefined) && target !== 'source') {
+    invalid('entryPath and traversal are only supported with source target.');
+  }
   const names = [...new Set(array(o['names'], 'environment names').map(environmentName))].sort();
   if (!names.length || names.length > 1000) invalid('Request 1–1000 environment names.');
   return {
@@ -299,6 +331,8 @@ export function normalizeNodeOperation(
     options: {
       target: target as 'selected' | 'source' | 'artifact',
       names,
+      ...(entryPath !== undefined ? { entryPath } : {}),
+      ...(traversal !== undefined ? { traversal } : {}),
       maxOutputCodeUnits,
     },
   };

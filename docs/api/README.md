@@ -1,8 +1,8 @@
-**@preptex/core v0.6.1**
+**@preptex/core v0.6.2**
 
 ***
 
-# @preptex/core v0.6.1
+# @preptex/core v0.6.2
 
 PrepTeX's environment-neutral public API for parsing and transforming virtual
 LaTeX projects.
@@ -874,6 +874,12 @@ Include environments (`\begin{...}...\end{...}`); default true.
 > `readonly` `optional` **includeGroups?**: `boolean`
 
 Include anonymous `{...}` brace groups as container nodes; default false (hoists structural children).
+
+##### includeInputs?
+
+> `readonly` `optional` **includeInputs?**: `boolean`
+
+Include `\input` commands and recursive inclusion containers; default true.
 
 ##### includeMath?
 
@@ -1860,6 +1866,50 @@ Original revision.
 
 ***
 
+### ExpandInputsRequest
+
+Request for expanding or flattening `\input{...}` commands into target file contents.
+
+#### Properties
+
+##### operation
+
+> `readonly` **operation**: `"expand-inputs"`
+
+Operation discriminant.
+
+##### options
+
+> `readonly` **options**: `object`
+
+Expansion mode, target scope, entry path, and output limit.
+
+###### entryPath?
+
+> `readonly` `optional` **entryPath?**: `string`
+
+Entry virtual path when running on a snapshot or overriding target file; defaults to `'main.tex'` or single file.
+
+###### maxOutputCodeUnits?
+
+> `readonly` `optional` **maxOutputCodeUnits?**: `number`
+
+Total UTF-16 output limit, default 10000000; maximum 100000000.
+
+###### mode
+
+> `readonly` **mode**: `"single"` \| `"recursive"`
+
+`'single'` expands direct `\input` commands in the entry file; `'recursive'` flattens transitively.
+
+###### target?
+
+> `readonly` `optional` **target?**: `"selected"` \| `"source"` \| `"artifact"`
+
+`'selected'` or `'source'` produce editable source edits; `'artifact'` emits exported artifacts; default `'selected'`.
+
+***
+
 ### ExportOptions
 
 Output policies for a configured project. No filename rewriting is performed.
@@ -2244,6 +2294,12 @@ Include environments.
 
 Include anonymous brace groups.
 
+##### includeInputs
+
+> `readonly` **includeInputs**: `boolean`
+
+Include `\input` commands and recursive inclusion containers.
+
 ##### includeMath
 
 > `readonly` **includeMath**: `boolean`
@@ -2320,6 +2376,12 @@ Normalized entry.
 
 Whether reached command definitions infer argument signatures.
 
+##### inputs?
+
+> `readonly` `optional` **inputs?**: [`ViewInputMode`](#viewinputmode)
+
+Normalized input handling mode when specified.
+
 ##### limits
 
 > `readonly` **limits**: `Required`\<[`ViewLimits`](#viewlimits)\>
@@ -2354,7 +2416,7 @@ Required completeness.
 
 ##### id
 
-> `readonly` **id**: `"refactor-symbols"` \| `"edit-nodes"` \| `"remove-environments"` \| `"source-inventory"` \| `"realize-conditions"` \| `"suppress-comments"` \| `"export-project"` \| `"compose-transformations"` \| `"resolve-view"` \| `"references"` \| `"unused-commands"`
+> `readonly` **id**: `"refactor-symbols"` \| `"edit-nodes"` \| `"remove-environments"` \| `"source-inventory"` \| `"expand-inputs"` \| `"realize-conditions"` \| `"suppress-comments"` \| `"export-project"` \| `"compose-transformations"` \| `"resolve-view"` \| `"references"` \| `"unused-commands"`
 
 Stable operation name.
 
@@ -3648,6 +3710,12 @@ Refactoring scope, ordered actions, and output limit.
 
 Ordered refactoring actions to apply atomically.
 
+###### entryPath?
+
+> `readonly` `optional` **entryPath?**: `string`
+
+Optional entry file when scoping `'source'` edits.
+
 ###### maxOutputCodeUnits?
 
 > `readonly` `optional` **maxOutputCodeUnits?**: `number`
@@ -3659,6 +3727,12 @@ Total UTF-16 output limit, default 10000000; maximum 100000000.
 > `readonly` `optional` **target?**: `"selected"` \| `"source"` \| `"artifact"`
 
 Edit target: `'selected'` or `'artifact'` for views, `'source'` for snapshots.
+
+###### traversal?
+
+> `readonly` `optional` **traversal?**: `"project"` \| `"file-only"`
+
+Optional input traversal scope (`'project'` or `'file-only'`) when scoping `'source'` edits with `entryPath`.
 
 ***
 
@@ -3856,6 +3930,12 @@ Entry virtual path.
 
 Automatically infer command signatures from reached `\newcommand`/`\renewcommand`/`\providecommand`/`\def` declarations; default true.
 
+##### inputs?
+
+> `readonly` `optional` **inputs?**: [`ViewInputMode`](#viewinputmode)
+
+How `\input{...}` commands are handled: as ordinary commands (`'command'`), followed recursively (`'recursive'`), or spliced directly (`'inline'`).
+
 ##### limits?
 
 > `readonly` `optional` **limits?**: [`ViewLimits`](#viewlimits)
@@ -3990,7 +4070,7 @@ Category of a node in a readable [CoarseTree](#coarsetree) projection.
 
 ### CompositeStepRequest
 
-> **CompositeStepRequest** = [`NodeTransformationRequest`](#nodetransformationrequest) \| [`SymbolRefactorRequest`](#symbolrefactorrequest) \| \{ `operation`: `"realize-conditions"`; `options`: [`ConditionRealizationRequest`](#conditionrealizationrequest); \} \| \{ `operation`: `"suppress-comments"`; `options?`: \{ `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"` \| `"source"`; \}; \} \| \{ `operation`: `"export-project"`; `options`: [`ExportOptions`](#exportoptions); \}
+> **CompositeStepRequest** = [`NodeTransformationRequest`](#nodetransformationrequest) \| [`SymbolRefactorRequest`](#symbolrefactorrequest) \| [`ExpandInputsRequest`](#expandinputsrequest) \| \{ `operation`: `"realize-conditions"`; `options`: [`ConditionRealizationRequest`](#conditionrealizationrequest); \} \| \{ `operation`: `"suppress-comments"`; `options?`: \{ `entryPath?`: `string`; `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"` \| `"source"`; `traversal?`: `"project"` \| `"file-only"`; \}; \} \| \{ `operation`: `"export-project"`; `options`: [`ExportOptions`](#exportoptions); \}
 
 Single step permitted inside [CompositeTransformationRequest](#compositetransformationrequest).
 
@@ -4001,6 +4081,10 @@ Single step permitted inside [CompositeTransformationRequest](#compositetransfor
 ***
 
 [`SymbolRefactorRequest`](#symbolrefactorrequest)
+
+***
+
+[`ExpandInputsRequest`](#expandinputsrequest)
 
 ***
 
@@ -4024,7 +4108,7 @@ Condition realization request options.
 
 ##### Type Literal
 
-\{ `operation`: `"suppress-comments"`; `options?`: \{ `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"` \| `"source"`; \}; \}
+\{ `operation`: `"suppress-comments"`; `options?`: \{ `entryPath?`: `string`; `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"` \| `"source"`; `traversal?`: `"project"` \| `"file-only"`; \}; \}
 
 ###### operation
 
@@ -4037,6 +4121,12 @@ Comment suppression step discriminant.
 > `readonly` `optional` **options?**: `object`
 
 Comment suppression options.
+
+###### options.entryPath?
+
+> `readonly` `optional` **entryPath?**: `string`
+
+Optional entry file when scoping `'source'` edits.
 
 ###### options.maxOutputCodeUnits?
 
@@ -4054,7 +4144,13 @@ Also strip `comment` environments; default false.
 
 > `readonly` `optional` **target?**: `"selected"` \| `"source"`
 
-Target scope: `'selected'` (realized view) or `'source'` (all source files and branches).
+Target scope: `'selected'` (realized view) or `'source'` (source files and all branches).
+
+###### options.traversal?
+
+> `readonly` `optional` **traversal?**: `"project"` \| `"file-only"`
+
+Optional input traversal scope (`'project'` or `'file-only'`) when scoping `'source'` edits with `entryPath`.
 
 ***
 
@@ -4550,7 +4646,7 @@ Every contributing extent in encounter order.
 
 ### NodeTransformationRequest
 
-> **NodeTransformationRequest** = \{ `operation`: `"edit-nodes"`; `options`: \{ `actions`: readonly [`NodeEditAction`](#nodeeditaction)[]; `maxOutputCodeUnits?`: `number`; `target`: `"selected"` \| `"artifact"`; \}; \} \| \{ `operation`: `"remove-environments"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `names`: readonly `string`[]; `target`: `"selected"` \| `"source"` \| `"artifact"`; \}; \}
+> **NodeTransformationRequest** = \{ `operation`: `"edit-nodes"`; `options`: \{ `actions`: readonly [`NodeEditAction`](#nodeeditaction)[]; `maxOutputCodeUnits?`: `number`; `target`: `"selected"` \| `"artifact"`; \}; \} \| \{ `operation`: `"remove-environments"`; `options`: \{ `entryPath?`: `string`; `maxOutputCodeUnits?`: `number`; `names`: readonly `string`[]; `target`: `"selected"` \| `"source"` \| `"artifact"`; `traversal?`: `"project"` \| `"file-only"`; \}; \}
 
 Additional transformations using configured nodes over a realized ProjectView.
 
@@ -4594,19 +4690,25 @@ Source previews preserve every unmapped slice; artifact mode specializes occurre
 
 ##### Type Literal
 
-\{ `operation`: `"remove-environments"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `names`: readonly `string`[]; `target`: `"selected"` \| `"source"` \| `"artifact"`; \}; \}
+\{ `operation`: `"remove-environments"`; `options`: \{ `entryPath?`: `string`; `maxOutputCodeUnits?`: `number`; `names`: readonly `string`[]; `target`: `"selected"` \| `"source"` \| `"artifact"`; `traversal?`: `"project"` \| `"file-only"`; \}; \}
 
 ###### operation
 
 > `readonly` **operation**: `"remove-environments"`
 
-Remove matching literal environments from the realized view or across all source files.
+Remove matching literal environments from the realized view or across source files.
 
 ###### options
 
 > `readonly` **options**: `object`
 
 Explicit selected, source-wide, or artifact scope.
+
+###### options.entryPath?
+
+> `readonly` `optional` **entryPath?**: `string`
+
+Optional entry file when scoping `'source'` edits.
 
 ###### options.maxOutputCodeUnits?
 
@@ -4624,7 +4726,13 @@ Case-sensitive literal names; nonempty, sorted during normalization.
 
 > `readonly` **target**: `"selected"` \| `"source"` \| `"artifact"`
 
-Configured selected occurrences, all source files (`'source'`), or artifact export.
+Configured selected occurrences, source files (`'source'`), or artifact export.
+
+###### options.traversal?
+
+> `readonly` `optional` **traversal?**: `"project"` \| `"file-only"`
+
+Optional input traversal scope (`'project'` or `'file-only'`) when scoping `'source'` edits with `entryPath`.
 
 ***
 
@@ -4682,7 +4790,7 @@ Ordered reasons.
 
 ### OperationRequest
 
-> **OperationRequest** = [`NodeTransformationRequest`](#nodetransformationrequest) \| [`SymbolRefactorRequest`](#symbolrefactorrequest) \| [`CompositeTransformationRequest`](#compositetransformationrequest) \| \{ `operation`: `"source-inventory"`; `options?`: [`InventoryRequest`](#inventoryrequest); \} \| \{ `operation`: `"realize-conditions"`; `options`: [`ConditionRealizationRequest`](#conditionrealizationrequest); \} \| \{ `operation`: `"resolve-view"`; `options`: [`ViewConfiguration`](#viewconfiguration); \} \| \{ `operation`: `"references"` \| `"unused-commands"`; `options?`: [`AnalysisOptions`](#analysisoptions); \} \| \{ `operation`: `"suppress-comments"`; `options?`: \{ `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"` \| `"source"`; \}; \} \| \{ `operation`: `"export-project"`; `options`: [`ExportOptions`](#exportoptions); \}
+> **OperationRequest** = [`NodeTransformationRequest`](#nodetransformationrequest) \| [`SymbolRefactorRequest`](#symbolrefactorrequest) \| [`ExpandInputsRequest`](#expandinputsrequest) \| [`CompositeTransformationRequest`](#compositetransformationrequest) \| \{ `operation`: `"source-inventory"`; `options?`: [`InventoryRequest`](#inventoryrequest); \} \| \{ `operation`: `"realize-conditions"`; `options`: [`ConditionRealizationRequest`](#conditionrealizationrequest); \} \| \{ `operation`: `"resolve-view"`; `options`: [`ViewConfiguration`](#viewconfiguration); \} \| \{ `operation`: `"references"` \| `"unused-commands"`; `options?`: [`AnalysisOptions`](#analysisoptions); \} \| \{ `operation`: `"suppress-comments"`; `options?`: \{ `entryPath?`: `string`; `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"` \| `"source"`; `traversal?`: `"project"` \| `"file-only"`; \}; \} \| \{ `operation`: `"export-project"`; `options`: [`ExportOptions`](#exportoptions); \}
 
 Public requests for independent inventory, condition realization, interpretation, analysis, and transformation.
 
@@ -4693,6 +4801,10 @@ Public requests for independent inventory, condition realization, interpretation
 ***
 
 [`SymbolRefactorRequest`](#symbolrefactorrequest)
+
+***
+
+[`ExpandInputsRequest`](#expandinputsrequest)
 
 ***
 
@@ -4774,7 +4886,7 @@ Partial view observations require explicit opt-in.
 
 ##### Type Literal
 
-\{ `operation`: `"suppress-comments"`; `options?`: \{ `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"` \| `"source"`; \}; \}
+\{ `operation`: `"suppress-comments"`; `options?`: \{ `entryPath?`: `string`; `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"` \| `"source"`; `traversal?`: `"project"` \| `"file-only"`; \}; \}
 
 ###### operation
 
@@ -4787,6 +4899,12 @@ Configured or source-wide comment suppression.
 > `readonly` `optional` **options?**: `object`
 
 Comment suppression options.
+
+###### options.entryPath?
+
+> `readonly` `optional` **entryPath?**: `string`
+
+Optional entry file when scoping `'source'` edits.
 
 ###### options.maxOutputCodeUnits?
 
@@ -4804,7 +4922,13 @@ Also remove recognized comment environments; default false. Verbatim remains pro
 
 > `readonly` `optional` **target?**: `"selected"` \| `"source"`
 
-Inspect the configured selected path (`'selected'`, default) or all source files and branches (`'source'`).
+Inspect the configured selected path (`'selected'`, default) or source files and all branches (`'source'`).
+
+###### options.traversal?
+
+> `readonly` `optional` **traversal?**: `"project"` \| `"file-only"`
+
+Optional input traversal scope (`'project'` or `'file-only'`) when scoping `'source'` edits with `entryPath`.
 
 ***
 
@@ -5349,6 +5473,14 @@ Executable transformation subset of the public operation union.
 > **ViewId** = `string`
 
 Identity of one snapshot and normalized semantic configuration.
+
+***
+
+### ViewInputMode
+
+> **ViewInputMode** = `"command"` \| `"recursive"` \| `"inline"`
+
+How `\input{...}` commands are handled during view interpretation.
 
 ## Variables
 

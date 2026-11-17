@@ -179,6 +179,7 @@ export function normalizeConfiguration(value: unknown): NormalizedViewConfigurat
     [
       'entryPath',
       'traversal',
+      'inputs',
       'conditions',
       'profile',
       'limits',
@@ -190,6 +191,18 @@ export function normalizeConfiguration(value: unknown): NormalizedViewConfigurat
   const traversal = input['traversal'] === undefined ? 'project' : input['traversal'];
   if (traversal !== 'project' && traversal !== 'file-only')
     invalid('Invalid input traversal mode.');
+  const inputs = input['inputs'];
+  if (
+    inputs !== undefined &&
+    inputs !== 'command' &&
+    inputs !== 'recursive' &&
+    inputs !== 'inline'
+  ) {
+    invalid('Invalid view inputs mode.');
+  }
+  if (traversal === 'file-only' && (inputs === 'recursive' || inputs === 'inline')) {
+    invalid('Recursive or inline input handling requires project traversal.');
+  }
   const profile = input['profile'] === undefined ? 'direct-latex-v1' : input['profile'];
   if (profile !== 'direct-latex-v1') invalid('Unsupported interpretation profile.');
   if (
@@ -201,6 +214,7 @@ export function normalizeConfiguration(value: unknown): NormalizedViewConfigurat
   return {
     entryPath: normalizeProjectFilePath(input['entryPath'], 'entryPath'),
     traversal,
+    ...(inputs !== undefined ? { inputs } : {}),
     profile,
     conditions: normalizeConditionPolicy(input['conditions'], true),
     limits: normalizeViewLimits(input['limits']),

@@ -122,6 +122,7 @@ export interface ConditionStreamEvaluation {
   readonly decisions: readonly ConditionDecision[];
   readonly reachedFacts: readonly ReachedFact[];
   readonly selectedTokens: readonly SelectedToken[];
+  readonly warnings: readonly ProjectIssue[];
   readonly failure: {
     readonly status: 'incomplete' | 'blocked';
     readonly reason: ProjectIssue;
@@ -290,6 +291,7 @@ export function evaluateConditionStream(
   const rootTraceIndices: number[] = [];
   const decisions: ConditionDecision[] = [];
   const reachedFacts: ReachedFact[] = [];
+  const warnings: ProjectIssue[] = [];
   const stack: EvalFrame[] = [];
   const bindings = new Map<string, Binding>();
   const state = new Map<string, boolean>();
@@ -348,6 +350,13 @@ export function evaluateConditionStream(
         },
       };
     }
+  }
+
+  function warn(code: ProjectIssueCode, message: string, at: SourceOrigin | null): void {
+    warnings.push({
+      ...issue(code, message, at ? { path: at.path, range: at.range } : null, 'warning'),
+      inputChain: stack.map((f) => f.occurrence.id),
+    });
   }
 
   function pushFrame(file: ScannedFile, reference: SourceOrigin | null): number | null {
@@ -804,8 +813,50 @@ export function evaluateConditionStream(
 
       if (token.name === 'input') {
         if (config.traversal === 'file-only' && !config.stopOnFileOnlyInput) {
-          // Pipeline B file-only mode preserves \input{...} untouched.
-          markActive(frame, token.index, token.index, 'structure');
+          // Preserve \input{...} untouched as a command.
+          let arg = readInputArgumentTokens(tokens, frame.tokenIndex);
+          if (arg) {
+            if (arg.splitAtOffset !== undefined) {
+              const splitTok = tokens[arg.closeIndex]!;
+              const splitAt = arg.splitAtOffset;
+              const head = Object.freeze({
+                index: arg.closeIndex,
+                kind: splitTok.kind,
+                value: splitTok.value.slice(0, splitAt),
+                name: '',
+                range: Object.freeze(
+                  rangeAt(frame.starts, splitTok.range.start, splitTok.range.start + splitAt - 1)
+                ),
+              });
+              const tail = Object.freeze({
+                index: arg.closeIndex + 1,
+                kind: splitTok.kind,
+                value: splitTok.value.slice(splitAt),
+                name: '',
+                range: Object.freeze(
+                  rangeAt(frame.starts, splitTok.range.start + splitAt, splitTok.range.end)
+                ),
+              });
+              const updated = [
+                ...tokens.slice(0, arg.closeIndex),
+                head,
+                tail,
+                ...tokens.slice(arg.closeIndex + 1),
+              ];
+              for (let k = arg.closeIndex + 2; k < updated.length; k++) {
+                const t = updated[k]!;
+                if (t.index !== k) updated[k] = Object.freeze({ ...t, index: k });
+              }
+              tokens = updated;
+              frame.tokens = updated;
+              frame.trace.tokens = updated;
+              arg = { ...arg, nextIndex: arg.closeIndex + 1 };
+            }
+            markActive(frame, token.index, arg.closeIndex, 'structure');
+            frame.tokenIndex = arg.nextIndex;
+          } else {
+            markActive(frame, token.index, token.index, 'structure');
+          }
           continue;
         }
         let arg = readInputArgumentTokens(tokens, frame.tokenIndex);
@@ -871,7 +922,8 @@ export function evaluateConditionStream(
           continue;
         }
         if (resolved.status === 'missing') {
-          stop('missing-input', `Required input ${target.value} is absent.`, at, 'blocked');
+          warn('missing-input', `Required input ${target.value} is absent.`, at);
+          markActive(frame, token.index, arg!.closeIndex, 'structure');
           continue;
         }
         if (resolved.status === 'ambiguous') {
@@ -1091,6 +1143,7 @@ export function evaluateConditionStream(
     decisions,
     reachedFacts,
     selectedTokens,
+    warnings,
     failure,
   };
 }
@@ -1261,7 +1314,7 @@ export function realizeProjectConditions(
       editPlan: null,
       artifacts: [],
       dependencies: [],
-      coverage: coverage([evaluation.failure.reason]),
+      coverage: coverage([...evaluation.warnings, evaluation.failure.reason]),
     });
   }
 
@@ -1381,6 +1434,6 @@ export function realizeProjectConditions(
     editPlan,
     artifacts,
     dependencies: dependencies(artifacts, source.scanOptions),
-    coverage: coverage([]),
+    coverage: coverage(evaluation.warnings),
   });
 }

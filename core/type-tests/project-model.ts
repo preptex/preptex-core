@@ -25,11 +25,13 @@ import {
   type ConfiguredCommandArgument,
   type ConfiguredNode,
   type CustomCommandSignature,
+  type ExpandInputsRequest,
   type ProjectCatalog,
   type ProjectMetadata,
   type SyntaxFact,
   type ProjectSnapshot,
   type ProjectView,
+  type ViewInputMode,
   type ProjectEditPlan,
   type GeneratedArtifact,
   type AnalysisFinding,
@@ -247,6 +249,17 @@ const metadata: ProjectMetadata = extractProjectMetadata(snapshot);
 // @ts-expect-error Metadata packages are readonly.
 metadata.packages.pop();
 const composite = planCompositeTransformation(snapshot, {
-  steps: [{ operation: 'realize-conditions', options: { conditions: { mode: 'source' } } }],
+  steps: [
+    { operation: 'realize-conditions', options: { conditions: { mode: 'source' } } },
+    { operation: 'expand-inputs', options: { mode: 'recursive', target: 'selected' } },
+  ],
 });
-void composite;
+const inputMode: ViewInputMode = 'command';
+const cmdView = resolveProjectView(snapshot, { entryPath: 'main.tex', inputs: inputMode });
+const expandReq: ExpandInputsRequest = {
+  operation: 'expand-inputs',
+  options: { mode: 'single', target: 'source', entryPath: 'main.tex' },
+};
+const expanded = planTransformation(snapshot, expandReq);
+const coarseInputs = buildCoarseViewTree(view, { includeInputs: false });
+void [composite, cmdView, expanded, coarseInputs];

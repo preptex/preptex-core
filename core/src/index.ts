@@ -44,6 +44,7 @@ export type {
   CustomCommandSignature,
   EnvironmentDefinitionItem,
   EnvironmentOccurrenceItem,
+  ExpandInputsRequest,
   FactContext,
   GeneratedArtifact,
   InputOccurrence,
@@ -85,6 +86,7 @@ export type {
   SyntaxFactBase,
   ViewConfiguration,
   ViewId,
+  ViewInputMode,
   ViewLimits,
 } from './project-types.js';
 export { tokenizeFile } from './lib/project/tokenize.js';

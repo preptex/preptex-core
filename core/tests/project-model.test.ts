@@ -404,8 +404,24 @@ describe('C4: reached state, skipped tokens and input traversal', () => {
     );
   });
 
+  it('F10 reports missing-input as a warning and continues parsing', () => {
+    const view = resolveProjectView(
+      createProjectSnapshot([file(String.raw`\input{absent}\section{After}`)]),
+      { entryPath: 'main.tex' }
+    );
+    ready(view);
+    expect(view.coverage.status).toBe('partial');
+    expect(view.coverage.issues).toHaveLength(1);
+    expect(view.coverage.issues[0]).toMatchObject({
+      code: 'missing-input',
+      severity: 'warning',
+      location: { path: 'main.tex', range: { start: 0, end: 5, line: 1 } },
+    });
+    expect(view.coverage.issues[0]!.inputChain.length).toBeGreaterThan(0);
+    expect(selected(view)).toBe(String.raw`\input{absent}\section{After}`);
+  });
+
   it.each([
-    ['missing-input', [file(String.raw`\input{absent}`)]],
     ['ambiguous-input', [file(String.raw`\input{part}`), file('a', 'part'), file('b', 'part.tex')]],
     ['input-cycle', [file(String.raw`\input{part}`), file(String.raw`\input{main}`, 'part.tex')]],
     ['invalid-input-path', [file(String.raw`\input{../outside}`)]],
@@ -1501,5 +1517,54 @@ describe('Unified command-with-arguments model and lookahead regressions', () =>
       { entryPath: 'paper/main.tex' }
     );
     failure(escaping, 'blocked', 'invalid-input-path');
+  });
+
+  it('supports command and recursive view input modes alongside ignore conditions', () => {
+    const multi = createProjectSnapshot([
+      file('\\section{Top}\n\\input{sub/part}\n\\input{missing}\\section{End}', 'main.tex'),
+      file('\\subsection{Nested}\n% child comment\nBody', 'sub/part.tex'),
+      file('\\section{Unused}', 'orphan.tex'),
+    ]);
+
+    // 1. Command mode: does not halt or follow \input; treats \input as a command node
+    const cmdView = resolveProjectView(multi, {
+      entryPath: 'main.tex',
+      inputs: 'command',
+      conditions: { mode: 'ignore' },
+    });
+    ready(cmdView);
+    expect(cmdView.occurrences.map((o) => o.path)).toEqual(['main.tex']);
+    expect(cmdView.coverage.issues).toEqual([]);
+    const cmdInputs = walkConfiguredNodes(cmdView.root).filter(
+      (n) => n.kind === 'command' && n.name === 'input'
+    );
+    expect(cmdInputs).toHaveLength(2);
+
+    const cmdCoarse = buildCoarseViewTree(cmdView);
+    const cmdCoarseInputs = cmdCoarse.root.children
+      .flatMap((c) => [c, ...c.children])
+      .filter((n) => n.kind === 'command' && n.name === 'input');
+    expect(cmdCoarseInputs).toHaveLength(2);
+
+    // 2. Recursive mode: follows reachable inputs, warns on missing, and groups in CoarseTree
+    const recView = resolveProjectView(multi, {
+      entryPath: 'main.tex',
+      inputs: 'recursive',
+      conditions: { mode: 'ignore' },
+    });
+    ready(recView);
+    expect(recView.occurrences.map((o) => o.path)).toEqual(['main.tex', 'sub/part.tex']);
+    expect(recView.coverage.issues.map((i) => i.code)).toEqual(['missing-input']);
+    expect(recView.coverage.issues[0]?.severity).toBe('warning');
+
+    const recCoarse = buildCoarseViewTree(recView);
+    const topSection = recCoarse.root.children.find(
+      (n) => n.kind === 'section' && n.name === 'Top'
+    )!;
+    const wrappedInput = topSection.children.find(
+      (n) => n.kind === 'command' && n.name === 'input'
+    )!;
+    expect(wrappedInput.previewText).toBe('sub/part.tex');
+    expect(wrappedInput.children.map((c) => [c.kind, c.name])).toEqual([['section', 'Nested']]);
   });
 });

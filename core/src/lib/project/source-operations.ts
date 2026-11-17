@@ -2,11 +2,18 @@ import type {
   ProjectEdit,
   ProjectSnapshot,
   ProjectView,
+  ScannedFile,
+  SourceScope,
   TransformationRequest,
 } from '../../project-types.js';
 import { commentEdits } from './comment-edits.js';
 import { realizeProjectConditions } from './conditions.js';
 import { reject } from './fail.js';
+import {
+  buildExpandInputsSourceEdits,
+  collectReachableFiles,
+  resolveEntryPath,
+} from './input-edits.js';
 import {
   environmentActions,
   nodeSourceEdits,
@@ -16,6 +23,30 @@ import { runCompositeTransformation } from './composite.js';
 import { symbolRefactorSourceEdits } from './refactor.js';
 import { sourceChanges, type TextChange } from './text-edits.js';
 import { invalid } from './shared.js';
+
+function scopedFilesForSourceOp(
+  source: ProjectSnapshot,
+  options?: { readonly entryPath?: string; readonly traversal?: 'project' | 'file-only' }
+): readonly ScannedFile[] {
+  if (options?.entryPath === undefined && options?.traversal === undefined) {
+    return source.files;
+  }
+  const entry = resolveEntryPath(source, options.entryPath);
+  return collectReachableFiles(source, entry, options.traversal ?? 'project');
+}
+
+function scopeFromFiles(
+  source: ProjectSnapshot,
+  options?: { readonly entryPath?: string; readonly traversal?: 'project' | 'file-only' }
+): SourceScope | undefined {
+  if (options?.entryPath === undefined && options?.traversal === undefined) {
+    return undefined;
+  }
+  return {
+    kind: 'files',
+    paths: scopedFilesForSourceOp(source, options).map((f) => f.path),
+  };
+}
 
 /** Canonical source edits. Also recomputed when validating an untrusted node edit plan. */
 export function sourceOperationEdits(
@@ -34,20 +65,37 @@ export function sourceOperationEdits(
     }
     return [...realized.editPlan.edits];
   }
+  if (request.operation === 'expand-inputs') {
+    if (request.options.target === 'artifact') invalid('Expected source edits.');
+    return buildExpandInputsSourceEdits(
+      source,
+      request,
+      request.options.target === 'source' ? undefined : view
+    );
+  }
   if (request.operation === 'edit-nodes') {
     if (!view || request.options.target !== 'selected') invalid('Expected selected source edits.');
     return nodeSourceEdits(view, request.options.actions);
   }
   if (request.operation === 'remove-environments') {
     if (request.options.target === 'source') {
-      return snapshotEnvironmentRemovalEdits(source, request.options.names);
+      const scope = scopeFromFiles(source, request.options);
+      return snapshotEnvironmentRemovalEdits(source, request.options.names, scope);
     }
     if (!view || request.options.target !== 'selected') invalid('Expected selected source edits.');
     return nodeSourceEdits(view, environmentActions(view, request.options.names));
   }
   if (request.operation === 'refactor-symbols') {
     if (request.options.target === 'artifact') invalid('Expected source edits.');
-    return symbolRefactorSourceEdits(view ?? source, request.options.actions);
+    const scope =
+      request.options.target === 'source' || !view
+        ? scopeFromFiles(source, request.options)
+        : undefined;
+    return symbolRefactorSourceEdits(
+      request.options.target === 'source' ? source : (view ?? source),
+      request.options.actions,
+      scope
+    );
   }
   if (request.operation === 'compose-transformations') {
     const res = runCompositeTransformation(view ?? source, request.options);
@@ -58,10 +106,13 @@ export function sourceOperationEdits(
     invalid('This operation does not produce source edits.');
   const isSourceTarget = request.options?.target === 'source';
   if (!isSourceTarget && !view) invalid('Expected a configured view.');
-  const comments = commentEdits(source, source.files, isSourceTarget ? undefined : view);
+  const targetFiles = isSourceTarget
+    ? scopedFilesForSourceOp(source, request.options)
+    : source.files;
+  const comments = commentEdits(source, targetFiles, isSourceTarget ? undefined : view);
   if (!request.options?.suppressCommentEnvironments) return comments;
   const environments = isSourceTarget
-    ? snapshotEnvironmentRemovalEdits(source, ['comment'])
+    ? snapshotEnvironmentRemovalEdits(source, ['comment'], scopeFromFiles(source, request.options))
     : nodeSourceEdits(view!, environmentActions(view!, ['comment']));
   const byPath = new Map<string, TextChange[]>();
   // Recompute lexical joins over the combined removals, including adjacent comments.

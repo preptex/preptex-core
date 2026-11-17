@@ -476,6 +476,9 @@ export interface CustomCommandSignature {
   readonly opaque?: boolean;
 }
 
+/** How `\input{...}` commands are handled during view interpretation. */
+export type ViewInputMode = 'command' | 'recursive' | 'inline';
+
 /** Independent semantic configuration; output naming and visual filters are excluded. */
 export interface ViewConfiguration {
   /** Entry virtual path. */
@@ -483,6 +486,9 @@ export interface ViewConfiguration {
 
   /** Follow active literal inputs or stop at a file-only input; default project. */
   readonly traversal?: 'project' | 'file-only';
+
+  /** How `\input{...}` commands are handled: as ordinary commands (`'command'`), followed recursively (`'recursive'`), or spliced directly (`'inline'`). */
+  readonly inputs?: ViewInputMode;
 
   /** Boolean policy; default source with no seeds. */
   readonly conditions?: ConditionPolicy;
@@ -506,6 +512,9 @@ export interface NormalizedViewConfiguration {
 
   /** Semantic input traversal. */
   readonly traversal: 'project' | 'file-only';
+
+  /** Normalized input handling mode when specified. */
+  readonly inputs?: ViewInputMode;
 
   /** Explicit normalized policy with sorted maps. */
   readonly conditions: ConditionPolicy;
@@ -807,10 +816,28 @@ export interface InventoryResult {
   /** Coverage of the requested files. */
   readonly coverage: Coverage;
 }
+/** Request for expanding or flattening `\input{...}` commands into target file contents. */
+export interface ExpandInputsRequest {
+  /** Operation discriminant. */
+  readonly operation: 'expand-inputs';
+  /** Expansion mode, target scope, entry path, and output limit. */
+  readonly options: {
+    /** `'single'` expands direct `\input` commands in the entry file; `'recursive'` flattens transitively. */
+    readonly mode: 'single' | 'recursive';
+    /** `'selected'` or `'source'` produce editable source edits; `'artifact'` emits exported artifacts; default `'selected'`. */
+    readonly target?: 'selected' | 'source' | 'artifact';
+    /** Entry virtual path when running on a snapshot or overriding target file; defaults to `'main.tex'` or single file. */
+    readonly entryPath?: string;
+    /** Total UTF-16 output limit, default 10000000; maximum 100000000. */
+    readonly maxOutputCodeUnits?: number;
+  };
+}
+
 /** Single step permitted inside {@link CompositeTransformationRequest}. */
 export type CompositeStepRequest =
   | NodeTransformationRequest
   | SymbolRefactorRequest
+  | ExpandInputsRequest
   | {
       /** Condition realization step discriminant. */
       readonly operation: 'realize-conditions';
@@ -822,10 +849,14 @@ export type CompositeStepRequest =
       readonly operation: 'suppress-comments';
       /** Comment suppression options. */
       readonly options?: {
-        /** Target scope: `'selected'` (realized view) or `'source'` (all source files and branches). */
+        /** Target scope: `'selected'` (realized view) or `'source'` (source files and all branches). */
         readonly target?: 'selected' | 'source';
         /** Also strip `comment` environments; default false. */
         readonly suppressCommentEnvironments?: boolean;
+        /** Optional entry file when scoping `'source'` edits. */
+        readonly entryPath?: string;
+        /** Optional input traversal scope (`'project'` or `'file-only'`) when scoping `'source'` edits with `entryPath`. */
+        readonly traversal?: 'project' | 'file-only';
         /** Total UTF-16 output limit. */
         readonly maxOutputCodeUnits?: number;
       };
@@ -856,6 +887,7 @@ export interface CompositeTransformationRequest {
 export type OperationRequest =
   | NodeTransformationRequest
   | SymbolRefactorRequest
+  | ExpandInputsRequest
   | CompositeTransformationRequest
   | {
       /** Inventory operation. */
@@ -886,10 +918,14 @@ export type OperationRequest =
       readonly operation: 'suppress-comments';
       /** Comment suppression options. */
       readonly options?: {
-        /** Inspect the configured selected path (`'selected'`, default) or all source files and branches (`'source'`). */
+        /** Inspect the configured selected path (`'selected'`, default) or source files and all branches (`'source'`). */
         readonly target?: 'selected' | 'source';
         /** Also remove recognized comment environments; default false. Verbatim remains protected. */
         readonly suppressCommentEnvironments?: boolean;
+        /** Optional entry file when scoping `'source'` edits. */
+        readonly entryPath?: string;
+        /** Optional input traversal scope (`'project'` or `'file-only'`) when scoping `'source'` edits with `entryPath`. */
+        readonly traversal?: 'project' | 'file-only';
         /** Maximum total preview size in UTF-16 code units; default 10,000,000, maximum 100,000,000. */
         readonly maxOutputCodeUnits?: number;
       };
@@ -1283,6 +1319,8 @@ export interface CoarseTreeOptions {
   readonly environmentFilter?: readonly string[];
   /** Include project-introduced (`\newcommand`/`\def`) and used-undefined commands; default true. */
   readonly includeCustomAndUndefinedCommands?: boolean;
+  /** Include `\input` commands and recursive inclusion containers; default true. */
+  readonly includeInputs?: boolean;
   /** Include standard built-in inline/formatting commands (`\textbf`, `\emph`, `\cite`, `\ref`); default false. */
   readonly includeBuiltinCommands?: boolean;
   /** Specific command names to always include regardless of built-in status. */
@@ -1311,6 +1349,8 @@ export interface NormalizedCoarseTreeOptions {
   readonly environmentFilter: readonly string[] | null;
   /** Include project-introduced and used-undefined commands. */
   readonly includeCustomAndUndefinedCommands: boolean;
+  /** Include `\input` commands and recursive inclusion containers. */
+  readonly includeInputs: boolean;
   /** Include standard built-in commands. */
   readonly includeBuiltinCommands: boolean;
   /** Normalized command name filter, or null when unfiltered. */
