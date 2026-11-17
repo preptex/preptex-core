@@ -348,7 +348,17 @@ export function runCompositeTransformation(
     const step = normalizedOptions.steps[idx]!;
     const isSnapshotStep =
       step.operation === 'realize-conditions' ||
-      (step.operation === 'refactor-symbols' && step.options.target === 'source');
+      (step.operation === 'refactor-symbols' &&
+        (step.options.target === 'source' ||
+          (!currentView &&
+            !baseConfiguration &&
+            step.options.target !== 'selected' &&
+            step.options.target !== 'artifact'))) ||
+      (step.operation === 'suppress-comments' && step.options?.target === 'source') ||
+      (step.operation === 'remove-environments' && step.options.target === 'source') ||
+      (step.operation === 'export-project' &&
+        !currentView &&
+        (!baseConfiguration || baseConfiguration.conditions?.mode === 'ignore'));
 
     if (isSnapshotStep) {
       const stepRes = planTransformation(currentSnapshot, step);

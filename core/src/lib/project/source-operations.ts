@@ -7,7 +7,11 @@ import type {
 import { commentEdits } from './comment-edits.js';
 import { realizeProjectConditions } from './conditions.js';
 import { reject } from './fail.js';
-import { environmentActions, nodeSourceEdits } from './node-edits.js';
+import {
+  environmentActions,
+  nodeSourceEdits,
+  snapshotEnvironmentRemovalEdits,
+} from './node-edits.js';
 import { runCompositeTransformation } from './composite.js';
 import { symbolRefactorSourceEdits } from './refactor.js';
 import { sourceChanges, type TextChange } from './text-edits.js';
@@ -35,6 +39,9 @@ export function sourceOperationEdits(
     return nodeSourceEdits(view, request.options.actions);
   }
   if (request.operation === 'remove-environments') {
+    if (request.options.target === 'source') {
+      return snapshotEnvironmentRemovalEdits(source, request.options.names);
+    }
     if (!view || request.options.target !== 'selected') invalid('Expected selected source edits.');
     return nodeSourceEdits(view, environmentActions(view, request.options.names));
   }
@@ -49,10 +56,13 @@ export function sourceOperationEdits(
   }
   if (request.operation !== 'suppress-comments')
     invalid('This operation does not produce source edits.');
-  if (!view) invalid('Expected a configured view.');
-  const comments = commentEdits(source, source.files, view);
+  const isSourceTarget = request.options?.target === 'source';
+  if (!isSourceTarget && !view) invalid('Expected a configured view.');
+  const comments = commentEdits(source, source.files, isSourceTarget ? undefined : view);
   if (!request.options?.suppressCommentEnvironments) return comments;
-  const environments = nodeSourceEdits(view, environmentActions(view, ['comment']));
+  const environments = isSourceTarget
+    ? snapshotEnvironmentRemovalEdits(source, ['comment'])
+    : nodeSourceEdits(view!, environmentActions(view!, ['comment']));
   const byPath = new Map<string, TextChange[]>();
   // Recompute lexical joins over the combined removals, including adjacent comments.
   for (const edit of [...comments, ...environments]) {

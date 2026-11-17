@@ -19,7 +19,7 @@ import type {
   SourceToken,
   ViewLimits,
 } from '../../project-types.js';
-import { normalizeVirtualPath, virtualDirname, withTexExtension } from '../virtual-path.js';
+import { resolveVirtualInputPath } from '../virtual-path.js';
 import { normalizeProjectFilePath } from '../validation.js';
 import { normalizeConditionPolicy, normalizeViewLimits } from './configuration.js';
 import { dependencies, emit, sourceCopier, type Segment } from './emission.js';
@@ -28,9 +28,9 @@ import { getCommandSignature, scanCommandTokens } from './commands.js';
 import {
   DEFINITIONS,
   ENV_DEFINITIONS,
-  literalFromGroup,
   scanFile,
   UNSUPPORTED_DEFINITIONS,
+  unwrapQuotedInputLiteral,
 } from './scan.js';
 import {
   bounded,
@@ -53,6 +53,7 @@ import {
   readBracedGroupTokens,
   readDefinitionTokens,
   readEnvironmentDefinitionTokens,
+  readInputArgumentTokens,
   skipTriviaTokens,
   spliceVerbatimMatch,
 } from './tokenize.js';
@@ -296,14 +297,14 @@ export function evaluateConditionStream(
     null;
 
   const policy = config.conditions;
+  const evaluateConds = policy.mode !== 'none' && policy.mode !== 'ignore';
   const overrides =
     policy.mode === 'manual'
       ? policy.values
       : policy.mode === 'source-with-overrides'
         ? policy.overrides
         : {};
-  const seeds =
-    policy.mode === 'manual' || policy.mode === 'none' ? {} : (policy.initialValues ?? {});
+  const seeds = !evaluateConds || policy.mode === 'manual' ? {} : (policy.initialValues ?? {});
 
   function bindFlag(name: string): void {
     bindings.set(`if${name}`, { kind: 'test', flag: name });
@@ -462,7 +463,7 @@ export function evaluateConditionStream(
       frame.tokenIndex++;
       const at = origin(frame, token.range.start, token.range.end);
 
-      if (policy.mode !== 'none') {
+      if (evaluateConds) {
         const binding = bindings.get(token.name);
         const syntaxTest =
           token.kind === 'command' && binding?.kind !== 'setter' ? testKind(token.name) : null;
@@ -681,7 +682,7 @@ export function evaluateConditionStream(
 
       reach(frame, token);
 
-      if (policy.mode !== 'none') {
+      if (evaluateConds) {
         let current = token;
         if (current.name === 'global') {
           const nextIdx = skipTriviaTokens(tokens, frame.tokenIndex);
@@ -790,13 +791,13 @@ export function evaluateConditionStream(
 
       if (
         UNSUPPORTED_EFFECTS.has(token.name) ||
-        (ORDINARY_IF_COMMANDS.has(token.name) && token.name !== 'iff')
+        (policy.mode !== 'ignore' && ORDINARY_IF_COMMANDS.has(token.name) && token.name !== 'iff')
       ) {
         stop('unsupported-effect', `\\${token.name} has semantics outside the direct profile.`, at);
         continue;
       }
 
-      if (policy.mode !== 'none' && /^[A-Za-z]+(?:true|false)$/.test(token.name)) {
+      if (evaluateConds && /^[A-Za-z]+(?:true|false)$/.test(token.name)) {
         stop('unsupported-assignment', `No live generated setter binding for \\${token.name}.`, at);
         continue;
       }
@@ -807,19 +808,60 @@ export function evaluateConditionStream(
           markActive(frame, token.index, token.index, 'structure');
           continue;
         }
-        const arg = readBracedGroupTokens(tokens, frame.tokenIndex);
-        const target = literalFromGroup(arg, frame.starts);
+        let arg = readInputArgumentTokens(tokens, frame.tokenIndex);
+        const target = unwrapQuotedInputLiteral(arg, frame.starts);
         if (target.kind !== 'literal') {
           stop('dynamic-input', 'Only literal braced input paths are supported.', at);
           continue;
+        }
+        if (arg!.splitAtOffset !== undefined) {
+          const splitTok = tokens[arg!.closeIndex]!;
+          const splitAt = arg!.splitAtOffset;
+          const head = Object.freeze({
+            index: arg!.closeIndex,
+            kind: splitTok.kind,
+            value: splitTok.value.slice(0, splitAt),
+            name: '',
+            range: Object.freeze(
+              rangeAt(frame.starts, splitTok.range.start, splitTok.range.start + splitAt - 1)
+            ),
+          });
+          const tail = Object.freeze({
+            index: arg!.closeIndex + 1,
+            kind: splitTok.kind,
+            value: splitTok.value.slice(splitAt),
+            name: '',
+            range: Object.freeze(
+              rangeAt(frame.starts, splitTok.range.start + splitAt, splitTok.range.end)
+            ),
+          });
+          const updated = [
+            ...tokens.slice(0, arg!.closeIndex),
+            head,
+            tail,
+            ...tokens.slice(arg!.closeIndex + 1),
+          ];
+          for (let k = arg!.closeIndex + 2; k < updated.length; k++) {
+            const t = updated[k]!;
+            if (t.index !== k) updated[k] = Object.freeze({ ...t, index: k });
+          }
+          tokens = updated;
+          frame.tokens = updated;
+          frame.trace.tokens = updated;
+          arg = { ...arg!, nextIndex: arg!.closeIndex + 1 };
         }
         frame.tokenIndex = arg!.nextIndex;
         if (config.traversal === 'file-only') {
           stop('file-only-input', 'A file-only interpretation cannot establish input effects.', at);
           continue;
         }
-        const path = target.value;
-        if (/^(?:[\\/]|[A-Za-z]:)/.test(path) || path.includes('\0')) {
+        const resolved = resolveVirtualInputPath(
+          target.value,
+          frame.file.path,
+          entryFile.path,
+          (candidate) => files.has(candidate)
+        );
+        if (resolved.status === 'invalid-path') {
           stop(
             'invalid-input-path',
             'Input must remain inside the virtual project root.',
@@ -828,28 +870,20 @@ export function evaluateConditionStream(
           );
           continue;
         }
-        const joined = normalizeVirtualPath(`${virtualDirname(frame.file.path)}/${path}`);
-        if (!joined) {
-          stop('invalid-input-path', 'Input escapes the virtual project root.', at, 'blocked');
+        if (resolved.status === 'missing') {
+          stop('missing-input', `Required input ${target.value} is absent.`, at, 'blocked');
           continue;
         }
-        const matches = [...new Set([joined, withTexExtension(joined)])].filter((p) =>
-          files.has(p)
-        );
-        if (!matches.length) {
-          stop('missing-input', `Required input ${path} is absent.`, at, 'blocked');
-          continue;
-        }
-        if (matches.length > 1) {
+        if (resolved.status === 'ambiguous') {
           stop(
             'ambiguous-input',
-            `Input ${path} matches more than one source file.`,
+            `Input ${target.value} matches more than one source file.`,
             at,
             'blocked'
           );
           continue;
         }
-        const included = files.get(matches[0]!)!;
+        const included = files.get(resolved.matches[0]!)!;
         if (stack.some((f) => f.file.path === included.path)) {
           stop('input-cycle', `Active input recursion through ${included.path}.`, at, 'blocked');
           continue;
@@ -1002,10 +1036,9 @@ export function evaluateConditionStream(
 
   function collectTraceTokens(traceIndex: number): void {
     const trace = traces[traceIndex]!;
-    const rawRemovals =
-      policy.mode !== 'none'
-        ? [...trace.conditionRemovals, ...trace.scaffoldingRemovals]
-        : trace.conditionRemovals;
+    const rawRemovals = evaluateConds
+      ? [...trace.conditionRemovals, ...trace.scaffoldingRemovals]
+      : trace.conditionRemovals;
     const removedIntervals = expandRemovalIntervals(trace.file.source, rawRemovals);
     const tokens = trace.tokens;
 
@@ -1109,7 +1142,7 @@ export function normalizeConditionRealizationRequest(
   if (typeof stripDeclarationsAndSetters !== 'boolean') {
     invalid('stripDeclarationsAndSetters must be a boolean.');
   }
-  const conditions = normalizeConditionPolicy(input['conditions'], false);
+  const conditions = normalizeConditionPolicy(input['conditions'], false, false);
   const limits = normalizeViewLimits(input['limits']);
   const maxOutputCodeUnits = bounded(
     input['maxOutputCodeUnits'],

@@ -12,7 +12,7 @@ import type {
 import { scanFile } from './scan.js';
 import { matchVerbatimTokens, tokenizeFile } from './tokenize.js';
 import { lineStarts, rangeAt } from './shared.js';
-import { normalizeVirtualPath, virtualDirname, withTexExtension } from '../virtual-path.js';
+import { resolveVirtualInputPath } from '../virtual-path.js';
 import { reject } from './fail.js';
 
 export interface Segment {
@@ -172,25 +172,16 @@ export function dependencies(
           },
         ];
       const reference = fact.target.value;
-      const joined =
-        /^(?:[\\/]|[A-Za-z]:)/.test(reference) || reference.includes('\0')
-          ? ''
-          : normalizeVirtualPath(`${virtualDirname(artifact.path)}/${reference}`);
-      const matches = joined
-        ? [...new Set([joined, withTexExtension(joined)])].filter((path) => paths.has(path))
-        : [];
+      const entryPath = artifacts[0]?.path ?? artifact.path;
+      const resolved = resolveVirtualInputPath(reference, artifact.path, entryPath, (candidate) =>
+        paths.has(candidate)
+      );
       return [
         {
           fromPath: artifact.path,
           reference,
-          targetPath: matches.length === 1 ? matches[0]! : null,
-          status: !joined
-            ? ('invalid-path' as const)
-            : matches.length > 1
-              ? ('ambiguous' as const)
-              : matches.length
-                ? ('present' as const)
-                : ('missing' as const),
+          targetPath: resolved.status === 'present' ? resolved.matches[0]! : null,
+          status: resolved.status,
           range: fact.range,
         },
       ];

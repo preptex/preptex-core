@@ -183,4 +183,52 @@ describe('Phase C6: Composable Multi-Step Transformation Pipeline (planComposite
       })
     ).toThrow(expect.objectContaining({ code: PrepTexErrorCode.OperationUnavailable }));
   });
+
+  it('composes snapshot-wide (target: source) steps across all branches without ViewConfiguration or Phase 0', () => {
+    const src = [
+      '\\newcommand{\\myvec}[1]{\\mathbf{#1}}',
+      '\\ifunknown',
+      '\\myvec{a} % c1',
+      '\\begin{note}n1\\end{note}',
+      '\\else',
+      '\\myvec{b} % c2',
+      '\\begin{note}n2\\end{note}',
+      '\\fi',
+    ].join('\n');
+    const snap = snapshot(src);
+
+    const res = planCompositeTransformation(snap, {
+      steps: [
+        {
+          operation: 'refactor-symbols',
+          options: {
+            target: 'source',
+            actions: [{ kind: 'rename-command-globally', oldName: 'myvec', newName: 'vecBold' }],
+          },
+        },
+        {
+          operation: 'remove-environments',
+          options: { target: 'source', names: ['note'] },
+        },
+        {
+          operation: 'suppress-comments',
+          options: { target: 'source', suppressCommentEnvironments: true },
+        },
+      ],
+    });
+
+    expect(res.provenance.viewId).toBeNull();
+    expect(res.editPlan).not.toBeNull();
+    const applied = applyProjectEdits(snap, res.editPlan!);
+    expect(applied.files[0]!.source).toBe(
+      [
+        '\\newcommand{\\vecBold}[1]{\\mathbf{#1}}',
+        '\\ifunknown',
+        '\\vecBold{a} ',
+        '\\else',
+        '\\vecBold{b} ',
+        '\\fi',
+      ].join('\n')
+    );
+  });
 });

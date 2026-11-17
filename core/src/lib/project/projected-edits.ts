@@ -1,11 +1,14 @@
-import type { ProjectView, ScannedFile, SelectedToken } from '../../project-types.js';
+import type { ProjectSnapshot, ScannedFile, SelectedToken } from '../../project-types.js';
 import type { TextChange } from './text-edits.js';
 import { sourceCopier, synthetic, type Segment } from './emission.js';
 
 /** Render changes against the original selected tape, before export filters run. */
-export function projectedEditor(view: ProjectView, changes: readonly TextChange[]) {
-  const copy = sourceCopier(view.snapshot);
-  const last = view.selectedTokens[view.selectedTokens.length - 1];
+export function projectedEditor(
+  model: { readonly snapshot: ProjectSnapshot; readonly selectedTokens: readonly SelectedToken[] },
+  changes: readonly TextChange[]
+) {
+  const copy = sourceCopier(model.snapshot);
+  const last = model.selectedTokens[model.selectedTokens.length - 1];
   return (token: SelectedToken, file: ScannedFile, keep: boolean, keepStart: number): Segment[] => {
     const start = token.projectedRange.start,
       end = token.projectedRange.end + 1;

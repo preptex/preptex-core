@@ -269,7 +269,13 @@ export function normalizeNodeOperation(
     'node operation options'
   );
   const target = o['target'];
-  if (target !== 'selected' && target !== 'artifact') invalid('Invalid node operation target.');
+  if (
+    operation === 'edit-nodes'
+      ? target !== 'selected' && target !== 'artifact'
+      : target !== 'selected' && target !== 'source' && target !== 'artifact'
+  ) {
+    invalid('Invalid node operation target.');
+  }
   const maxOutputCodeUnits = bounded(
     o['maxOutputCodeUnits'],
     10000000,
@@ -279,7 +285,11 @@ export function normalizeNodeOperation(
   if (operation === 'edit-nodes') {
     return {
       operation,
-      options: { target, actions: normalizeNodeActions(o['actions']), maxOutputCodeUnits },
+      options: {
+        target: target as 'selected' | 'artifact',
+        actions: normalizeNodeActions(o['actions']),
+        maxOutputCodeUnits,
+      },
     };
   }
   const names = [...new Set(array(o['names'], 'environment names').map(environmentName))].sort();
@@ -287,7 +297,7 @@ export function normalizeNodeOperation(
   return {
     operation,
     options: {
-      target,
+      target: target as 'selected' | 'source' | 'artifact',
       names,
       maxOutputCodeUnits,
     },

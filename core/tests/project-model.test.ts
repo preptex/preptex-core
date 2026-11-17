@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   applyProjectEdits,
+  buildCoarseViewTree,
   checkOperationCapability,
   createProjectSnapshot,
   inspectProject,
@@ -1396,5 +1397,109 @@ describe('Unified command-with-arguments model and lookahead regressions', () =>
       const v = resolve(bad);
       failure(v, 'blocked', 'structural-error');
     }
+  });
+
+  it('supports ignore condition policy visiting all branches and treating conditionals as normal commands', () => {
+    const tex = [
+      '\\newif\\ifdraft\\drafttrue',
+      '\\ifdraft',
+      '\\section{Draft}\\badge{a}',
+      '\\else',
+      '\\section{Final}\\badge{b}',
+      '\\fi',
+      '\\ifunknown\\badge{c}\\fi',
+      '\\ifthenelse{1=1}{\\badge{d}}{}',
+    ].join('\n');
+
+    const view = resolveProjectView(snapshot(tex), {
+      entryPath: 'main.tex',
+      conditions: { mode: 'ignore' },
+    });
+    ready(view);
+    expect(view.decisions).toEqual([]);
+    expect(selected(view)).toBe(tex);
+
+    const sections = walkConfiguredNodes(view.root)
+      .filter((n) => n.kind === 'section')
+      .map((n) => (n.kind === 'section' ? n.name : ''));
+    expect(sections).toEqual(['Draft', 'Final']);
+
+    const badgeCount = view.reachedFacts.filter(
+      (f) => f.fact.kind === 'command-use' && f.fact.name === 'badge'
+    ).length;
+    expect(badgeCount).toBe(4);
+
+    // Coarse tree hides conditional scaffolding (\newif, \ifdraft, \else, \fi) by default
+    const coarse = buildCoarseViewTree(view);
+    const coarseNames = coarse.root.children.flatMap((c) => [
+      c.name,
+      ...c.children.map((g) => g.name),
+    ]);
+    expect(coarseNames).toContain('Draft');
+    expect(coarseNames).toContain('Final');
+    expect(coarseNames).not.toContain('ifdraft');
+    expect(coarseNames).not.toContain('else');
+    expect(coarseNames).not.toContain('fi');
+    expect(coarseNames).not.toContain('newif');
+    expect(coarseNames).not.toContain('drafttrue');
+
+    // Cross-branch unbalanced structures still report structural-error in ignore mode
+    const mismatched = resolveProjectView(
+      snapshot('\\ifdraft\\begin{itemize}\\else\\begin{enumerate}\\fi\\item X\\end{itemize}'),
+      { entryPath: 'main.tex', conditions: { mode: 'ignore' } }
+    );
+    failure(mismatched, 'blocked', 'structural-error');
+
+    // mode: 'none' still strictly blocks on unrealized conditions (INV-4)
+    failure(
+      resolveProjectView(snapshot('\\ifdraft A\\fi'), {
+        entryPath: 'main.tex',
+        conditions: { mode: 'none' },
+      }),
+      'blocked',
+      'unrealized-condition'
+    );
+
+    // Standalone Pipeline B condition realization rejects 'ignore' mode
+    expect(() =>
+      realizeProjectConditions(snapshot(tex), {
+        conditions: { mode: 'ignore' } as never,
+      })
+    ).toThrow(/Invalid condition policy mode/);
+  });
+
+  it('resolves subfolder, entry-relative, quoted, and parenthesized relative inputs', () => {
+    // 1. Braced, quoted, and parenthesized subfolder inputs from entry and nested subfolder files
+    const multi = createProjectSnapshot([
+      file('\\input{intro/part1}\\input{"intro/quoted"}\\input("intro/paren")', 'paper/main.tex'),
+      file('\\input{intro/history.tex}\\input{sibling}', 'paper/intro/part1.tex'),
+      file('HIST ', 'paper/intro/history.tex'),
+      file('SIB ', 'paper/intro/sibling.tex'),
+      file('QUOT ', 'paper/intro/quoted.tex'),
+      file('PAR', 'paper/intro/paren.tex'),
+    ]);
+    const view = resolveProjectView(multi, {
+      entryPath: 'paper/main.tex',
+      conditions: { mode: 'ignore' },
+    });
+    ready(view);
+    expect(selected(view)).toBe('HIST SIB QUOT PAR');
+
+    // Scan facts record unquoted literal targets for quoted and parenthesized inputs
+    const mainFacts = multi.files
+      .find((f) => f.path === 'paper/main.tex')!
+      .facts.filter((f) => f.kind === 'input');
+    expect(
+      mainFacts.map((f) =>
+        f.kind === 'input' && f.target.kind === 'literal' ? f.target.value : null
+      )
+    ).toEqual(['intro/part1', 'intro/quoted', 'intro/paren']);
+
+    // 2. Root-escaping relative paths are still rejected with invalid-input-path
+    const escaping = resolveProjectView(
+      createProjectSnapshot([file('\\input("../../outside")', 'paper/main.tex')]),
+      { entryPath: 'paper/main.tex' }
+    );
+    failure(escaping, 'blocked', 'invalid-input-path');
   });
 });

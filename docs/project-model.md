@@ -147,6 +147,7 @@ const eligibility = checkOperationCapability(view, { operation: 'references' });
 | `{ mode: 'source-with-overrides', overrides, initialValues? }` | Tracks source declarations/setters and records them, but forces explicitly supplied `overrides` at each test.                                                                                                                                                                           |
 | `{ mode: 'manual', values }`                                   | Forces only supplied `values` at every test; omitted names stop with `'unknown-condition'`.                                                                                                                                                                                             |
 | `{ mode: 'none' }`                                             | Disables condition preprocessing in Step 1. Any `\newif`, `\if...`, `\else`, `\fi`, or declared setter encountered in Step 2 immediately blocks the view with `reason.code === 'unrealized-condition'` (**INV-4**). Use after running `realizeProjectConditions` + `applyProjectEdits`. |
+| `{ mode: 'ignore' }`                                           | Visits all conditional branches without evaluating or stripping conditionals, treating `\newif`, `\if...`, `\else`, `\fi`, and setters as ordinary LaTeX commands. Cross-branch mismatched structures still report `'structural-error'` if parsed into an AST.                          |
 
 ### Supported interpretation profile (`direct-latex-v1`)
 

@@ -1,10 +1,16 @@
 import { safeComment, commentEdit } from './comment-edits.js';
-import { realizeProjectConditions } from './conditions.js';
+import { evaluateConditionStream, realizeProjectConditions } from './conditions.js';
+import { normalizeViewLimits } from './configuration.js';
 import { sourceOperationEdits } from './source-operations.js';
-import { environmentActions, projectionChanges } from './node-edits.js';
+import {
+  environmentActions,
+  projectionChanges,
+  snapshotEnvironmentRemovalEdits,
+} from './node-edits.js';
 import { runCompositeTransformation } from './composite.js';
 import { symbolRefactorProjectionChanges } from './refactor.js';
 import { projectedEditor } from './projected-edits.js';
+import { normalizeChanges, type TextChange } from './text-edits.js';
 import type {
   ExportOptions,
   GeneratedArtifact,
@@ -172,7 +178,11 @@ export function planTransformation(
       operation.options.target !== 'artifact') ||
     (operation.operation === 'refactor-symbols' && operation.options.target !== 'artifact')
   ) {
-    if (normalized.kind !== 'view' && operation.operation !== 'refactor-symbols') {
+    const isSourceOp =
+      operation.operation === 'refactor-symbols' ||
+      (operation.operation === 'suppress-comments' && operation.options?.target === 'source') ||
+      (operation.operation === 'remove-environments' && operation.options.target === 'source');
+    if (normalized.kind !== 'view' && !isSourceOp) {
       invalid('Structural source edits require a configured view.');
     }
     const viewForEdits = normalized.kind === 'view' ? normalized : undefined;
@@ -204,7 +214,13 @@ export function planTransformation(
       coverage: normalized.kind === 'view' ? normalized.coverage : coverage([]),
     });
   }
-  if (normalized.kind !== 'view') invalid('Configured exports require a view.');
+  if (normalized.kind !== 'view') {
+    if (operation.operation !== 'export-project') {
+      invalid('Configured exports require a view.');
+    }
+    const exported = exportSnapshot(normalized, operation.options, provenance);
+    return freeze({ kind: 'transformation', resultId, provenance, editPlan: null, ...exported });
+  }
   if (
     operation.operation !== 'export-project' &&
     operation.operation !== 'edit-nodes' &&
@@ -240,35 +256,158 @@ function exportView(
   view: ProjectView,
   options: ExportOptions,
   provenance: OperationProvenance,
-  extraProjectionChanges: readonly import('./text-edits.js').TextChange[] = []
+  extraProjectionChanges: readonly TextChange[] = []
 ): {
   artifacts: readonly GeneratedArtifact[];
   entryPath: string;
   dependencies: TransformationResult['dependencies'];
   coverage: TransformationResult['coverage'];
 } {
-  const source = view.snapshot;
-  const copied = sourceCopier(source);
   const commentActions = options.suppressCommentEnvironments
     ? environmentActions(view, ['comment'])
     : [];
   const nodeActions = options.nodeEdits ?? [];
-  // Explicit actions share one conflict check with export-time environment suppression.
-  const project = projectedEditor(
-    view,
+  const changes =
     extraProjectionChanges.length > 0
       ? extraProjectionChanges
-      : projectionChanges(view, [...nodeActions, ...commentActions])
+      : projectionChanges(view, [...nodeActions, ...commentActions]);
+  return exportStream(
+    {
+      snapshot: view.snapshot,
+      entryPath: view.configuration.entryPath,
+      occurrences: view.occurrences,
+      selectedTokens: view.selectedTokens,
+      issues: view.coverage.issues,
+    },
+    options,
+    provenance,
+    changes
   );
-  const issues: ProjectIssue[] = [...view.coverage.issues];
+}
+
+function exportSnapshot(
+  source: ProjectSnapshot,
+  options: ExportOptions,
+  provenance: OperationProvenance
+): {
+  artifacts: readonly GeneratedArtifact[];
+  entryPath: string;
+  dependencies: TransformationResult['dependencies'];
+  coverage: TransformationResult['coverage'];
+} {
+  const entryPath =
+    options.entryPath ??
+    (source.files.some((f) => f.path === 'main.tex')
+      ? 'main.tex'
+      : source.files.length === 1
+        ? source.files[0]!.path
+        : 'main.tex');
+  const entry = source.files.find((f) => f.path === entryPath);
+  if (!entry) {
+    reject('unavailable', `Entry ${entryPath} is absent.`);
+  }
+  const traversal = options.traversal ?? 'project';
+  const evaluation = evaluateConditionStream(source, {
+    entryFiles: [entry],
+    traversal,
+    stopOnFileOnlyInput: false,
+    inlineInputs: traversal === 'project',
+    stripDeclarationsAndSetters: false,
+    conditions: { mode: 'ignore' },
+    limits: normalizeViewLimits(undefined),
+  });
+  if (evaluation.failure) {
+    reject(
+      'unavailable',
+      evaluation.failure.reason.message,
+      evaluation.failure.reason.location
+        ? [
+            {
+              snapshotId: source.id,
+              occurrenceId:
+                evaluation.failure.reason.inputChain[
+                  evaluation.failure.reason.inputChain.length - 1
+                ] ?? null,
+              path: evaluation.failure.reason.location.path,
+              range: evaluation.failure.reason.location.range,
+            },
+          ]
+        : []
+    );
+  }
+  const changes: TextChange[] = [];
+  if (options.suppressCommentEnvironments) {
+    const edits = snapshotEnvironmentRemovalEdits(source, ['comment']);
+    for (const edit of edits) {
+      if (edit.kind !== 'replace') continue;
+      for (const occ of evaluation.occurrences.filter((o) => o.path === edit.path)) {
+        let pStart: number | null = null;
+        let pEnd: number | null = null;
+        for (const sel of evaluation.selectedTokens) {
+          if (sel.origin.occurrenceId !== occ.id) continue;
+          if (
+            edit.range.start >= sel.origin.range.start &&
+            edit.range.start <= sel.origin.range.end
+          ) {
+            pStart = sel.projectedRange.start + (edit.range.start - sel.origin.range.start);
+          }
+          if (edit.range.end >= sel.origin.range.start && edit.range.end <= sel.origin.range.end) {
+            pEnd = sel.projectedRange.start + (edit.range.end - sel.origin.range.start) + 1;
+          }
+        }
+        if (pStart !== null && pEnd !== null) {
+          changes.push({ start: pStart, end: pEnd, text: edit.replacement });
+        }
+      }
+    }
+  }
+  return exportStream(
+    {
+      snapshot: source,
+      entryPath,
+      occurrences: evaluation.occurrences,
+      selectedTokens: evaluation.selectedTokens,
+      issues: [],
+    },
+    options,
+    provenance,
+    normalizeChanges(changes)
+  );
+}
+
+function exportStream(
+  stream: {
+    readonly snapshot: ProjectSnapshot;
+    readonly entryPath: string;
+    readonly occurrences: ProjectView['occurrences'];
+    readonly selectedTokens: readonly SelectedToken[];
+    readonly issues: readonly ProjectIssue[];
+  },
+  options: ExportOptions,
+  provenance: OperationProvenance,
+  changes: readonly TextChange[]
+): {
+  artifacts: readonly GeneratedArtifact[];
+  entryPath: string;
+  dependencies: TransformationResult['dependencies'];
+  coverage: TransformationResult['coverage'];
+} {
+  const source = stream.snapshot;
+  const copied = sourceCopier(source);
+  // Explicit actions share one conflict check with export-time environment suppression.
+  const project = projectedEditor(
+    { snapshot: source, selectedTokens: stream.selectedTokens },
+    changes
+  );
+  const issues: ProjectIssue[] = [...stream.issues];
   const selectedByOccurrence = new Map<string, SelectedToken[]>();
-  for (const token of view.selectedTokens) {
+  for (const token of stream.selectedTokens) {
     const bucket = selectedByOccurrence.get(token.origin.occurrenceId) ?? [];
     bucket.push(token);
     selectedByOccurrence.set(token.origin.occurrenceId, bucket);
   }
-  const children = new Map<string, (typeof view.occurrences)[number][]>();
-  for (const occurrence of view.occurrences)
+  const children = new Map<string, (typeof stream.occurrences)[number][]>();
+  for (const occurrence of stream.occurrences)
     if (occurrence.parentId !== null) {
       const bucket = children.get(occurrence.parentId) ?? [];
       bucket.push(occurrence);
@@ -276,8 +415,8 @@ function exportView(
     }
   const fileByPath = new Map(source.files.map((f) => [f.path, f]));
   const rendered = new Map<string, Segment[]>();
-  for (let index = view.occurrences.length - 1; index >= 0; index--) {
-    const occurrence = view.occurrences[index]!;
+  for (let index = stream.occurrences.length - 1; index >= 0; index--) {
+    const occurrence = stream.occurrences[index]!;
     const file = fileByPath.get(occurrence.path)!;
     const tokens = selectedByOccurrence.get(occurrence.id) ?? [];
     const ownChildren = children.get(occurrence.id) ?? [];
@@ -329,7 +468,7 @@ function exportView(
   const artifacts: GeneratedArtifact[] = [];
   let remaining = options.maxOutputCodeUnits ?? 10000000;
   if (options.inputs === 'inline') {
-    const root = view.occurrences[0]!;
+    const root = stream.occurrences[0]!;
     for (const segment of rendered.get(root.id)!) {
       const origin = segment.origin;
       if (!origin || virtualDirname(origin.path) === virtualDirname(root.path)) continue;
@@ -359,7 +498,7 @@ function exportView(
     artifacts.push(artifact);
   } else {
     const unique = new Map<string, GeneratedArtifact>();
-    for (const occurrence of view.occurrences) {
+    for (const occurrence of stream.occurrences) {
       const old = unique.get(occurrence.path);
       const artifact = emit(
         occurrence.path,
@@ -401,7 +540,7 @@ function exportView(
   );
   return {
     artifacts: final,
-    entryPath: view.configuration.entryPath,
+    entryPath: stream.entryPath,
     dependencies: refs,
     coverage: coverage(issues),
   };

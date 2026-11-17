@@ -30,7 +30,8 @@ function values(value: unknown): BooleanValues {
 
 export function normalizeConditionPolicy(
   value: unknown = { mode: 'source' },
-  allowNone = true
+  allowNone = true,
+  allowIgnore = true
 ): ConditionPolicy {
   const input = record(value, 'condition policy');
   if (input['mode'] === 'source') {
@@ -55,6 +56,10 @@ export function normalizeConditionPolicy(
   if (allowNone && input['mode'] === 'none') {
     fields(input, ['mode'], 'none policy');
     return { mode: 'none' };
+  }
+  if (allowIgnore && input['mode'] === 'ignore') {
+    fields(input, ['mode'], 'ignore policy');
+    return { mode: 'ignore' };
   }
   return invalid('Invalid condition policy mode.');
 }

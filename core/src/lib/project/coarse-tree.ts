@@ -10,7 +10,17 @@ import type {
 import type { NodeLocation, VersionedSourceOrigin } from '../../node-types.js';
 import { getCommandSignature } from './commands.js';
 import { reject } from './fail.js';
-import { array, bounded, fields, freeze, identity, invalid, record, string } from './shared.js';
+import {
+  array,
+  bounded,
+  fields,
+  freeze,
+  identity,
+  invalid,
+  record,
+  string,
+  testKind,
+} from './shared.js';
 import { validateView } from './view.js';
 
 function normalizeCoarseOptions(options?: CoarseTreeOptions): NormalizedCoarseTreeOptions {
@@ -135,9 +145,14 @@ export function buildCoarseViewTree(view: ProjectView, options?: CoarseTreeOptio
   const versionByPath = new Map(current.snapshot.files.map((f) => [f.path, f.version]));
 
   const introducedCommands = new Set<string>();
+  const declaredSetters = new Set<string>();
   for (const file of current.snapshot.files) {
     for (const fact of file.facts) {
       if (fact.kind === 'definition' && fact.name) introducedCommands.add(fact.name);
+      if (fact.kind === 'condition-declaration' && fact.name) {
+        declaredSetters.add(`${fact.name}true`);
+        declaredSetters.add(`${fact.name}false`);
+      }
     }
   }
   const customCommands = new Set(current.configuration.customCommands.map((c) => c.name));
@@ -157,9 +172,19 @@ export function buildCoarseViewTree(view: ProjectView, options?: CoarseTreeOptio
     nodeKey: occurrenceKey,
   });
 
+  const isConditionScaffolding = (name: string): boolean =>
+    name === 'newif' ||
+    name === 'else' ||
+    name === 'fi' ||
+    testKind(name) !== null ||
+    declaredSetters.has(name);
+
   const shouldIncludeCommand = (name: string, isControlWord: boolean): boolean => {
     if (normalized.commandFilter && normalized.commandFilter.includes(name)) return true;
     if (!isControlWord && !normalized.includeBuiltinCommands) return false;
+    if (isConditionScaffolding(name)) {
+      return normalized.includeBuiltinCommands;
+    }
     if (introducedCommands.has(name) || customCommands.has(name)) {
       return normalized.includeCustomAndUndefinedCommands;
     }

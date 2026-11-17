@@ -185,3 +185,19 @@ test('inventory skips symlinked directories outside the selected root', async (c
     ['inside']
   );
 });
+
+test('analyze supports --condition-mode ignore across all conditional branches', async (context) => {
+  const root = await fixture(context, {
+    'main.tex': String.raw`\ifunknown\label{a}\else\label{b}\fi\ref{a}\ref{b}`,
+  });
+  const result = success(
+    run('analyze', '--work-dir', root, '--entry', 'main.tex', '--condition-mode', 'ignore')
+  );
+  assert.deepEqual(
+    result.references.map((r) => [r.key, r.status]),
+    [
+      ['a', 'matched'],
+      ['b', 'matched'],
+    ]
+  );
+});

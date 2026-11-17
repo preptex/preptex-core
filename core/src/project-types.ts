@@ -367,6 +367,10 @@ export type ConditionPolicy =
   | {
       /** Assert no conditionals exist in the reached source; any conditional syntax stops with unrealized-condition. */
       readonly mode: 'none';
+    }
+  | {
+      /** Do not evaluate or strip conditionals; visit all branches and treat conditional commands as ordinary commands. */
+      readonly mode: 'ignore';
     };
 /** Bounds on synchronous interpretation; hosts still own deadlines and scheduling. */
 export interface ViewLimits {
@@ -818,8 +822,8 @@ export type CompositeStepRequest =
       readonly operation: 'suppress-comments';
       /** Comment suppression options. */
       readonly options?: {
-        /** Target scope; only `'selected'` is supported. */
-        readonly target?: 'selected';
+        /** Target scope: `'selected'` (realized view) or `'source'` (all source files and branches). */
+        readonly target?: 'selected' | 'source';
         /** Also strip `comment` environments; default false. */
         readonly suppressCommentEnvironments?: boolean;
         /** Total UTF-16 output limit. */
@@ -878,12 +882,12 @@ export type OperationRequest =
       readonly options?: AnalysisOptions;
     }
   | {
-      /** Configured comment suppression on a realized ProjectView. */
+      /** Configured or source-wide comment suppression. */
       readonly operation: 'suppress-comments';
-      /** Selected-path comment suppression options. */
+      /** Comment suppression options. */
       readonly options?: {
-        /** Inspect only the configured selected path; default 'selected'. */
-        readonly target?: 'selected';
+        /** Inspect the configured selected path (`'selected'`, default) or all source files and branches (`'source'`). */
+        readonly target?: 'selected' | 'source';
         /** Also remove recognized comment environments; default false. Verbatim remains protected. */
         readonly suppressCommentEnvironments?: boolean;
         /** Maximum total preview size in UTF-16 code units; default 10,000,000, maximum 100,000,000. */
@@ -891,7 +895,7 @@ export type OperationRequest =
       };
     }
   | {
-      /** Export a realized ProjectView with explicit input arrangement. */
+      /** Export a realized ProjectView or snapshot with explicit input arrangement. */
       readonly operation: 'export-project';
       /** Export semantics independent of the configured traversal. */
       readonly options: ExportOptions;
@@ -913,6 +917,10 @@ export interface ExportOptions {
   readonly inputs: 'preserve' | 'inline';
   /** Remove eligible active comments; default false. */
   readonly suppressComments?: boolean;
+  /** Entry virtual path when exporting directly from a ProjectSnapshot; defaults to 'main.tex' or single file. */
+  readonly entryPath?: string;
+  /** Input traversal policy when exporting directly from a ProjectSnapshot; default 'project'. */
+  readonly traversal?: 'project' | 'file-only';
   /** Total UTF-16 output limit across artifacts, default 10000000; maximum 100000000. */
   readonly maxOutputCodeUnits?: number;
 }

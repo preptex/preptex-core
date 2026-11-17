@@ -1866,6 +1866,12 @@ Output policies for a configured project. No filename rewriting is performed.
 
 #### Properties
 
+##### entryPath?
+
+> `readonly` `optional` **entryPath?**: `string`
+
+Entry virtual path when exporting directly from a ProjectSnapshot; defaults to 'main.tex' or single file.
+
 ##### inputs
 
 > `readonly` **inputs**: `"preserve"` \| `"inline"`
@@ -1895,6 +1901,12 @@ Remove selected complete comment environments independently of percent suppressi
 > `readonly` `optional` **suppressComments?**: `boolean`
 
 Remove eligible active comments; default false.
+
+##### traversal?
+
+> `readonly` `optional` **traversal?**: `"project"` \| `"file-only"`
+
+Input traversal policy when exporting directly from a ProjectSnapshot; default 'project'.
 
 ***
 
@@ -3978,7 +3990,7 @@ Category of a node in a readable [CoarseTree](#coarsetree) projection.
 
 ### CompositeStepRequest
 
-> **CompositeStepRequest** = [`NodeTransformationRequest`](#nodetransformationrequest) \| [`SymbolRefactorRequest`](#symbolrefactorrequest) \| \{ `operation`: `"realize-conditions"`; `options`: [`ConditionRealizationRequest`](#conditionrealizationrequest); \} \| \{ `operation`: `"suppress-comments"`; `options?`: \{ `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"`; \}; \} \| \{ `operation`: `"export-project"`; `options`: [`ExportOptions`](#exportoptions); \}
+> **CompositeStepRequest** = [`NodeTransformationRequest`](#nodetransformationrequest) \| [`SymbolRefactorRequest`](#symbolrefactorrequest) \| \{ `operation`: `"realize-conditions"`; `options`: [`ConditionRealizationRequest`](#conditionrealizationrequest); \} \| \{ `operation`: `"suppress-comments"`; `options?`: \{ `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"` \| `"source"`; \}; \} \| \{ `operation`: `"export-project"`; `options`: [`ExportOptions`](#exportoptions); \}
 
 Single step permitted inside [CompositeTransformationRequest](#compositetransformationrequest).
 
@@ -4012,7 +4024,7 @@ Condition realization request options.
 
 ##### Type Literal
 
-\{ `operation`: `"suppress-comments"`; `options?`: \{ `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"`; \}; \}
+\{ `operation`: `"suppress-comments"`; `options?`: \{ `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"` \| `"source"`; \}; \}
 
 ###### operation
 
@@ -4040,9 +4052,9 @@ Also strip `comment` environments; default false.
 
 ###### options.target?
 
-> `readonly` `optional` **target?**: `"selected"`
+> `readonly` `optional` **target?**: `"selected"` \| `"source"`
 
-Target scope; only `'selected'` is supported.
+Target scope: `'selected'` (realized view) or `'source'` (all source files and branches).
 
 ***
 
@@ -4066,7 +4078,7 @@ Export topology and cleanup options.
 
 ### ConditionPolicy
 
-> **ConditionPolicy** = \{ `initialValues?`: [`BooleanValues`](#booleanvalues); `mode`: `"source"`; \} \| \{ `mode`: `"manual"`; `values`: [`BooleanValues`](#booleanvalues); \} \| \{ `initialValues?`: [`BooleanValues`](#booleanvalues); `mode`: `"source-with-overrides"`; `overrides`: [`BooleanValues`](#booleanvalues); \} \| \{ `mode`: `"none"`; \}
+> **ConditionPolicy** = \{ `initialValues?`: [`BooleanValues`](#booleanvalues); `mode`: `"source"`; \} \| \{ `mode`: `"manual"`; `values`: [`BooleanValues`](#booleanvalues); \} \| \{ `initialValues?`: [`BooleanValues`](#booleanvalues); `mode`: `"source-with-overrides"`; `overrides`: [`BooleanValues`](#booleanvalues); \} \| \{ `mode`: `"none"`; \} \| \{ `mode`: `"ignore"`; \}
 
 Source tracking, permanent manual forcing, initial seeds, and condition-free assertions have distinct semantics.
 
@@ -4141,6 +4153,18 @@ Permanent per-test overrides.
 > `readonly` **mode**: `"none"`
 
 Assert no conditionals exist in the reached source; any conditional syntax stops with unrealized-condition.
+
+***
+
+##### Type Literal
+
+\{ `mode`: `"ignore"`; \}
+
+###### mode
+
+> `readonly` **mode**: `"ignore"`
+
+Do not evaluate or strip conditionals; visit all branches and treat conditional commands as ordinary commands.
 
 ***
 
@@ -4526,7 +4550,7 @@ Every contributing extent in encounter order.
 
 ### NodeTransformationRequest
 
-> **NodeTransformationRequest** = \{ `operation`: `"edit-nodes"`; `options`: \{ `actions`: readonly [`NodeEditAction`](#nodeeditaction)[]; `maxOutputCodeUnits?`: `number`; `target`: `"selected"` \| `"artifact"`; \}; \} \| \{ `operation`: `"remove-environments"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `names`: readonly `string`[]; `target`: `"selected"` \| `"artifact"`; \}; \}
+> **NodeTransformationRequest** = \{ `operation`: `"edit-nodes"`; `options`: \{ `actions`: readonly [`NodeEditAction`](#nodeeditaction)[]; `maxOutputCodeUnits?`: `number`; `target`: `"selected"` \| `"artifact"`; \}; \} \| \{ `operation`: `"remove-environments"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `names`: readonly `string`[]; `target`: `"selected"` \| `"source"` \| `"artifact"`; \}; \}
 
 Additional transformations using configured nodes over a realized ProjectView.
 
@@ -4570,19 +4594,19 @@ Source previews preserve every unmapped slice; artifact mode specializes occurre
 
 ##### Type Literal
 
-\{ `operation`: `"remove-environments"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `names`: readonly `string`[]; `target`: `"selected"` \| `"artifact"`; \}; \}
+\{ `operation`: `"remove-environments"`; `options`: \{ `maxOutputCodeUnits?`: `number`; `names`: readonly `string`[]; `target`: `"selected"` \| `"source"` \| `"artifact"`; \}; \}
 
 ###### operation
 
 > `readonly` **operation**: `"remove-environments"`
 
-Remove matching literal environments from the realized view.
+Remove matching literal environments from the realized view or across all source files.
 
 ###### options
 
 > `readonly` **options**: `object`
 
-Explicit selected or artifact scope.
+Explicit selected, source-wide, or artifact scope.
 
 ###### options.maxOutputCodeUnits?
 
@@ -4598,9 +4622,9 @@ Case-sensitive literal names; nonempty, sorted during normalization.
 
 ###### options.target
 
-> `readonly` **target**: `"selected"` \| `"artifact"`
+> `readonly` **target**: `"selected"` \| `"source"` \| `"artifact"`
 
-Configured selected occurrences or artifact export.
+Configured selected occurrences, all source files (`'source'`), or artifact export.
 
 ***
 
@@ -4658,7 +4682,7 @@ Ordered reasons.
 
 ### OperationRequest
 
-> **OperationRequest** = [`NodeTransformationRequest`](#nodetransformationrequest) \| [`SymbolRefactorRequest`](#symbolrefactorrequest) \| [`CompositeTransformationRequest`](#compositetransformationrequest) \| \{ `operation`: `"source-inventory"`; `options?`: [`InventoryRequest`](#inventoryrequest); \} \| \{ `operation`: `"realize-conditions"`; `options`: [`ConditionRealizationRequest`](#conditionrealizationrequest); \} \| \{ `operation`: `"resolve-view"`; `options`: [`ViewConfiguration`](#viewconfiguration); \} \| \{ `operation`: `"references"` \| `"unused-commands"`; `options?`: [`AnalysisOptions`](#analysisoptions); \} \| \{ `operation`: `"suppress-comments"`; `options?`: \{ `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"`; \}; \} \| \{ `operation`: `"export-project"`; `options`: [`ExportOptions`](#exportoptions); \}
+> **OperationRequest** = [`NodeTransformationRequest`](#nodetransformationrequest) \| [`SymbolRefactorRequest`](#symbolrefactorrequest) \| [`CompositeTransformationRequest`](#compositetransformationrequest) \| \{ `operation`: `"source-inventory"`; `options?`: [`InventoryRequest`](#inventoryrequest); \} \| \{ `operation`: `"realize-conditions"`; `options`: [`ConditionRealizationRequest`](#conditionrealizationrequest); \} \| \{ `operation`: `"resolve-view"`; `options`: [`ViewConfiguration`](#viewconfiguration); \} \| \{ `operation`: `"references"` \| `"unused-commands"`; `options?`: [`AnalysisOptions`](#analysisoptions); \} \| \{ `operation`: `"suppress-comments"`; `options?`: \{ `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"` \| `"source"`; \}; \} \| \{ `operation`: `"export-project"`; `options`: [`ExportOptions`](#exportoptions); \}
 
 Public requests for independent inventory, condition realization, interpretation, analysis, and transformation.
 
@@ -4750,19 +4774,19 @@ Partial view observations require explicit opt-in.
 
 ##### Type Literal
 
-\{ `operation`: `"suppress-comments"`; `options?`: \{ `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"`; \}; \}
+\{ `operation`: `"suppress-comments"`; `options?`: \{ `maxOutputCodeUnits?`: `number`; `suppressCommentEnvironments?`: `boolean`; `target?`: `"selected"` \| `"source"`; \}; \}
 
 ###### operation
 
 > `readonly` **operation**: `"suppress-comments"`
 
-Configured comment suppression on a realized ProjectView.
+Configured or source-wide comment suppression.
 
 ###### options?
 
 > `readonly` `optional` **options?**: `object`
 
-Selected-path comment suppression options.
+Comment suppression options.
 
 ###### options.maxOutputCodeUnits?
 
@@ -4778,9 +4802,9 @@ Also remove recognized comment environments; default false. Verbatim remains pro
 
 ###### options.target?
 
-> `readonly` `optional` **target?**: `"selected"`
+> `readonly` `optional` **target?**: `"selected"` \| `"source"`
 
-Inspect only the configured selected path; default 'selected'.
+Inspect the configured selected path (`'selected'`, default) or all source files and branches (`'source'`).
 
 ***
 
@@ -4792,7 +4816,7 @@ Inspect only the configured selected path; default 'selected'.
 
 > `readonly` **operation**: `"export-project"`
 
-Export a realized ProjectView with explicit input arrangement.
+Export a realized ProjectView or snapshot with explicit input arrangement.
 
 ###### options
 
