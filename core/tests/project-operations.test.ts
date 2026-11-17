@@ -793,4 +793,78 @@ describe('C8 source reuse, invalidation and independent result identities', () =
       }).resultId
     );
   });
+
+  it('supports snapshot-wide (target: source) suppress-comments, remove-environments, and export-project across all conditional branches', () => {
+    const snap = createProjectSnapshot([
+      file(
+        [
+          '\\ifunknown',
+          '% comment in then branch',
+          '\\begin{note}drop then\\end{note}',
+          'Keep then',
+          '\\else',
+          '% comment in else branch',
+          '\\begin{note}drop else\\end{note}',
+          'Keep else',
+          '\\fi',
+          '\\begin{comment}block comment\\end{comment}',
+          '\\begin{verbatim}% verbatim comment\\end{verbatim}',
+          '\\input{sub/part}',
+        ].join('\n')
+      ),
+      file('% part comment\nSub content', 'sub/part.tex'),
+    ]);
+
+    // 1. suppress-comments with target: 'source' strips comments in all branches and files, preserving verbatim
+    const commentCap = checkOperationCapability(snap, {
+      operation: 'suppress-comments',
+      options: { target: 'source', suppressCommentEnvironments: true },
+    });
+    expect(commentCap).toEqual({ eligible: true, reasons: [] });
+
+    const commentRes = planTransformation(snap, {
+      operation: 'suppress-comments',
+      options: { target: 'source', suppressCommentEnvironments: true },
+    });
+    expect(commentRes.provenance.viewId).toBeNull();
+    expect(commentRes.editPlan).not.toBeNull();
+    const afterComments = applyProjectEdits(snap, commentRes.editPlan!);
+    const mainAfterComments = afterComments.files.find((f) => f.path === 'main.tex')!.source;
+    const partAfterComments = afterComments.files.find((f) => f.path === 'sub/part.tex')!.source;
+    expect(mainAfterComments).not.toContain('comment in then branch');
+    expect(mainAfterComments).not.toContain('comment in else branch');
+    expect(mainAfterComments).not.toContain('block comment');
+    expect(mainAfterComments).toContain('% verbatim comment');
+    expect(partAfterComments).toBe('Sub content');
+
+    // 2. remove-environments with target: 'source' removes across all branches
+    const envRes = planTransformation(snap, {
+      operation: 'remove-environments',
+      options: { target: 'source', names: ['note'] },
+    });
+    expect(envRes.provenance.viewId).toBeNull();
+    const afterEnv = applyProjectEdits(snap, envRes.editPlan!);
+    const mainAfterEnv = afterEnv.files.find((f) => f.path === 'main.tex')!.source;
+    expect(mainAfterEnv).not.toContain('drop then');
+    expect(mainAfterEnv).not.toContain('drop else');
+    expect(mainAfterEnv).toContain('Keep then');
+    expect(mainAfterEnv).toContain('Keep else');
+
+    // 3. export-project directly on snapshot handles cross-branch mismatched structures and inlines inputs
+    const mismatchedSnap = createProjectSnapshot([
+      file(
+        '\\ifunknown\\begin{itemize}\\else\\begin{enumerate}\\fi\\item A\\end{itemize}\n% drop\n\\input{sub/part}'
+      ),
+      file('% drop part\nB', 'sub/part.tex'),
+    ]);
+    const exported = planTransformation(mismatchedSnap, {
+      operation: 'export-project',
+      options: { entryPath: 'main.tex', inputs: 'inline', suppressComments: true },
+    });
+    expect(exported.provenance.viewId).toBeNull();
+    expect(exported.artifacts).toHaveLength(1);
+    expect(exported.artifacts[0]!.source).toBe(
+      '\\ifunknown\\begin{itemize}\\else\\begin{enumerate}\\fi\\item A\\end{itemize}\nB'
+    );
+  });
 });

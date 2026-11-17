@@ -7,6 +7,7 @@ import type {
 import { boundaryDelimiter, lastToken } from './emission.js';
 import { lineStarts, rangeAt } from './shared.js';
 import { eligibleToken, validateOccurrenceEdits } from './safety.js';
+import { matchVerbatimTokens } from './tokenize.js';
 export function safeComment(
   _source: ProjectSnapshot,
   file: ScannedFile,
@@ -46,18 +47,45 @@ export function commentEdit(
 export function commentEdits(
   source: ProjectSnapshot,
   files: readonly ScannedFile[],
-  view: ProjectView
+  view?: ProjectView
 ): ProjectEdit[] {
   const candidates: ProjectEdit[] = [];
   const seen = new Set<string>();
-  for (const selected of view.selectedTokens) {
-    if (!eligibleToken(selected) || selected.token.kind !== 'comment') continue;
-    const file = source.files.find((f) => f.path === selected.origin.path)!;
-    const { start, end } = selected.origin.range;
-    const key = `${file.path}:${start}:${end}`;
-    if (!seen.has(key) && safeComment(source, file, start, end)) {
-      candidates.push(commentEdit(source, file, start, end));
-      seen.add(key);
+  if (view) {
+    for (const selected of view.selectedTokens) {
+      if (!eligibleToken(selected) || selected.token.kind !== 'comment') continue;
+      const file = source.files.find((f) => f.path === selected.origin.path)!;
+      const { start, end } = selected.origin.range;
+      const key = `${file.path}:${start}:${end}`;
+      if (!seen.has(key) && safeComment(source, file, start, end)) {
+        candidates.push(commentEdit(source, file, start, end));
+        seen.add(key);
+      }
+    }
+  } else {
+    const verbatimEnvs = source.scanOptions.verbatimEnvironments;
+    for (const file of files) {
+      const protectedRanges: { start: number; end: number }[] = [];
+      for (let i = 0; i < file.tokens.length; i++) {
+        const tok = file.tokens[i]!;
+        if (tok.kind === 'command' && (tok.name === 'verb' || tok.name === 'begin')) {
+          const verb = matchVerbatimTokens(file.tokens, i, verbatimEnvs);
+          if (verb) {
+            protectedRanges.push({ start: verb.startOffset, end: verb.endOffset });
+            i = verb.endIndex;
+          }
+        }
+      }
+      for (const tok of file.tokens) {
+        if (tok.kind !== 'comment') continue;
+        const { start, end } = tok.range;
+        if (protectedRanges.some((r) => start <= r.end && end >= r.start)) continue;
+        const key = `${file.path}:${start}:${end}`;
+        if (!seen.has(key) && safeComment(source, file, start, end)) {
+          candidates.push(commentEdit(source, file, start, end));
+          seen.add(key);
+        }
+      }
     }
   }
   candidates.sort((a, b) =>

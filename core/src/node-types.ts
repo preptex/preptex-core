@@ -217,10 +217,10 @@ export type NodeTransformationRequest =
       };
     }
   | {
-      /** Remove matching literal environments from the realized view. */ readonly operation: 'remove-environments';
-      /** Explicit selected or artifact scope. */ readonly options: {
-        /** Configured selected occurrences or artifact export. */ readonly target:
-          'selected' | 'artifact';
+      /** Remove matching literal environments from the realized view or across all source files. */ readonly operation: 'remove-environments';
+      /** Explicit selected, source-wide, or artifact scope. */ readonly options: {
+        /** Configured selected occurrences, all source files (`'source'`), or artifact export. */ readonly target:
+          'selected' | 'source' | 'artifact';
         /** Case-sensitive literal names; nonempty, sorted during normalization. */ readonly names: readonly string[];
         /** Total output UTF-16 bound, default 10000000. */ readonly maxOutputCodeUnits?: number;
       };

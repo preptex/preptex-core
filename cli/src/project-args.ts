@@ -88,7 +88,8 @@ export function consumeConditionFlag(
         name !== 'source' &&
         name !== 'manual' &&
         name !== 'source-with-overrides' &&
-        name !== 'none'
+        name !== 'none' &&
+        name !== 'ignore'
       ) {
         bad('Unknown condition mode.');
       }
@@ -120,13 +121,13 @@ export function finalizeConditionPolicy(
   options?: { readonly allowNone?: boolean }
 ): ConditionPolicy {
   const { mode, values, initial } = state;
-  if (options?.allowNone === false && mode === 'none') {
-    bad('none condition mode is not valid for condition realization.');
+  if (options?.allowNone === false && (mode === 'none' || mode === 'ignore')) {
+    bad(`${mode} condition mode is not valid for condition realization.`);
   }
-  if ((mode === 'source' || mode === 'none') && values.size) {
+  if ((mode === 'source' || mode === 'none' || mode === 'ignore') && values.size) {
     bad('--condition requires manual or source-with-overrides mode; --initial seeds source mode.');
   }
-  if ((mode === 'manual' || mode === 'none') && initial.size) {
+  if ((mode === 'manual' || mode === 'none' || mode === 'ignore') && initial.size) {
     bad(`${mode} conditions cannot take --initial source seeds.`);
   }
   const seeds = initial.size ? { initialValues: Object.fromEntries(initial) } : {};
@@ -136,7 +137,7 @@ export function finalizeConditionPolicy(
   if (mode === 'source-with-overrides') {
     return { mode, overrides: Object.fromEntries(values), ...seeds };
   }
-  if (mode === 'none') {
+  if (mode === 'none' || mode === 'ignore') {
     return { mode };
   }
   return { mode, ...seeds };

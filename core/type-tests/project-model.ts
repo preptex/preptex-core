@@ -67,6 +67,11 @@ const noneView: ProjectView = resolveProjectView(snapshot, {
   conditions: { mode: 'none' },
 });
 void noneView;
+const ignoreView: ProjectView = resolveProjectView(snapshot, {
+  entryPath: 'main.tex',
+  conditions: { mode: 'ignore' },
+});
+void ignoreView;
 const available: boolean = checkOperationCapability(view, { operation: 'references' }).eligible;
 const newSnapshot = updateProjectSnapshot(snapshot, [
   { kind: 'upsert', file: { path: 'main.tex', source: '', version: 2 } },

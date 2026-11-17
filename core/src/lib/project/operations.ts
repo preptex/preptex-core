@@ -54,7 +54,7 @@ export const projectOperations: readonly OperationDescriptor[] = freeze([
     version: 1,
     implemented: true,
     representation: 'view',
-    scopes: ['configured'],
+    scopes: ['all-files', 'configured'],
     coverage: 'ready-view',
     resultKind: 'transformation',
   },
@@ -117,7 +117,7 @@ export const projectOperations: readonly OperationDescriptor[] = freeze([
     version: 1,
     implemented: true,
     representation: 'view',
-    scopes: ['configured'],
+    scopes: ['all-files', 'configured'],
     coverage: 'ready-view',
     resultKind: 'edits',
   },
@@ -126,7 +126,7 @@ export const projectOperations: readonly OperationDescriptor[] = freeze([
     version: 1,
     implemented: true,
     representation: 'view',
-    scopes: ['configured'],
+    scopes: ['all-files', 'configured'],
     coverage: 'ready-view',
     resultKind: 'artifacts',
   },
@@ -189,7 +189,8 @@ export function validateOperation(value: unknown): OperationRequest {
         ? {}
         : { suppressCommentEnvironments: options['suppressCommentEnvironments'] === true };
     const target = options['target'] === undefined ? 'selected' : options['target'];
-    if (target !== 'selected') invalid('Invalid comment transformation target.');
+    if (target !== 'selected' && target !== 'source')
+      invalid('Invalid comment transformation target.');
     const maxOutputCodeUnits = bounded(
       options['maxOutputCodeUnits'],
       10000000,
@@ -209,6 +210,8 @@ export function validateOperation(value: unknown): OperationRequest {
         'suppressComments',
         'suppressCommentEnvironments',
         'nodeEdits',
+        'entryPath',
+        'traversal',
         'maxOutputCodeUnits',
       ],
       'export options'
@@ -225,6 +228,14 @@ export function validateOperation(value: unknown): OperationRequest {
       typeof options['suppressCommentEnvironments'] !== 'boolean'
     )
       invalid('suppressCommentEnvironments must be a boolean.');
+    const traversal = options['traversal'];
+    if (traversal !== undefined && traversal !== 'project' && traversal !== 'file-only') {
+      invalid('Invalid export traversal mode.');
+    }
+    const entryPath =
+      options['entryPath'] === undefined
+        ? undefined
+        : normalizeProjectFilePath(options['entryPath'], 'entryPath');
     return {
       operation,
       options: {
@@ -234,6 +245,8 @@ export function validateOperation(value: unknown): OperationRequest {
         ...(options['suppressCommentEnvironments'] === undefined
           ? {}
           : { suppressCommentEnvironments: options['suppressCommentEnvironments'] === true }),
+        ...(entryPath !== undefined ? { entryPath } : {}),
+        ...(traversal !== undefined ? { traversal } : {}),
         inputs,
         suppressComments: options['suppressComments'] === true,
         maxOutputCodeUnits: bounded(
@@ -278,12 +291,15 @@ export function checkOperationCapability(
       code: 'not-implemented',
       message: `${descriptor.id} is reserved for a later implementation phase.`,
     });
-  const snapshotRefactor =
-    operation.operation === 'refactor-symbols' &&
+  const snapshotSourceOp =
     model.kind === 'snapshot' &&
-    (operation.options.target === undefined || operation.options.target === 'source');
+    ((operation.operation === 'refactor-symbols' &&
+      (operation.options.target === undefined || operation.options.target === 'source')) ||
+      (operation.operation === 'suppress-comments' && operation.options?.target === 'source') ||
+      (operation.operation === 'remove-environments' && operation.options.target === 'source') ||
+      operation.operation === 'export-project');
   const viewComposite = operation.operation === 'compose-transformations' && model.kind === 'view';
-  if (descriptor.representation !== model.kind && !snapshotRefactor && !viewComposite)
+  if (descriptor.representation !== model.kind && !snapshotSourceOp && !viewComposite)
     reasons.push({
       code: 'wrong-model',
       message: `This operation requires a ${descriptor.representation}.`,
@@ -365,11 +381,30 @@ export function checkOperationCapability(
       if (operation.operation === 'compose-transformations') {
         runCompositeTransformation(model, operation.options);
       }
-      if (operation.operation === 'export-project' && model.kind === 'view') {
-        if (operation.options.nodeEdits?.length) {
-          if (operation.options.inputs !== 'inline')
-            reject('unavailable', 'Node artifact edits require inline inputs.');
-          projectionChanges(model, operation.options.nodeEdits);
+      if (operation.operation === 'export-project') {
+        if (model.kind === 'view') {
+          if (operation.options.nodeEdits?.length) {
+            if (operation.options.inputs !== 'inline')
+              reject('unavailable', 'Node artifact edits require inline inputs.');
+            projectionChanges(model, operation.options.nodeEdits);
+          }
+        } else {
+          if (operation.options.nodeEdits?.length) {
+            reject('unavailable', 'Node artifact edits require a configured view.');
+          }
+          const entryPath =
+            operation.options.entryPath ??
+            (model.files.some((f) => f.path === 'main.tex')
+              ? 'main.tex'
+              : model.files.length === 1
+                ? model.files[0]!.path
+                : 'main.tex');
+          if (!model.files.some((f) => f.path === entryPath)) {
+            reasons.push({
+              code: 'missing-file',
+              message: `Entry ${entryPath} is absent from the snapshot.`,
+            });
+          }
         }
       }
       if (
@@ -438,6 +473,8 @@ export function validateProjectEditPlan(
   if (
     request.operation === 'realize-conditions' ||
     ((request.operation === 'refactor-symbols' ||
+      request.operation === 'suppress-comments' ||
+      request.operation === 'remove-environments' ||
       request.operation === 'compose-transformations') &&
       viewId === null)
   ) {

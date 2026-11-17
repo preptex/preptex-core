@@ -129,23 +129,38 @@ export async function handleTransform(args: string[]): Promise<void> {
     }
 
     vlog('transforming');
-    const view = resolveProjectView(snapshot, {
-      entryPath: entryKey,
-      traversal: options.traversal ?? 'project',
-      conditions,
-    });
-    if (view.status !== 'ready') {
-      throw new Error(formatProjectIssue(view.reason, 'A complete configured view is required.'));
-    }
-
-    const transformed = planTransformation(view, {
-      operation: 'export-project',
-      options: {
-        inputs: options.inputHandling === 'flatten' ? 'inline' : 'preserve',
-        suppressComments: options.suppressComments,
-        suppressCommentEnvironments: options.suppressCommentEnvironments,
-      },
-    });
+    const transformed =
+      conditions.mode === 'ignore'
+        ? planTransformation(snapshot, {
+            operation: 'export-project',
+            options: {
+              entryPath: entryKey,
+              traversal: options.traversal ?? 'project',
+              inputs: options.inputHandling === 'flatten' ? 'inline' : 'preserve',
+              suppressComments: options.suppressComments,
+              suppressCommentEnvironments: options.suppressCommentEnvironments,
+            },
+          })
+        : (() => {
+            const view = resolveProjectView(snapshot, {
+              entryPath: entryKey,
+              traversal: options.traversal ?? 'project',
+              conditions,
+            });
+            if (view.status !== 'ready') {
+              throw new Error(
+                formatProjectIssue(view.reason, 'A complete configured view is required.')
+              );
+            }
+            return planTransformation(view, {
+              operation: 'export-project',
+              options: {
+                inputs: options.inputHandling === 'flatten' ? 'inline' : 'preserve',
+                suppressComments: options.suppressComments,
+                suppressCommentEnvironments: options.suppressCommentEnvironments,
+              },
+            });
+          })();
     vlog(`generated ${transformed.artifacts.length} output(s)`);
     vlog(`outDir: ${outDir}`);
     vlog(`outName: ${outName}`);

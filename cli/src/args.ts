@@ -45,7 +45,7 @@ export interface RealizeCliOptions {
   inputs: 'preserve' | 'inline';
   traversal?: 'project' | 'file-only';
   stripDeclarationsAndSetters: boolean;
-  conditions: Exclude<ConditionPolicy, { readonly mode: 'none' }>;
+  conditions: Exclude<ConditionPolicy, { readonly mode: 'none' | 'ignore' }>;
   json: boolean;
   verbose: boolean;
   help: boolean;
@@ -290,7 +290,7 @@ export function parseRealizeArgs(argv: string[]): RealizeCliOptions {
 
   const conditions = finalizeConditionPolicy(conditionState, { allowNone: false }) as Exclude<
     ConditionPolicy,
-    { readonly mode: 'none' }
+    { readonly mode: 'none' | 'ignore' }
   >;
 
   if (output) {
@@ -378,7 +378,7 @@ export function printTransformHelp(): void {
     '      --recursive                    Transform each discovered file separately (file-only)',
     '      --work-dir <dir>               Treat --input as a filename inside this directory',
     '  -f, --if-branches <list>           Force comma-separated condition names true',
-    '      --condition-mode <mode>        source (default), manual, source-with-overrides, none',
+    '      --condition-mode <mode>        source (default), manual, source-with-overrides, none, ignore',
     '      --condition <name=true|false>  Repeat to force named booleans in manual/override mode',
     '      --initial <name=true|false>    Repeat to seed source-mode booleans',
     '      --traversal <project|file-only> Control \\input traversal scope',
@@ -420,7 +420,7 @@ export function printAstHelp(): void {
     'Options:',
     '  -i, --input <file>                 LaTeX file to parse',
     '      --work-dir <dir>               Resolve a filename relative to this directory',
-    '      --condition-mode <mode>        source (default), manual, source-with-overrides, none',
+    '      --condition-mode <mode>        source (default), manual, source-with-overrides, none, ignore',
     '      --condition <name=true|false>  Repeat to force named booleans in manual/override mode',
     '      --initial <name=true|false>    Repeat to seed source-mode booleans',
     '      --traversal <project|file-only> Control \\input traversal scope',

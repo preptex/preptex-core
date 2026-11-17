@@ -15,6 +15,7 @@ import {
   readBracedGroupTokens,
   readDefinitionTokens,
   readEnvironmentDefinitionTokens,
+  readInputArgumentTokens,
   readOptionalBracketTokens,
   skipTriviaTokens,
   spliceVerbatimMatch,
@@ -63,6 +64,38 @@ export function literalFromGroup(
     source: arg?.text ?? '',
     range: arg ? rangeAt(starts, arg.innerStart, arg.innerEnd) : null,
   };
+}
+
+export function unwrapQuotedInputLiteral(
+  arg: BracedGroupTokenMatch | null,
+  starts: readonly number[]
+): LiteralArgument {
+  if (!arg) return literalFromGroup(arg, starts);
+  const trimmed = arg.text.trim();
+  const leadingSpaces = arg.text.length - arg.text.trimStart().length;
+  const trailingSpaces = arg.text.length - arg.text.trimEnd().length;
+  if (
+    trimmed.length >= 2 &&
+    ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'")))
+  ) {
+    const inner = trimmed.slice(1, -1);
+    if (inner.length > 0 && !/[\\{}%#\r\n]/.test(inner)) {
+      const start = arg.innerStart + leadingSpaces + 1;
+      const end = arg.innerEnd - trailingSpaces - 1;
+      return {
+        kind: 'literal',
+        value: inner,
+        range: rangeAt(starts, start, end),
+      };
+    }
+    return {
+      kind: 'unresolved',
+      source: arg.text,
+      range: rangeAt(starts, arg.innerStart, arg.innerEnd),
+    };
+  }
+  return literalFromGroup(arg, starts);
 }
 
 export function splitLiteralKeys(
@@ -445,8 +478,14 @@ export function scanFile(
             argStartIdx = starPos + 1;
           }
         }
-        const arg = readBracedGroupTokens(scanTokens, argStartIdx, untilIndex);
-        const key = literalFromGroup(arg, starts);
+        const arg =
+          token.name === 'input'
+            ? readInputArgumentTokens(scanTokens, argStartIdx, untilIndex)
+            : readBracedGroupTokens(scanTokens, argStartIdx, untilIndex);
+        const key =
+          token.name === 'input'
+            ? unwrapQuotedInputLiteral(arg, starts)
+            : literalFromGroup(arg, starts);
         const keys = REFERENCE_COMMANDS.has(token.name) ? splitLiteralKeys(arg, starts) : [key];
         const base = makeBase(
           arg?.end ?? token.range.end + 1,

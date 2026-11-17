@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -167,4 +167,95 @@ test('realize realizes conditions independently of AST balance (Pipeline B)', as
     await readFile(path.join(workspace, 'out', 'realized.tex'), 'utf8'),
     String.raw`{unbalanced \begin{a}\end{b} sub-ok`
   );
+});
+
+test('CLI transform and ast support --condition-mode ignore and subfolder inputs', async (context) => {
+  const workspace = await mkdtemp(path.join(tmpdir(), 'preptex-cli-ignore-'));
+  context.after(async () => rm(workspace, { recursive: true, force: true }));
+
+  await mkdir(path.join(workspace, 'intro'), { recursive: true });
+  await writeFile(
+    path.join(workspace, 'main.tex'),
+    [
+      '\\ifunknown',
+      '\\begin{itemize}% then comment',
+      '\\else',
+      '\\begin{enumerate}% else comment',
+      '\\fi',
+      '\\item A\\end{itemize}',
+      '\\input{intro/part1}',
+    ].join('\n'),
+    'utf8'
+  );
+  await writeFile(
+    path.join(workspace, 'intro', 'part1.tex'),
+    '\\input("intro/history.tex")',
+    'utf8'
+  );
+  await writeFile(path.join(workspace, 'intro', 'history.tex'), 'HIST', 'utf8');
+
+  // 1. transform --condition-mode ignore succeeds even with cross-branch mismatched environments
+  const tr = spawnSync(
+    process.execPath,
+    [
+      cliPath,
+      'transform',
+      '--work-dir',
+      workspace,
+      '--input',
+      'main.tex',
+      '--condition-mode',
+      'ignore',
+      '--suppress-comments',
+      '--flatten',
+    ],
+    { encoding: 'utf8' }
+  );
+  assert.equal(tr.status, 0, tr.stderr);
+  const out = await readFile(path.join(workspace, 'transform', 'main.tex'), 'utf8');
+  assert.match(out, /\\ifunknown/);
+  assert.match(out, /\\else/);
+  assert.match(out, /HIST/);
+  assert.doesNotMatch(out, /then comment|else comment/);
+
+  // 2. ast --condition-mode ignore builds AST across balanced conditional branches
+  await writeFile(
+    path.join(workspace, 'balanced.tex'),
+    '\\ifunknown\\section{One}\\else\\section{Two}\\fi',
+    'utf8'
+  );
+  const astRes = spawnSync(
+    process.execPath,
+    [
+      cliPath,
+      'ast',
+      '--work-dir',
+      workspace,
+      '--input',
+      'balanced.tex',
+      '--condition-mode',
+      'ignore',
+    ],
+    { encoding: 'utf8' }
+  );
+  assert.equal(astRes.status, 0, astRes.stderr);
+  const parsedAst = JSON.parse(astRes.stdout);
+  assert.equal(parsedAst.status, 'ready');
+
+  // 3. realize rejects --condition-mode ignore
+  const badRealize = spawnSync(
+    process.execPath,
+    [
+      cliPath,
+      'realize',
+      '--work-dir',
+      workspace,
+      '--input',
+      'balanced.tex',
+      '--condition-mode',
+      'ignore',
+    ],
+    { encoding: 'utf8' }
+  );
+  assert.equal(badRealize.status, 1);
 });

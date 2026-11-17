@@ -79,13 +79,15 @@ if (result.editPlan) {
 
 ### Supported node & environment transformation targets
 
-| Request               | Model & Target               | Behavior                                                                                                                   |
-| :-------------------- | :--------------------------- | :------------------------------------------------------------------------------------------------------------------------- |
-| `edit-nodes`          | `view`, `target: 'selected'` | Checked physical source edits (`editPlan`) and preview `artifacts` for reached files                                       |
-| `edit-nodes`          | `view`, `target: 'artifact'` | Realized, inlined output (`artifacts`, `editPlan: null`) with independent per-inclusion edits                              |
-| `remove-environments` | `view`, `target: 'selected'` | Remove matching configured environment nodes through safe physical source edits (`editPlan` + preview `artifacts`)         |
-| `remove-environments` | `view`, `target: 'artifact'` | Remove matching environment occurrences in realized inline output (`artifacts`, `editPlan: null`)                          |
-| `suppress-comments`   | `view`, `target: 'selected'` | Remove reached `%` comments (and `comment` environments when `suppressCommentEnvironments: true`) with lexical join repair |
+| Request               | Model & Target                 | Behavior                                                                                                                      |
+| :-------------------- | :----------------------------- | :---------------------------------------------------------------------------------------------------------------------------- |
+| `edit-nodes`          | `view`, `target: 'selected'`   | Checked physical source edits (`editPlan`) and preview `artifacts` for reached files                                          |
+| `edit-nodes`          | `view`, `target: 'artifact'`   | Realized, inlined output (`artifacts`, `editPlan: null`) with independent per-inclusion edits                                 |
+| `remove-environments` | `view`, `target: 'selected'`   | Remove matching configured environment nodes through safe physical source edits (`editPlan` + preview `artifacts`)            |
+| `remove-environments` | `snapshot`, `target: 'source'` | Remove matching matched non-protected environments across all files and conditional branches (`editPlan` + `artifacts`)       |
+| `remove-environments` | `view`, `target: 'artifact'`   | Remove matching environment occurrences in realized inline output (`artifacts`, `editPlan: null`)                             |
+| `suppress-comments`   | `view`, `target: 'selected'`   | Remove reached `%` comments (and `comment` environments when `suppressCommentEnvironments: true`) with lexical join repair    |
+| `suppress-comments`   | `snapshot`, `target: 'source'` | Remove non-verbatim `%` comments (and `comment` environments) across all source files and branches (`editPlan` + `artifacts`) |
 
 - **Actions (`NodeEditAction`)**:
   - `{ kind: 'remove-node', selection }`: Removes the selected node (environment, command, group, math, section, or eligible leaf token) and its descendants.

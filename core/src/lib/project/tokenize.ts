@@ -200,6 +200,68 @@ export function readBracedGroupTokens(
   return null;
 }
 
+export interface InputArgumentTokenMatch extends BracedGroupTokenMatch {
+  /** Non-zero when the closing `)` sits inside `tokens[closeIndex]` followed by more text. */
+  readonly splitAtOffset?: number;
+}
+
+/**
+ * Read a braced `{path}` or same-line parenthesized `(path)` argument for `\input`.
+ */
+export function readInputArgumentTokens(
+  tokens: readonly SourceToken[],
+  fromIndex: number,
+  untilIndex = tokens.length
+): InputArgumentTokenMatch | null {
+  const braced = readBracedGroupTokens(tokens, fromIndex, untilIndex);
+  if (braced) return braced;
+
+  const openIndex = skipTriviaTokens(tokens, fromIndex, untilIndex);
+  if (openIndex >= untilIndex) return null;
+  const openToken = tokens[openIndex]!;
+  if (openToken.kind !== 'text' || !openToken.value.startsWith('(')) return null;
+
+  const parts: string[] = [];
+  for (let i = openIndex; i < untilIndex; i++) {
+    const tok = tokens[i]!;
+    if (
+      tok.kind === 'comment' ||
+      tok.kind === 'open' ||
+      tok.kind === 'close' ||
+      tok.kind === 'math'
+    ) {
+      return null;
+    }
+    if (tok.kind === 'space' && /[\r\n]/.test(tok.value)) {
+      return null;
+    }
+    const startChar = i === openIndex ? 1 : 0;
+    const closePos = tok.value.indexOf(')', startChar);
+    if (closePos >= 0) {
+      parts.push(tok.value.slice(startChar, closePos));
+      const endOffset = tok.range.start + closePos + 1;
+      const innerStart = openToken.range.start + 1;
+      const innerEnd = tok.range.start + closePos - 1;
+      const splitAtOffset = closePos + 1 < tok.value.length ? closePos + 1 : undefined;
+      return {
+        openIndex,
+        closeIndex: i,
+        nextIndex: splitAtOffset === undefined ? i + 1 : i,
+        innerStartIndex: openIndex,
+        innerEndIndex: i,
+        start: openToken.range.start,
+        end: endOffset,
+        innerStart,
+        innerEnd,
+        text: parts.join(''),
+        ...(splitAtOffset !== undefined ? { splitAtOffset } : {}),
+      };
+    }
+    parts.push(tok.value.slice(startChar));
+  }
+  return null;
+}
+
 /**
  * Read an optional `[...]` bracket argument over the token array, respecting nested `{...}`
  * groups and active `\verb`, closing on the first unbraced `]` per LaTeX rules, and supporting

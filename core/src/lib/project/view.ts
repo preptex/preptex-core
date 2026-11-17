@@ -89,7 +89,8 @@ export function resolveProjectView(
     id,
     config.limits.maxNesting,
     source,
-    commandSignatures
+    commandSignatures,
+    config.conditions.mode === 'ignore'
   );
   if (parsed.kind === 'error') {
     const inputChain: string[] = [];

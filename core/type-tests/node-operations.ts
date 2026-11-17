@@ -119,6 +119,27 @@ const refactorAction: SymbolRefactorAction = {
   oldKey: 'a',
   newKey: 'b',
 };
+const snapshotComments = planTransformation(snapshot, {
+  operation: 'suppress-comments',
+  options: { target: 'source', suppressCommentEnvironments: true },
+});
+const snapshotEnvRemoval = planTransformation(snapshot, {
+  operation: 'remove-environments',
+  options: { target: 'source', names: ['comment'] },
+});
+const snapshotExport = planTransformation(snapshot, {
+  operation: 'export-project',
+  options: { entryPath: 'main.tex', traversal: 'project', inputs: 'inline' },
+});
+void [
+  wrong,
+  missingName,
+  renameCmdAction,
+  refactorAction,
+  snapshotComments,
+  snapshotEnvRemoval,
+  snapshotExport,
+];
 void [renameCmdAction, refactorAction];
 // @ts-expect-error Artifact selections do not accept source mode.
 planTransformation(view, { operation: 'edit-nodes', options: { target: 'source', actions: [] } });

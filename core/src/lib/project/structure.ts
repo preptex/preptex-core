@@ -100,7 +100,8 @@ export function parseConfiguredStructure(
   viewId: ViewId,
   maxNesting: number,
   snapshot: ProjectSnapshot,
-  signatures?: ReadonlyMap<string, CommandSignature>
+  signatures?: ReadonlyMap<string, CommandSignature>,
+  ignoreConditions = false
 ):
   | { kind: 'success'; root: ConfiguredContainerNode & { kind: 'root' } }
   | { kind: 'error'; issue: ProjectIssue } {
@@ -676,11 +677,12 @@ export function parseConfiguredStructure(
           argCmd === 'begin' ||
           argCmd === 'end' ||
           sectionLevel(argCmd) !== undefined ||
-          argCmd === 'newif' ||
-          argCmd === 'else' ||
-          argCmd === 'fi' ||
-          testKind(argCmd) !== null ||
-          declaredSetters.has(argCmd)
+          (!ignoreConditions &&
+            (argCmd === 'newif' ||
+              argCmd === 'else' ||
+              argCmd === 'fi' ||
+              testKind(argCmd) !== null ||
+              declaredSetters.has(argCmd)))
         ) {
           fail(headerErrorMessage(frame), frame.start);
           return { nextIndex: tokens.length, nextCharOffset: 0 };
@@ -945,11 +947,12 @@ export function parseConfiguredStructure(
     }
 
     if (
-      command === 'newif' ||
-      command === 'else' ||
-      command === 'fi' ||
-      testKind(command) !== null ||
-      declaredSetters.has(command)
+      !ignoreConditions &&
+      (command === 'newif' ||
+        command === 'else' ||
+        command === 'fi' ||
+        testKind(command) !== null ||
+        declaredSetters.has(command))
     ) {
       fail(
         `Unrealized conditional command \\${command} encountered in structural parser. Realize conditions before building the AST.`,

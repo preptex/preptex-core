@@ -1,6 +1,6 @@
 # PrepTeX Core architecture
 
-PrepTeX Core (`@preptex/core@0.5.0`) processes virtual LaTeX projects using **two separate, composable pipelines** built on top of **one stateless whole-file tokenizer**:
+PrepTeX Core (`@preptex/core@0.6.1`) processes virtual LaTeX projects using **two separate, composable pipelines** built on top of **one stateless whole-file tokenizer**:
 
 1. **Stage 0 — Whole-File Stateless Tokenizer (`tokenizeFile` in `core/src/lib/project/tokenize.ts`)**:
    - Scans each `.tex` file once from offset `0` to `source.length` and emits a flat, lossless array of primitive tokens (`SourceToken[]`).
@@ -10,9 +10,9 @@ PrepTeX Core (`@preptex/core@0.5.0`) processes virtual LaTeX projects using **tw
    - **Ignores all other LaTeX constructs** (brace groups `{}`, `\begin`/`\end` environments, math `$`, sections, and ordinary user macros).
    - Outputs both a checked in-place `ProjectEditPlan` (removing condition commands and inactive branches) and realized condition-free `GeneratedArtifact[]` files.
 3. **Pipeline A — Structural View, Analytics, and Transformations (`resolveProjectView` $\rightarrow$ `parseConfiguredStructure` $\rightarrow$ `runAnalysis` / `planTransformation`)**:
-   - **Step 1 (View Preprocessor)**: Uses the shared condition realization engine (`evaluateConditionStream`) when `conditions.mode !== 'none'`, or passes tokens directly when `conditions.mode === 'none'`, producing a condition-free `SelectedToken[]` stream with `SourceOrigin` provenance back to the original source files.
-   - **Step 2 (Condition-Free AST Parser)**: Builds the structural AST (`ConfiguredNode`: `root | section | command | environment | argument | group | math | token`) from `SelectedToken[]` using built-in, auto-inferred (`\newcommand`/`\def`), and caller-supplied `customCommands` signatures. **Blocks with `reason.code === 'unrealized-condition'` if any unrealized condition token is encountered.**
-   - **Step 3 (Views, Catalogs, Metadata & Transforms)**: Exposes `buildCoarseViewTree`, `inspectProjectCatalog`, `extractProjectMetadata`, analyses (`references`, `unused-commands`), single-operation transforms (`suppress-comments`, `remove-environments`, `edit-nodes`, `refactor-symbols`, `export-project`), and composable multi-step pipelines (`planCompositeTransformation` / `compose-transformations`).
+   - **Step 1 (View Preprocessor)**: Uses the shared condition realization engine (`evaluateConditionStream`) when `conditions.mode` evaluates branches, passes tokens directly with strict **INV-4** enforcement when `conditions.mode === 'none'`, or visits all branches and treats conditional directives as ordinary commands when `conditions.mode === 'ignore'`.
+   - **Step 2 (Condition-Free AST Parser)**: Builds the structural AST (`ConfiguredNode`: `root | section | command | environment | argument | group | math | token`) from `SelectedToken[]` using built-in, auto-inferred (`\newcommand`/`\def`), and caller-supplied `customCommands` signatures. **Blocks with `reason.code === 'unrealized-condition'` if any unrealized condition token is encountered when `conditions.mode !== 'ignore'`.**
+   - **Step 3 (Views, Catalogs, Metadata & Transforms)**: Exposes `buildCoarseViewTree`, `inspectProjectCatalog`, `extractProjectMetadata`, analyses (`references`, `unused-commands`), single-operation transforms (`suppress-comments`, `remove-environments`, `edit-nodes`, `refactor-symbols`, `export-project`), and composable multi-step pipelines (`planCompositeTransformation` / `compose-transformations`). Snapshot-wide `target: 'source'` operations (`refactor-symbols`, `suppress-comments`, `remove-environments`) and snapshot-level `export-project` operate across all branches without requiring a branch-realized view.
 
 ---
 

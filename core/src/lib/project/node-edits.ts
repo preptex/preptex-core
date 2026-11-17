@@ -1,7 +1,13 @@
-import type { ConfiguredNode, ProjectEdit, ProjectView } from '../../project-types.js';
+import type {
+  ConfiguredNode,
+  ProjectEdit,
+  ProjectSnapshot,
+  ProjectView,
+} from '../../project-types.js';
 import type { NodeEditAction } from '../../node-types.js';
 import { getSelectedNode, nodeMap, selectProjectNode } from './selection.js';
 import { sectionLevel } from './commands.js';
+import { inspectProjectEnvironments } from './environments.js';
 import { reject } from './fail.js';
 import { testKind } from './shared.js';
 import { normalizeChanges, sourceChanges, type TextChange } from './text-edits.js';
@@ -642,4 +648,42 @@ export function environmentActions(view: ProjectView, names: readonly string[]):
       kind: 'remove-node',
       selection: selectProjectNode(view, node.occurrenceKey),
     }));
+}
+
+export function snapshotEnvironmentRemovalEdits(
+  snapshot: ProjectSnapshot,
+  names: readonly string[]
+): ProjectEdit[] {
+  const inventory = inspectProjectEnvironments(snapshot, { kind: 'all-files' });
+  const matches = inventory.environments.filter(
+    (env) =>
+      env.name !== null &&
+      names.includes(env.name) &&
+      env.context.definitionBodies.length === 0 &&
+      env.context.opaqueArguments.length === 0
+  );
+  for (const env of matches) {
+    if (env.status !== 'matched' || (env.protected && env.name !== 'comment')) {
+      reject(
+        'unavailable',
+        `Environment ${env.name ?? ''} is unmatched or inside a protected region.`,
+        [{ snapshotId: snapshot.id, occurrenceId: null, path: env.path, range: env.range }]
+      );
+    }
+  }
+  const byPath = new Map<string, TextChange[]>();
+  const sorted = [...matches].sort(
+    (a, b) => a.range.start - b.range.start || b.range.end - a.range.end
+  );
+  for (const env of sorted) {
+    const bucket = byPath.get(env.path) ?? [];
+    const start = env.range.start;
+    const end = env.range.end + 1;
+    if (bucket.some((existing) => existing.start <= start && existing.end >= end)) {
+      continue;
+    }
+    bucket.push({ start, end, text: '' });
+    byPath.set(env.path, bucket);
+  }
+  return sourceChanges(snapshot, byPath);
 }
