@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented here.
 
+## [0.6.1] - 2026-11-17
+
+### Added
+
+- **`ignore` Condition Policy Mode (`ConditionPolicy` `'ignore'`)**: Allows structural view construction, AST traversal, symbol refactoring, and transformations across all conditional branches without locking to a single branch.
+- **Relative Subfolder `\input` Resolution & Delimiters**: Resolves nested `\input` paths relative to both the referencing directory and project entry root, and supports braced (`\input{...}`), quoted (`\input"..."`), and parenthesized arguments.
+- **Snapshot-Wide `target: 'source'` Transformations & Exports**: Supports snapshot-level `suppress-comments`, `remove-environments`, `refactor-symbols`, `export-project`, and `planCompositeTransformation` without requiring a branch-realized view.
+- **CLI Support**: Added `--condition-mode ignore` support across `analyze`, `transform`, `ast`, and `realize` commands.
+
 ## [0.5.0] - 2026-11-16
 
 ### Added

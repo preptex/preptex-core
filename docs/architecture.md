@@ -1,6 +1,6 @@
 # PrepTeX Core architecture
 
-PrepTeX Core (`@preptex/core@0.5.0`) processes virtual LaTeX projects using **two separate, composable pipelines** built on top of **one stateless whole-file tokenizer**:
+PrepTeX Core (`@preptex/core@0.6.1`) processes virtual LaTeX projects using **two separate, composable pipelines** built on top of **one stateless whole-file tokenizer**:
 
 1. **Stage 0 — Whole-File Stateless Tokenizer (`tokenizeFile` in `core/src/lib/project/tokenize.ts`)**:
    - Scans each `.tex` file once from offset `0` to `source.length` and emits a flat, lossless array of primitive tokens (`SourceToken[]`).
