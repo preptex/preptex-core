@@ -281,6 +281,7 @@ export function normalizeCompositeOptions(
       req.operation !== 'edit-nodes' &&
       req.operation !== 'remove-environments' &&
       req.operation !== 'refactor-symbols' &&
+      req.operation !== 'expand-inputs' &&
       req.operation !== 'suppress-comments' &&
       req.operation !== 'export-project'
     ) {
@@ -337,6 +338,22 @@ export function runCompositeTransformation(
   let currentView: ProjectView | null = initialView;
   let lastResult: TransformationResult | null = null;
   let artifactOnlyReached = false;
+  const stepIssues: (typeof initialSnapshot.files)[number]['coverage']['issues'][number][] = [];
+  const seenIssues = new Set<string>();
+  const recordIssues = (
+    issues: readonly (typeof initialSnapshot.files)[number]['coverage']['issues'][number][]
+  ) => {
+    for (const iss of issues) {
+      const key = `${iss.code}|${iss.location?.path ?? ''}|${iss.location?.range.start ?? -1}|${iss.message}`;
+      if (!seenIssues.has(key)) {
+        seenIssues.add(key);
+        stepIssues.push(iss);
+      }
+    }
+  };
+  if (initialView) {
+    recordIssues(initialView.coverage.issues);
+  }
 
   for (let idx = 0; idx < normalizedOptions.steps.length; idx++) {
     if (artifactOnlyReached) {
@@ -348,6 +365,12 @@ export function runCompositeTransformation(
     const step = normalizedOptions.steps[idx]!;
     const isSnapshotStep =
       step.operation === 'realize-conditions' ||
+      (step.operation === 'expand-inputs' &&
+        (step.options.target === 'source' ||
+          (!currentView &&
+            !baseConfiguration &&
+            step.options.target !== 'selected' &&
+            step.options.target !== 'artifact'))) ||
       (step.operation === 'refactor-symbols' &&
         (step.options.target === 'source' ||
           (!currentView &&
@@ -363,6 +386,7 @@ export function runCompositeTransformation(
     if (isSnapshotStep) {
       const stepRes = planTransformation(currentSnapshot, step);
       lastResult = stepRes;
+      recordIssues(stepRes.coverage.issues);
       if (stepRes.editPlan) {
         for (const file of currentSnapshot.files) {
           const fileEdits = stepRes.editPlan.edits.filter((e) => e.path === file.path);
@@ -396,6 +420,7 @@ export function runCompositeTransformation(
           ? { ...baseConfiguration, conditions: { mode: 'none' } }
           : baseConfiguration;
       currentView = resolveProjectView(currentSnapshot, stepConfig);
+      recordIssues(currentView.coverage.issues);
     }
 
     if (currentView.status !== 'ready') {
@@ -407,6 +432,7 @@ export function runCompositeTransformation(
 
     const stepRes = planTransformation(currentView, step);
     lastResult = stepRes;
+    recordIssues(stepRes.coverage.issues);
     if (stepRes.editPlan) {
       for (const file of currentSnapshot.files) {
         const fileEdits = stepRes.editPlan.edits.filter((e) => e.path === file.path);
@@ -430,7 +456,7 @@ export function runCompositeTransformation(
       artifacts: lastResult.artifacts,
       entryPath: lastResult.entryPath,
       dependencies: lastResult.dependencies,
-      coverage: lastResult.coverage,
+      coverage: coverage(stepIssues),
     });
   }
 
@@ -475,7 +501,7 @@ export function runCompositeTransformation(
     artifacts,
     entryPath: null,
     dependencies: dependencies(artifacts, initialSnapshot.scanOptions),
-    coverage: lastResult?.coverage ?? coverage([]),
+    coverage: coverage(stepIssues),
   });
 }
 

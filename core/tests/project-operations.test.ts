@@ -867,4 +867,127 @@ describe('C8 source reuse, invalidation and independent result identities', () =
       '\\ifunknown\\begin{itemize}\\else\\begin{enumerate}\\fi\\item A\\end{itemize}\nB'
     );
   });
+
+  it('continues with warnings on missing inputs across realize-conditions, export-project, and scoped source ops', () => {
+    const snap = createProjectSnapshot([
+      file(
+        '\\newif\\ifdraft\\drafttrue\n\\ifdraft A\\else B\\fi\n\\input{missing}\n\\input{sub/part}\n% main comment\n'
+      ),
+      file('% part comment\nPartBody', 'sub/part.tex'),
+      file('% orphan comment\nOrphan', 'orphan.tex'),
+    ]);
+
+    // 1. realize-conditions emits missing-input warning and continues
+    const realized = planTransformation(snap, {
+      operation: 'realize-conditions',
+      options: {
+        entryPath: 'main.tex',
+        traversal: 'project',
+        conditions: { mode: 'source' },
+        inputs: 'inline',
+      },
+    });
+    expect(realized.coverage.issues.map((i) => i.code)).toEqual(['missing-input']);
+    expect(realized.coverage.issues[0]?.severity).toBe('warning');
+    expect(realized.artifacts[0]!.source).toContain('\\input{missing}');
+    expect(realized.artifacts[0]!.source).toContain('PartBody');
+
+    // 2. export-project on snapshot emits missing-input warning and continues
+    const exported = planTransformation(snap, {
+      operation: 'export-project',
+      options: { entryPath: 'main.tex', inputs: 'inline', suppressComments: true },
+    });
+    expect(exported.coverage.issues.map((i) => i.code)).toEqual(['missing-input']);
+    expect(exported.artifacts[0]!.source).toContain('\\input{missing}');
+    expect(exported.artifacts[0]!.source).toContain('PartBody');
+    expect(exported.artifacts[0]!.source).not.toContain('main comment');
+
+    // 3. scoped suppress-comments (file-only vs recursive project)
+    const entryOnly = applyProjectEdits(
+      snap,
+      planTransformation(snap, {
+        operation: 'suppress-comments',
+        options: { target: 'source', entryPath: 'main.tex', traversal: 'file-only' },
+      }).editPlan!
+    );
+    expect(entryOnly.files.find((f) => f.path === 'main.tex')!.source).not.toContain(
+      'main comment'
+    );
+    expect(entryOnly.files.find((f) => f.path === 'sub/part.tex')!.source).toContain(
+      'part comment'
+    );
+    expect(entryOnly.files.find((f) => f.path === 'orphan.tex')!.source).toContain(
+      'orphan comment'
+    );
+
+    const recursiveScoped = applyProjectEdits(
+      snap,
+      planTransformation(snap, {
+        operation: 'suppress-comments',
+        options: { target: 'source', entryPath: 'main.tex', traversal: 'project' },
+      }).editPlan!
+    );
+    expect(recursiveScoped.files.find((f) => f.path === 'main.tex')!.source).not.toContain(
+      'main comment'
+    );
+    expect(recursiveScoped.files.find((f) => f.path === 'sub/part.tex')!.source).not.toContain(
+      'part comment'
+    );
+    expect(recursiveScoped.files.find((f) => f.path === 'orphan.tex')!.source).toContain(
+      'orphan comment'
+    );
+  });
+
+  it('supports expand-inputs in single and recursive modes with missing-input warnings and subdirectory relocation', () => {
+    const snap = createProjectSnapshot([
+      file('Top\n\\input{sub/a}\n\\input{missing}\nEnd'),
+      file('A\n\\input{b}', 'sub/a.tex'),
+      file('B\\relax', 'sub/b.tex'),
+    ]);
+
+    // 1. Single-level expand: replaces direct \input{sub/a}, relocates \input{b} -> \input{sub/b}, warns on missing
+    const view = resolveProjectView(snap, {
+      entryPath: 'main.tex',
+      inputs: 'command',
+      conditions: { mode: 'ignore' },
+    });
+    const single = planTransformation(view, {
+      operation: 'expand-inputs',
+      options: { mode: 'single', target: 'selected' },
+    });
+    expect(single.coverage.issues.map((i) => i.code)).toEqual(['missing-input']);
+    expect(single.editPlan).not.toBeNull();
+    const afterSingle = applyProjectEdits(snap, single.editPlan!, view);
+    expect(afterSingle.files.find((f) => f.path === 'main.tex')!.source).toBe(
+      'Top\nA\n\\input{sub/b}\n\\input{missing}\nEnd'
+    );
+
+    // 2. Recursive flatten: transitively expands sub/a and sub/b, preserves \input{missing} with warning
+    const recursive = planTransformation(snap, {
+      operation: 'expand-inputs',
+      options: { mode: 'recursive', target: 'source', entryPath: 'main.tex' },
+    });
+    expect(recursive.coverage.issues.map((i) => i.code)).toEqual(['missing-input']);
+    const afterRec = applyProjectEdits(snap, recursive.editPlan!);
+    expect(afterRec.files.find((f) => f.path === 'main.tex')!.source).toBe(
+      'Top\nA\nB\\relax\n\\input{missing}\nEnd'
+    );
+
+    // 3. Artifact mode returns self-contained/expanded artifact with editPlan: null
+    const artifactRes = planTransformation(view, {
+      operation: 'expand-inputs',
+      options: { mode: 'recursive', target: 'artifact' },
+    });
+    expect(artifactRes.editPlan).toBeNull();
+    expect(artifactRes.artifacts[0]!.source).toBe('Top\nA\nB\\relax\n\\input{missing}\nEnd');
+
+    // 4. Rejects input cycles
+    const cycleSnap = createProjectSnapshot([file('\\input{b}'), file('\\input{main}', 'b.tex')]);
+    expect(() =>
+      planTransformation(cycleSnap, {
+        operation: 'expand-inputs',
+        options: { mode: 'recursive', target: 'source', entryPath: 'main.tex' },
+      })
+    ).toThrow(ProjectOperationError);
+  });
 });

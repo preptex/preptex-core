@@ -50,11 +50,12 @@ export function resolveProjectView(
     );
   }
 
+  const evalTraversal = config.inputs === 'command' ? 'file-only' : config.traversal;
   const evaluation = evaluateConditionStream(source, {
     entryFiles: [entry],
-    traversal: config.traversal,
-    stopOnFileOnlyInput: true,
-    inlineInputs: config.traversal === 'project',
+    traversal: evalTraversal,
+    stopOnFileOnlyInput: config.inputs === undefined && config.traversal === 'file-only',
+    inlineInputs: evalTraversal === 'project',
     stripDeclarationsAndSetters: true,
     conditions: config.conditions,
     limits: config.limits,
@@ -78,7 +79,7 @@ export function resolveProjectView(
         ...base,
         ...evaluation.failure,
         root: null,
-        coverage: coverage([evaluation.failure.reason]),
+        coverage: coverage([...evaluation.warnings, evaluation.failure.reason]),
       })
     );
   }
@@ -108,13 +109,18 @@ export function resolveProjectView(
         status: 'blocked',
         root: null,
         reason,
-        coverage: coverage([reason]),
+        coverage: coverage([...evaluation.warnings, reason]),
       })
     );
   }
 
   return rememberView(
-    freeze({ ...base, status: 'ready', root: parsed.root, coverage: coverage([]) })
+    freeze({
+      ...base,
+      status: 'ready',
+      root: parsed.root,
+      coverage: coverage(evaluation.warnings),
+    })
   );
 }
 

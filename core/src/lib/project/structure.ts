@@ -939,7 +939,10 @@ export function parseConfiguredStructure(
         ? (signatures?.get(command) ?? getCommandSignature(command))
         : undefined;
 
-    if (selected.interpretation === 'opaque' && (!sig || sig.role !== 'command')) {
+    if (
+      selected.interpretation === 'opaque' &&
+      (!sig || (sig.role !== 'command' && sig.role !== 'input'))
+    ) {
       leaf(i, charOffset);
       i++;
       charOffset = 0;

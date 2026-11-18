@@ -1,9 +1,9 @@
 # PrepTeX integration guide
 
-This guide describes how to consume `@preptex/core@0.4.0` in frontend applications, Web Workers, Node.js services, and CLI tools. Treat the published package and its generated TypeScript declarations (`dist/index.d.ts`) as the authoritative integration boundary:
+This guide describes how to consume `@preptex/core@0.6.2` in frontend applications, Web Workers, Node.js services, and CLI tools. Treat the published package and its generated TypeScript declarations (`dist/index.d.ts`) as the authoritative integration boundary:
 
 ```sh
-npm install --save-exact @preptex/core@0.4.0
+npm install --save-exact @preptex/core@0.6.2
 ```
 
 See also:

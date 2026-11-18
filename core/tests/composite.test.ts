@@ -231,4 +231,27 @@ describe('Phase C6: Composable Multi-Step Transformation Pipeline (planComposite
       ].join('\n')
     );
   });
+
+  it('composes realize-conditions -> expand-inputs -> suppress-comments into one ProjectEditPlan with warnings', () => {
+    const snap = createProjectSnapshot([
+      file('\\newif\\ifdraft\\drafttrue\n\\ifdraft\\input{part}\\fi\n\\input{missing}\n% top'),
+      file('% part\nHello', 'part.tex'),
+    ]);
+
+    const res = planCompositeTransformation(snap, {
+      configuration: { entryPath: 'main.tex', inputs: 'command', conditions: { mode: 'source' } },
+      steps: [
+        { operation: 'realize-conditions', options: { conditions: { mode: 'source' } } },
+        { operation: 'expand-inputs', options: { mode: 'recursive', target: 'selected' } },
+        { operation: 'suppress-comments', options: { target: 'selected' } },
+      ],
+    });
+
+    expect(res.editPlan).not.toBeNull();
+    expect(res.coverage.issues.some((i) => i.code === 'missing-input')).toBe(true);
+    const applied = applyProjectEdits(snap, res.editPlan!);
+    expect(applied.files.find((f) => f.path === 'main.tex')!.source).toBe(
+      'Hello\n\\input{missing}\n'
+    );
+  });
 });

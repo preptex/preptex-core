@@ -32,6 +32,7 @@ function normalizeCoarseOptions(options?: CoarseTreeOptions): NormalizedCoarseTr
       'includeEnvironments',
       'environmentFilter',
       'includeCustomAndUndefinedCommands',
+      'includeInputs',
       'includeBuiltinCommands',
       'commandFilter',
       'includeArguments',
@@ -61,6 +62,7 @@ function normalizeCoarseOptions(options?: CoarseTreeOptions): NormalizedCoarseTr
     includeEnvironments: bool('includeEnvironments', true),
     environmentFilter: filterList('environmentFilter'),
     includeCustomAndUndefinedCommands: bool('includeCustomAndUndefinedCommands', true),
+    includeInputs: bool('includeInputs', true),
     includeBuiltinCommands: bool('includeBuiltinCommands', false),
     commandFilter: filterList('commandFilter'),
     includeArguments: bool('includeArguments', true),
@@ -182,6 +184,7 @@ export function buildCoarseViewTree(view: ProjectView, options?: CoarseTreeOptio
   const shouldIncludeCommand = (name: string, isControlWord: boolean): boolean => {
     if (normalized.commandFilter && normalized.commandFilter.includes(name)) return true;
     if (!isControlWord && !normalized.includeBuiltinCommands) return false;
+    if (name === 'input') return normalized.includeInputs;
     if (isConditionScaffolding(name)) {
       return normalized.includeBuiltinCommands;
     }
@@ -194,7 +197,86 @@ export function buildCoarseViewTree(view: ProjectView, options?: CoarseTreeOptio
     return normalized.includeCustomAndUndefinedCommands;
   };
 
-  const convertChildren = (nodes: readonly ConfiguredNode[]): CoarseNode[] => {
+  const occurrenceById = new Map(current.occurrences.map((occ) => [occ.id, occ]));
+  const groupRecursiveInputs =
+    current.configuration.inputs === 'recursive' && normalized.includeInputs;
+  let recursiveInputCounter = 0;
+
+  const directChildOccurrence = (occId: string | undefined, parentOccurrenceId: string | null) => {
+    if (!occId || !parentOccurrenceId || occId === parentOccurrenceId) return null;
+    let cursor = occurrenceById.get(occId);
+    while (cursor && cursor.parentId !== null) {
+      if (cursor.parentId === parentOccurrenceId) return cursor;
+      cursor = occurrenceById.get(cursor.parentId);
+    }
+    return null;
+  };
+
+  const wrapOccurrenceRuns = (
+    items: CoarseNode[],
+    parentOccurrenceId: string | null
+  ): CoarseNode[] => {
+    if (!groupRecursiveInputs || !parentOccurrenceId || items.length === 0) return items;
+    const grouped: CoarseNode[] = [];
+    let activeChild: NonNullable<ReturnType<typeof directChildOccurrence>> | null = null;
+    let activeNodes: CoarseNode[] = [];
+
+    const flushChild = () => {
+      if (!activeChild) return;
+      const ref = activeChild.reference;
+      const version = ref ? (versionByPath.get(ref.path) ?? 1) : 1;
+      const location: NodeLocation = ref
+        ? {
+            kind: 'single',
+            primary: { ...ref, version },
+            spans: [{ ...ref, version }],
+          }
+        : { kind: 'none', primary: null, spans: [] };
+      grouped.push({
+        id: `in${recursiveInputCounter++}:${activeChild.id}`,
+        occurrenceKey: null,
+        selection: null,
+        kind: 'command',
+        name: 'input',
+        previewText: activeChild.path,
+        starred: false,
+        editableName: false,
+        location,
+        projectedRange: {
+          start: activeNodes[0]!.projectedRange.start,
+          end: activeNodes[activeNodes.length - 1]!.projectedRange.end,
+          line: activeNodes[0]!.projectedRange.line,
+        },
+        children: wrapOccurrenceRuns(activeNodes, activeChild.id),
+      });
+      activeChild = null;
+      activeNodes = [];
+    };
+
+    for (const item of items) {
+      const childOcc = directChildOccurrence(
+        item.location.primary?.occurrenceId,
+        parentOccurrenceId
+      );
+      if (childOcc) {
+        if (activeChild && activeChild.id !== childOcc.id) {
+          flushChild();
+        }
+        activeChild = childOcc;
+        activeNodes.push(item);
+      } else {
+        flushChild();
+        grouped.push(item);
+      }
+    }
+    flushChild();
+    return grouped;
+  };
+
+  const convertChildren = (
+    nodes: readonly ConfiguredNode[],
+    parentOccurrenceId: string | null
+  ): CoarseNode[] => {
     const out: CoarseNode[] = [];
     let pendingTextNodes: ConfiguredNode[] = [];
 
@@ -229,7 +311,7 @@ export function buildCoarseViewTree(view: ProjectView, options?: CoarseTreeOptio
     };
 
     for (const child of nodes) {
-      const converted = convertNode(child);
+      const converted = convertNode(child, parentOccurrenceId);
       if (converted.length === 0) {
         if (
           normalized.includeTextBlocks &&
@@ -244,10 +326,14 @@ export function buildCoarseViewTree(view: ProjectView, options?: CoarseTreeOptio
       }
     }
     flushTextBlock();
-    return out;
+    return wrapOccurrenceRuns(out, parentOccurrenceId);
   };
 
-  const convertNode = (node: ConfiguredNode): CoarseNode[] => {
+  const convertNode = (
+    node: ConfiguredNode,
+    parentOccurrenceId: string | null = current.occurrences[0]?.id ?? null
+  ): CoarseNode[] => {
+    const nodeOccId = node.location.primary?.occurrenceId ?? parentOccurrenceId;
     switch (node.kind) {
       case 'root':
         return [
@@ -261,7 +347,7 @@ export function buildCoarseViewTree(view: ProjectView, options?: CoarseTreeOptio
             editableName: false,
             location: node.location,
             projectedRange: node.projectedRange,
-            children: convertChildren(node.children),
+            children: convertChildren(node.children, current.occurrences[0]?.id ?? null),
           },
         ];
 
@@ -297,7 +383,7 @@ export function buildCoarseViewTree(view: ProjectView, options?: CoarseTreeOptio
             editableName: true,
             location: node.location,
             projectedRange: node.projectedRange,
-            children: convertChildren(bodyNodes),
+            children: convertChildren(bodyNodes, nodeOccId),
           },
         ];
       }
@@ -318,7 +404,7 @@ export function buildCoarseViewTree(view: ProjectView, options?: CoarseTreeOptio
             editableName: Boolean(node.syntax.opening && node.syntax.closing),
             location: node.location,
             projectedRange: node.projectedRange,
-            children: convertChildren(node.children),
+            children: convertChildren(node.children, nodeOccId),
           },
         ];
       }
@@ -343,7 +429,7 @@ export function buildCoarseViewTree(view: ProjectView, options?: CoarseTreeOptio
             editableName: true,
             location: node.location,
             projectedRange: node.projectedRange,
-            children: convertChildren(argNodes),
+            children: convertChildren(argNodes, nodeOccId),
           },
         ];
       }
@@ -370,7 +456,7 @@ export function buildCoarseViewTree(view: ProjectView, options?: CoarseTreeOptio
             editableName: false,
             location: node.location,
             projectedRange: node.projectedRange,
-            children: convertChildren(innerNodes),
+            children: convertChildren(innerNodes, nodeOccId),
           },
         ];
       }
@@ -398,7 +484,7 @@ export function buildCoarseViewTree(view: ProjectView, options?: CoarseTreeOptio
       }
 
       case 'group': {
-        const children = convertChildren(node.children);
+        const children = convertChildren(node.children, nodeOccId);
         if (!normalized.includeGroups) return children;
         return [
           {

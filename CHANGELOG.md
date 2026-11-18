@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented here.
 
+## [0.6.2] - 2026-11-17
+
+### Added
+
+- **View Input Modes (`ViewInputMode`: `'command' | 'recursive' | 'inline'`)**: Added `ViewConfiguration.inputs` so callers can treat `\input{...}` as an ordinary command node (`'command'`), follow `\input` recursively while preserving `\input` grouping in `CoarseTree` (`'recursive'`), or splice tokens directly (`'inline'`). Added `CoarseTreeOptions.includeInputs` (default `true`).
+- **`expand-inputs` Transformation (`ExpandInputsRequest`)**: Added single-level (`mode: 'single'`) and transitive recursive (`mode: 'recursive'`) `\input{...}` expansion producing checked `ProjectEditPlan` edits (with subdirectory path relocation and lexical boundary delimiters) or exported `GeneratedArtifact`s, plus support inside `planCompositeTransformation`.
+- **Scoped Snapshot Transformations**: Added optional `entryPath` and `traversal` (`'project' | 'file-only'`) scoping to `target: 'source'` `suppress-comments`, `remove-environments`, and `refactor-symbols` operations.
+
+### Changed
+
+- **Non-Halting Missing `\input` Warnings**: Missing `\input{...}` targets no longer halt `resolveProjectView`, `realizeProjectConditions`, `export-project`, or `expand-inputs`; instead they record a `missing-input` `ProjectIssue` with `severity: 'warning'`, preserve the `\input` command intact, and continue processing.
+
 ## [0.6.1] - 2026-11-17
 
 ### Added

@@ -201,6 +201,10 @@ export interface SymbolRefactorRequest {
     readonly target?: 'selected' | 'source' | 'artifact';
     /** Ordered refactoring actions to apply atomically. */
     readonly actions: readonly SymbolRefactorAction[];
+    /** Optional entry file when scoping `'source'` edits. */
+    readonly entryPath?: string;
+    /** Optional input traversal scope (`'project'` or `'file-only'`) when scoping `'source'` edits with `entryPath`. */
+    readonly traversal?: 'project' | 'file-only';
     /** Total UTF-16 output limit, default 10000000; maximum 100000000. */
     readonly maxOutputCodeUnits?: number;
   };
@@ -217,11 +221,14 @@ export type NodeTransformationRequest =
       };
     }
   | {
-      /** Remove matching literal environments from the realized view or across all source files. */ readonly operation: 'remove-environments';
+      /** Remove matching literal environments from the realized view or across source files. */ readonly operation: 'remove-environments';
       /** Explicit selected, source-wide, or artifact scope. */ readonly options: {
-        /** Configured selected occurrences, all source files (`'source'`), or artifact export. */ readonly target:
+        /** Configured selected occurrences, source files (`'source'`), or artifact export. */ readonly target:
           'selected' | 'source' | 'artifact';
         /** Case-sensitive literal names; nonempty, sorted during normalization. */ readonly names: readonly string[];
+        /** Optional entry file when scoping `'source'` edits. */ readonly entryPath?: string;
+        /** Optional input traversal scope (`'project'` or `'file-only'`) when scoping `'source'` edits with `entryPath`. */ readonly traversal?:
+          'project' | 'file-only';
         /** Total output UTF-16 bound, default 10000000. */ readonly maxOutputCodeUnits?: number;
       };
     };
