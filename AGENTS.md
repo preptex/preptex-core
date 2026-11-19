@@ -50,9 +50,11 @@ npm run typecheck      type-check every workspace
 npm run type-test      validate the published TypeScript contract
 npm run docs           regenerate TypeDoc Markdown
 npm run docs:check     validate public TSDoc without writing generated files
+npm run format         format repository files with Prettier
 npm run format:check   check repository formatting
 npm run pack:check     inspect the package that would be published
-npm run check          run the complete local verification pipeline
+npm run consumer:check verify packed packages with TypeScript 4.9 and consumer tests
+npm run check          run typecheck, test, type-test, docs:check, and format:check
 ```
 
 Use workspace commands for a narrow iteration, for example:
@@ -244,6 +246,40 @@ Match verification to the changed layer:
 Do not use a successful TypeScript build as a substitute for runtime tests, and
 do not use snapshot output as a substitute for checking type precision.
 
+## Lockfile hygiene, local CI, and committing
+
+- **Reinstall the lockfile on manifest changes**: CI runs `npm ci` (Node 20), which
+  fails if `package-lock.json` is out of sync. Whenever you add, remove, or update
+  any dependency or version in root `package.json`, `core/package.json`, or
+  `cli/package.json`, run `npm install` at the repository root, verify `npm ci`
+  succeeds if needed, and commit `package-lock.json` together with `package.json`.
+- **Run full local CI before committing or pushing**: After your final edit, run
+  the exact sequence from `.github/workflows/deploy.yml` and confirm every step
+  passes:
+
+  ```sh
+  npm run build --workspace=@preptex/core
+  npm run check
+  npm run build
+  npm run docs
+  git diff --exit-code -- docs/api
+  npm run pack:check
+  npm run consumer:check
+  ```
+
+  If `format:check` inside `npm run check` fails, run `npm run format` and re-run
+  the full sequence. If `git diff --exit-code -- docs/api` fails because TypeDoc
+  updated `docs/api`, inspect and stage the regenerated `docs/api` files before
+  committing.
+
+- **Committing and pushing**:
+  - Check `git status` and `git diff` before staging so unrelated changes or
+    scratch files are never committed.
+  - Never pass `--no-verify` to `git commit` or `git push`.
+  - Only `git commit` or `git push` when explicitly requested by the user. Never
+    publish, deploy, push merely to verify a change, or modify a downstream
+    repository unless explicitly requested.
+
 ## Change and release workflow
 
 1. Inspect the existing public contracts, tests, documentation, and current git
@@ -251,16 +287,14 @@ do not use snapshot output as a substitute for checking type precision.
 2. Add or update failing tests before changing behavior where practical.
 3. Keep implementation changes inside the lowest applicable layer.
 4. Update TSDoc and the compact integration guide with the code change.
-5. Run the narrow tests while iterating, then `npm run check`.
+5. Run the narrow tests while iterating, then the full local CI sequence above.
 6. Inspect `dist/index.d.ts` for accidental exports, `any`, vague fields, and
    implementation classes.
-7. Regenerate TypeDoc; never patch generated Markdown by hand.
+7. Regenerate TypeDoc (`npm run docs`); never patch generated Markdown by hand.
 8. Update the changelog and bump the package version according to SemVer. During
    `0.x`, incompatible public changes require at least a minor-version bump.
-9. Run `npm run pack:check` and verify that the tarball contains declarations,
-   JavaScript, README, and license, but not source-only or local artifacts.
+9. Run `npm run pack:check` and `npm run consumer:check` and verify that the
+   tarball contains declarations, JavaScript, README, and license, but not
+   source-only or local artifacts.
 10. Publish the core before updating a separate frontend or backend to a real
     registry version. Do not use `file:` links for released consumers.
-
-Never publish, deploy, or modify a downstream repository unless the user has
-explicitly requested that external action.
